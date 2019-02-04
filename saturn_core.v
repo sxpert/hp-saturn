@@ -8,8 +8,8 @@ module hp_rom (
 );
 localparam 	ROM_FILENAME = "rom-gx-r.hex";
 
-reg [7:0]	rom	[0:524287];
-//reg[7:0]	rom	[0:4096];
+//reg [3:0]	rom	[0:(2**20)-1];
+reg[7:0]	rom	[0:4096];
 
 initial
 begin
@@ -19,8 +19,7 @@ end
 
 always @(posedge clk)
 	if (enable)
-		nibble_out <= address[0] ? rom[address[19:1]][7:4] : rom[address[19:1]][3:0];	
-
+		nibble_out <= rom[address];
 endmodule
 
 
@@ -695,6 +694,7 @@ task inst_govlng_gosbvl;
 					4'hF: 
 						begin
 							decode_state <= DECODE_GOSBVL;					
+							rstk_ptr <= rstk_ptr + 1;
 							$write("%5h GOSBVL\t", saved_PC);
 						end
 				endcase				
@@ -709,17 +709,14 @@ task inst_govlng_gosbvl;
 						begin
 							$display("\t=> %5h", jump_base);
 							if (decode_state == DECODE_GOSBVL)
-							begin
-								rstk_ptr = rstk_ptr + 1;
-								RSTK[rstk_ptr] = PC;							  
-							end
+								RSTK[rstk_ptr] <= PC;							  
 							PC <= jump_base;
 							end_decode();
 						end 
 					else 
 						begin 
-							load_ctr = load_ctr + 1;
-							read_state = READ_START;
+							load_ctr <= load_ctr + 1;
+							read_state <= READ_START;
 						end
 				end
 	endcase
