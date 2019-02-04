@@ -1,0 +1,14 @@
+#!/bin/bash
+#iverilog -v -Wall -DSIM -o mask_gen_tb mask_gen.v
+iverilog -v -Wall -DSIM -o rom_tb saturn_core.v
+IVERILOG_STATUS=$?
+#./mask_gen_tb
+echo "--------------------------------------------------------------------"
+echo "IVERILOG_STATUS ${IVERILOG_STATUS}"
+echo "--------------------------------------------------------------------"
+if [ "${IVERILOG_STATUS}" = "0" ] 
+then
+    ./rom_tb
+fi
+#vvp mask_gen_tb -lxt2
+#gtkwave output.vcd
