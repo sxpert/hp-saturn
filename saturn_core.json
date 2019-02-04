@@ -14309,28 +14309,12 @@
     "saturn_core": {
       "attributes": {
         "top": 1,
-        "src": "saturn_core.v:39"
+        "src": "saturn_core.v:40"
       },
       "ports": {
         "clk_25mhz": {
           "direction": "input",
           "bits": [ 2 ]
-        },
-        "reset": {
-          "direction": "input",
-          "bits": [ 3 ]
-        },
-        "halt": {
-          "direction": "output",
-          "bits": [ "0" ]
-        },
-        "runstate": {
-          "direction": "output",
-          "bits": [ "1", "1", "1", "1" ]
-        },
-        "decstate": {
-          "direction": "output",
-          "bits": [ "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0" ]
         }
       },
       "cells": {
@@ -14340,35 +14324,7 @@
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:43"
-          }
-        },
-        "decstate": {
-          "hide_name": 0,
-          "bits": [ "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0" ],
-          "attributes": {
             "src": "saturn_core.v:48"
-          }
-        },
-        "halt": {
-          "hide_name": 0,
-          "bits": [ "0" ],
-          "attributes": {
-            "src": "saturn_core.v:46"
-          }
-        },
-        "reset": {
-          "hide_name": 0,
-          "bits": [ 3 ],
-          "attributes": {
-            "src": "saturn_core.v:45"
-          }
-        },
-        "runstate": {
-          "hide_name": 0,
-          "bits": [ "1", "1", "1", "1" ],
-          "attributes": {
-            "src": "saturn_core.v:47"
           }
         }
       }

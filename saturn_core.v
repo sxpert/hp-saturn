@@ -40,13 +40,13 @@ endmodule
 module saturn_core (
 `ifdef SIM
 	input			clk,
-`else
-	input			clk_25mhz,
-`endif
 	input			reset,
 	output			halt,
 	output [3:0] 	runstate,
 	output [31:0] 	decstate
+`else
+	input			clk_25mhz
+`endif
 );
 
 localparam RUN_START	= 0;
@@ -150,7 +150,15 @@ hp_rom calc_rom (
 	.nibble_out	(rom_nibble)
 );
 
+/**************************************************************************************************
+ *
+ * one single process...
+ *
+ */
+
 always @(posedge clk)
+begin
+
 	if (reset)
 		begin
 			hex_dec		<= HEX;
@@ -200,7 +208,6 @@ always @(posedge clk)
 
 // display registers
 `ifdef SIM
-always @(posedge clk)
 	if ((runstate == RUN_START) & (~reset))
 		begin
 			saved_PC <= PC;
@@ -222,7 +229,6 @@ always @(posedge clk)
 //--------------------------------------------------------------------------------------------------
 
 // read from rom start
-always @(posedge clk)
 	if (runstate == READ_ROM_STA)
 		begin
 			//$display("READ_ROM_STA");
@@ -232,7 +238,6 @@ always @(posedge clk)
 		end
 
 // read from rom clock in
-always @(posedge clk)
 	if (runstate == READ_ROM_CLK)
 		begin				
 			//$display("READ_ROM_CLK");
@@ -241,7 +246,6 @@ always @(posedge clk)
 		end
 
 // read from rom store
-always @(posedge clk)
 	if (runstate == READ_ROM_STR)
 		begin				
 			//$display("READ_ROM_STR");
@@ -261,7 +265,6 @@ always @(posedge clk)
 //--------------------------------------------------------------------------------------------------
 
 // first nibble instruction decoder
-always @(posedge clk)
 	if ((runstate == READ_ROM_VAL) & (decstate == DECODE_START))
 		begin
 			//$display("READ_ROM_VAL -> instruction decoder");
@@ -285,51 +288,6 @@ always @(posedge clk)
 			endcase
 		end
 /*
-task instruction_decoder_unhandled;
-	begin
-		$display("unhandled state %h last nibble %h", decstate , nibble);
-		halt_processor();
-	end
-endtask
-
-task instruction_decoder;
-	case (decstate )
-		DECODE_START:				instruction_decoder_start();
-		// instruction specific stuff
-		DECODE_0, DECODE_0X:			decode_0();
-		DECODE_1, DECODE_1X:			decode_1();
-		DECODE_14, DECODE_15:			decode_14_15();
-		DECODE_D0_EQ_5N:				inst_d0_eq_5n();
-		DECODE_P_EQ:					inst_p_equals();
-		DECODE_LC_LEN, DECODE_LC:		inst_lc(); 
-		DECODE_GOTO:					inst_goto();
-		DECODE_8, DECODE_8X:			decode_8();
-		DECODE_80:						decode_80();
-		DECODE_C_EQ_P_N:				inst_c_eq_p_n();
-		DECODE_82:						decode_82();
-		DECODE_ST_EQ_0_N:				inst_st_eq_0_n();
-		DECODE_ST_EQ_1_N:				inst_st_eq_1_n();
-		DECODE_GOVLNG, DECODE_GOSBVL:	inst_govlng_gosbvl();
-		DECODE_A:						decode_a();
-		DECODE_A_FS:					decode_a_fs();
-		default: instruction_decoder_unhandled();
-	endcase
-endtask
-
-task halt_processor;
-	begin
-		halt <= 1;
-	end
-endtask
-
-task end_decode;
-	begin
-		read_state <= READ_START;
-		run_state <= RUN_START;
-		decstate  <= DECODE_START;
-	end
-endtask
-
 task decode_0;
 	case (decstate )
 		DECODE_START:
@@ -455,7 +413,6 @@ endtask
  *
  */ 
  
-always @(posedge clk)
 	if (decstate == DECODE_P_EQ)
 		case (runstate)
 			RUN_DECODE: runstate <= READ_ROM_STA;
@@ -525,7 +482,6 @@ endtask
  *
  */ 
 
-always @(posedge clk)
 	if (decstate == DECODE_GOTO)
 		case (runstate)
 			RUN_DECODE:
@@ -576,7 +532,6 @@ always @(posedge clk)
  *
  */ 
 
-always @(posedge clk)
 	if (decstate == DECODE_8)
 		case (runstate)
 			RUN_DECODE: runstate <= READ_ROM_STA;
@@ -584,7 +539,7 @@ always @(posedge clk)
 			READ_ROM_VAL:
 				begin
 					case (nibble)
-						//4'h0: decode_80();
+						4'h0: decstate <= DECODE_80;
 						//4'h2: decode_82();
 						4'h4: decstate <= DECODE_ST_EQ_0_N;
 						4'h5: decstate <= DECODE_ST_EQ_1_N;
@@ -608,30 +563,43 @@ always @(posedge clk)
 					halt <= 1;
 				end
 		endcase
-/*
 
-task decode_80;
-	case (decstate )
-		DECODE_8X:
-			begin
-				decstate  <= DECODE_80;
-				read_state <= READ_START;
-			end
-		DECODE_80:
-			if (read_state != READ_VALID) read_rom();
-			else
-				case (nibble)
-					4'h5:	inst_config();
-					4'ha:   inst_reset();
-					4'hc:	inst_c_eq_p_n();
-					default:
-						begin
-							$display("decode_80: %h", nibble);
-							halt_processor();
-						end
-				endcase
-	endcase
-endtask
+/******************************************************************************
+ * 80
+ * a lot of things start with 80...
+ *
+ */ 
+
+	if (decstate == DECODE_80)
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
+				begin
+					case (nibble)
+						//4'h5:	inst_config();
+						//4'ha:   inst_reset();
+						4'hc:	decstate <= DECODE_C_EQ_P_N;
+						default:
+							begin
+`ifdef SIM
+								$display("unhandled instruction prefix 80%h", nibble);
+`endif
+								halt <= 1;
+							end
+					endcase
+					runstate <= RUN_DECODE;
+				end
+			default: 
+				begin
+`ifdef SIM
+					$display("DECODE_80 runstate %h", runstate);
+`endif
+					halt <= 1;
+				end
+		endcase
+		
+/*
 
 // 805		CONFIG
 task inst_config;
@@ -649,6 +617,16 @@ task inst_reset;
 	end
 endtask
 
+*/
+
+/******************************************************************************
+ * 2n			P= 		n
+ *
+ *
+ */ 
+
+
+/*
 // 80Cn		C=P	n
 task inst_c_eq_p_n;
 	case (decstate )
@@ -699,7 +677,6 @@ endtask
  * 85n	ST=1   n
  */ 
 
-always @(posedge clk)
 	if ((decstate == DECODE_ST_EQ_0_N) | (decstate == DECODE_ST_EQ_1_N))
 		case (runstate)
 			RUN_DECODE: runstate <= READ_ROM_STA;
@@ -740,7 +717,6 @@ always @(posedge clk)
  * two for the price of one...
  */ 
 
-always @(posedge clk)
 	if ((decstate == DECODE_GOVLNG) | (decstate == DECODE_GOSBVL))
 		case (runstate)
 			RUN_DECODE:
@@ -857,12 +833,12 @@ task decode_a_fs;
 	endcase
 endtask
 */
+end
 endmodule
-
 
 `ifdef SIM
 
-module rom_tb;
+module saturn_tb;
 reg			clk;
 reg			reset;
 wire		halt;
@@ -896,5 +872,8 @@ end
 
 
 endmodule
+
+`else
+
 
 `endif
