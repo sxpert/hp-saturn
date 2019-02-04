@@ -14,8 +14,8 @@ module hp_rom (
 );
 localparam 	ROM_FILENAME = "rom-gx-r.hex";
 
-//reg [3:0]	rom	[0:(2**20)-1];
-reg[3:0]	rom	[0:(2**16)-1];
+reg [3:0]	rom	[0:(2**20)-1];
+//reg[3:0]	rom	[0:(2**16)-1];
 
 initial
 begin
@@ -49,7 +49,7 @@ localparam READ_ROM_STA	= 1;
 localparam READ_ROM_CLK	= 2;
 localparam READ_ROM_STR	= 3;
 localparam READ_ROM_VAL	= 4;
-
+localparam RUN_EXEC		= 14;
 localparam RUN_DECODE	= 15;
 
 // decoder stuff
@@ -253,34 +253,6 @@ always @(posedge clk)
 // INSTRUCTION DECODING
 //
 //--------------------------------------------------------------------------------------------------
-/*
-
-task run_nibble_start;
-	case (read_state)
-		READ_START:	
-			begin
-				read_rom();
-				saved_PC <= PC;
-			end
-		READ_CLOCK, READ_STORE:
-			read_rom();
-		READ_VALID:
-			run_state <= RUN_DECODE;
-	endcase;
-endtask
-
-task run_nibble;
-	begin
-		if ((run_state == RUN_START) & (read_state == READ_START) & (decstate  == DECODE_START))
-			display_registers();
-		case (run_state)
-			RUN_START:run_nibble_start();
-			RUN_DECODE: instruction_decoder();
-		endcase
-	end
-endtask
-
-*/
 
 // first nibble instruction decoder
 always @(posedge clk)
@@ -294,7 +266,7 @@ always @(posedge clk)
 				4'h2 : decstate <= DECODE_P_EQ;
 				//4'h3 : decstate <= DECODE_LC;
 
-				//4'h6 : decstate <= DECODE_GOTO;
+				4'h6 : decstate <= DECODE_GOTO;
 				//4'h8 : decstate <= DECODE_8;
 				//4'ha : decstate <= DECODE_A_FS;
 				default: 
@@ -469,7 +441,12 @@ endtask
 
 */
 
-// 2n		P= n
+/******************************************************************************
+ * 2n			P= 		n
+ *
+ *
+ */ 
+ 
 always @(posedge clk)
 	if (decstate == DECODE_P_EQ)
 		case (runstate)
@@ -531,40 +508,54 @@ task inst_lc;
 				end
 	endcase
 endtask
+*/
 
-// 6zyx			GOTO	xyz
-task inst_goto;
-	case (decstate )
-		DECODE_START:
-			begin
-				decstate  <= DECODE_GOTO;
-				read_state <= READ_START;
-				jump_base <= PC;
-				jump_offset <= 0;
-				load_cnt = 2;
-				load_ctr = 0;
-				$write("%5h GOTO\t", saved_PC);
-			end
-		DECODE_GOTO:
-			if (read_state != READ_VALID) read_rom();
-			else
+/******************************************************************************
+ * 6zyx			GOTO	xyz
+ * 
+ *
+ */ 
+
+always @(posedge clk)
+	if (decstate == DECODE_GOTO)
+		case (runstate)
+			RUN_DECODE:
 				begin
-					jump_offset[load_ctr*4+:4] = nibble;
+					runstate <= READ_ROM_STA;
+					jump_base <= PC;
+					jump_offset <= 0;
+					load_cnt <= 2;
+					load_ctr <= 0;
+					$write("%5h GOTO\t", saved_PC);
+				end
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
+				begin
+					jump_offset[load_ctr*4+:4] <= nibble;
 					$write("%1h", nibble);
-					if (load_ctr == load_cnt) 
-						begin
-							$display("\t=> %05h", jump_base + jump_offset);
-							PC <= jump_base + jump_offset;
-							end_decode();
-						end 
+					if (load_ctr == load_cnt) runstate <= RUN_EXEC;
 					else 
 						begin 
-							load_ctr = load_ctr + 1;
-							read_state = READ_START;
+							load_ctr <= load_ctr + 1;
+							runstate <= READ_ROM_STA;
 						end
 				end
-	endcase	
-endtask
+			RUN_EXEC:
+				begin
+					$display("\t=> %05h", jump_base + jump_offset);
+					PC <= jump_base + jump_offset;
+					runstate <= RUN_START;
+					decstate <= DECODE_START;
+				end 
+			default: 
+				begin
+					$display("runstate %h", runstate);
+					halt <= 1;
+				end
+		endcase
+
+
+/*
 
 // 8x
 
