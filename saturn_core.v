@@ -578,7 +578,7 @@ endtask
 				begin
 					case (nibble)
 						//4'h5:	inst_config();
-						//4'ha:   inst_reset();
+						4'ha:   decstate <= DECODE_RESET;
 						4'hc:	decstate <= DECODE_C_EQ_P_N;
 						default:
 							begin
@@ -608,43 +608,50 @@ task inst_config;
 		end_decode();
 	end
 endtask
-
-// 80A		RESET
-task inst_reset;
-	begin
-		$display("%05h RESET\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
-		end_decode();
-	end
-endtask
-
 */
 
 /******************************************************************************
- * 2n			P= 		n
+ * 80A		RESET
  *
  *
  */ 
 
+	if ((decstate == DECODE_RESET) & (runstate == RUN_DECODE))	
+		begin
+			$display("%05h RESET\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
+			runstate <= RUN_START;
+			decstate <= DECODE_START;
+		end
+
+/******************************************************************************
+ * 80Cn		C=P	n
+ *
+ *
+ */ 
+
+	if (decstate == DECODE_C_EQ_P_N)
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
+				begin
+					C[nibble*4+:4] <= P;
+`ifdef SIM
+					$display("%05h C=P\t%h", saved_PC, nibble);	
+`endif
+					runstate <= RUN_START;
+					decstate <= DECODE_START;
+				end
+			default: 
+				begin
+`ifdef SIM
+					$display("DECODE_80C runstate %h", runstate);
+`endif
+					halt <= 1;
+				end
+		endcase
 
 /*
-// 80Cn		C=P	n
-task inst_c_eq_p_n;
-	case (decstate )
-		DECODE_80:
-			begin
-				decstate  <= DECODE_C_EQ_P_N;
-				read_state <= READ_START;
-			end
-		DECODE_C_EQ_P_N:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					$display("%05h C=P\t%h", saved_PC, nibble);
-					C[nibble*4+:4] <= P;
-					end_decode();
-				end
-	endcase
-endtask
 
 task decode_82;
 	case (decstate )
