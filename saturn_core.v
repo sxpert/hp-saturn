@@ -36,18 +36,28 @@ endmodule
  *
  *
  */
-
-module saturn_core (
 `ifdef SIM
+module saturn_core (
 	input			clk,
 	input			reset,
 	output			halt,
 	output [3:0] 	runstate,
 	output [31:0] 	decstate
-`else
-	input			clk_25mhz
-`endif
 );
+`else
+module saturn_core (
+	input			clk_25mhz,
+    input [6:0] 	btn,
+	output 			wifi_gpio0
+);
+wire clk;
+wire reset;
+
+assign wifi_gpio0	= 1'b1;
+assign clk			= clk_25mhz;
+assign reset		= btn[1];
+
+`endif
 
 localparam RUN_START	= 0;
 localparam READ_ROM_STA	= 1;
@@ -650,6 +660,14 @@ endtask
 					halt <= 1;
 				end
 		endcase
+
+
+/******************************************************************************
+ * 82x
+ * 
+ * lots of things there
+ *
+ */ 
 
 /*
 
