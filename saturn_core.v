@@ -267,7 +267,7 @@ always @(posedge clk)
 				//4'h3 : decstate <= DECODE_LC;
 
 				4'h6 : decstate <= DECODE_GOTO;
-				//4'h8 : decstate <= DECODE_8;
+				4'h8 : decstate <= DECODE_8;
 				//4'ha : decstate <= DECODE_A_FS;
 				default: 
 					begin
@@ -450,10 +450,7 @@ endtask
 always @(posedge clk)
 	if (decstate == DECODE_P_EQ)
 		case (runstate)
-			RUN_DECODE:
-				begin
-					runstate <= READ_ROM_STA;
-				end
+			RUN_DECODE: runstate <= READ_ROM_STA;
 			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
 			READ_ROM_VAL:
 				begin
@@ -554,39 +551,38 @@ always @(posedge clk)
 				end
 		endcase
 
+/******************************************************************************
+ * 8
+ * a lot of things start with 8...
+ *
+ */ 
 
+always @(posedge clk)
+	if (decstate == DECODE_8)
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
+				case (nibble)
+					//4'h0: decode_80();
+					//4'h2: decode_82();
+					//4'h4: inst_st_eq_0_n();
+					//4'h5: inst_st_eq_1_n();
+					4'hd: decstate <= DECODE_GOVLNG;
+					//4'hf: decstate <= DECODE_GOSBVL;
+					default:
+						begin
+							$display("unhandled instruction prefix 8%h", nibble);
+							halt <= 1;
+						end
+				endcase
+			default: 
+				begin
+					$display("runstate %h", runstate);
+					halt <= 1;
+				end
+		endcase
 /*
-
-// 8x
-
-task decode_8;
-	case (decstate )
-		DECODE_START:
-			begin
-				decstate  <= DECODE_8X;
-				read_state <= READ_START;
-			end
-		DECODE_8X:
-			if (read_state != READ_VALID) read_rom();
-			else decode_8x();
-	endcase		
-endtask
-
-task decode_8x;
-	case (nibble)
-		4'h0: decode_80();
-		4'h2: decode_82();
-		4'h4: inst_st_eq_0_n();
-		4'h5: inst_st_eq_1_n();
-		4'hd,
-		4'hf: inst_govlng_gosbvl();
-		default: 
-			begin
-				$display("unhandled instruction prefix 8%h", nibble);
-				halt_processor();
-			end
-	endcase
-endtask
 
 task decode_80;
 	case (decstate )
@@ -708,9 +704,15 @@ task inst_st_eq_1_n;
 				end
 	endcase
 endtask
+*/
 
-// 8Dzyxwv	GOVLNG	vwxyz
-// 8Fzyxwv	GOSBVL	vwxyz
+/******************************************************************************
+ * 8Dzyxwv	GOVLNG		vwxyz
+ * 8Fzyxwv	GOSBVL		vwxyz
+ * two for the price of one...
+ */ 
+
+/*
 task inst_govlng_gosbvl;
 	case (decstate )
 		DECODE_8X:
