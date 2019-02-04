@@ -1,4 +1,10 @@
-
+/**************************************************************************************************
+ *
+ *
+ *
+ *
+ *
+ */
 
 module hp_rom (
 	input 		clk,
@@ -9,7 +15,7 @@ module hp_rom (
 localparam 	ROM_FILENAME = "rom-gx-r.hex";
 
 //reg [3:0]	rom	[0:(2**20)-1];
-reg[7:0]	rom	[0:4096];
+reg[3:0]	rom	[0:(2**16)-1];
 
 initial
 begin
@@ -22,20 +28,29 @@ always @(posedge clk)
 		nibble_out <= rom[address];
 endmodule
 
+/**************************************************************************************************
+ *
+ *
+ *
+ *
+ *
+ */
 
 module saturn_core (
-	input	clk,
-	input	reset,
-	output	halt
+	input			clk,
+	input			reset,
+	output			halt,
+	output [3:0] 	runstate,
+	output [31:0] 	decstate
 );
 
-localparam READ_START	= 2'b00;
-localparam READ_CLOCK	= 2'b01;
-localparam READ_STORE	= 2'b10;
-localparam READ_VALID	= 2'b11;
+localparam RUN_START	= 0;
+localparam READ_ROM_STA	= 1;
+localparam READ_ROM_CLK	= 2;
+localparam READ_ROM_STR	= 3;
+localparam READ_ROM_VAL	= 4;
 
-localparam RUN_START   = 1'b0;
-localparam RUN_DECODE	= 1'b1;
+localparam RUN_DECODE	= 15;
 
 // decoder stuff
 
@@ -46,6 +61,9 @@ localparam DECODE_0X		= 32'h00000002;
 
 localparam DECODE_1			= 32'h00000010;
 localparam DECODE_1X		= 32'h00000011;
+localparam DECODE_14		= 32'h00000410;
+localparam DECODE_15		= 32'h00000510;
+localparam DECODE_MEMACCESS	= 32'h00000411;
 localparam DECODE_D0_EQ_5N	= 32'h00000b10;
 
 localparam DECODE_P_EQ		= 32'h00000020;
@@ -71,38 +89,40 @@ localparam DECODE_ST_EQ_1_N	= 32'h00000580;
 localparam DECODE_GOVLNG	= 32'h00000d80;
 localparam DECODE_GOSBVL	= 32'h00000f80;
 
+localparam DECODE_A			= 32'h000000a0;
+localparam DECODE_A_FS		= 32'h000000a1;
+
 localparam HEX			= 0;
 localparam DEC			= 1;
 
 // state machine stuff
-reg		halt;
-reg	[1:0]	read_state;
-reg		run_state;
-reg	[31:0]	decode_state;
+reg			halt;
+reg	[3:0]	runstate;
+reg	[31:0]	decstate;
 
 // memory access
-reg		rom_clock;
+reg			rom_clock;
 reg	[19:0]	rom_address;
-reg		rom_enable;
-wire	[3:0]	rom_nibble;
+reg			rom_enable;
+wire[3:0]	rom_nibble;
 
 // internal registers
-reg	[3:0]	data_nibble;
+reg	[3:0]	nibble;
 reg	[19:0]  saved_PC;
 reg	[2:0]	rstk_ptr;
 reg	[19:0]  jump_base;
 reg	[19:0]	jump_offset;
-reg		hex_dec;
+reg			hex_dec;
 reg	[3:0]	load_cnt;
 reg	[3:0]	load_ctr;
-reg	[5:0]	load_disp;
+reg [3:0]	tmp_field;
 
 // processor registers
 reg	[19:0]	PC;
 reg	[3:0]	P;
 reg	[15:0]  ST;
 reg	[3:0]	HST;
-reg		Carry;
+reg			Carry;
 reg	[19:0]	RSTK[0:7];
 reg	[19:0]	D0;
 reg	[19:0]	D1;
@@ -126,18 +146,46 @@ hp_rom calc_rom (
 );
 
 always @(posedge clk)
-begin
 	if (reset)
-	begin
-		read_state <= READ_START;
-		run_state <= RUN_START;
-		decode_state <= DECODE_START;
-		initialize_registers();
-	end
-	else
-		run_nibble();
-end
+		begin
+			hex_dec		<= HEX;
+			rstk_ptr	<= 7;
 
+			PC			<= 0;
+			P			<= 0;
+			ST			<= 0;
+			HST			<= 0;
+			Carry		<= 0;
+			RSTK[0]		<= 0;
+			RSTK[1]		<= 0;
+			RSTK[2]		<= 0;
+			RSTK[3]		<= 0;
+			RSTK[4]		<= 0;
+			RSTK[5]		<= 0;
+			RSTK[6]		<= 0;
+			RSTK[7]		<= 0;
+
+			D0			<= 0;
+			D1			<= 0;
+
+			A			<= 0;
+			B			<= 0;
+			C			<= 0;
+			D			<= 0;
+
+			R0			<= 0;
+			R1			<= 0;
+			R2			<= 0;
+			R3			<= 0;
+			R4			<= 0;
+
+			halt		<= 0;
+			runstate	<= RUN_START;
+			decstate 	<= DECODE_START;
+		end
+	else
+		if (runstate == RUN_START) 
+			runstate <= READ_ROM_STA;
 
 //--------------------------------------------------------------------------------------------------
 //
@@ -145,55 +193,20 @@ end
 //
 //--------------------------------------------------------------------------------------------------
 
-task initialize_registers;
-	begin
-		hex_dec <= HEX;
-		rstk_ptr <= 7;
-	
-		PC <= 0;
-		P <= 0;
-		ST <= 0;
-		HST <= 0;
-		Carry <= 0;
-		RSTK[0] <= 0;
-		RSTK[1] <= 0;
-		RSTK[2] <= 0;
-		RSTK[3] <= 0;
-		RSTK[4] <= 0;
-		RSTK[5] <= 0;
-		RSTK[6] <= 0;
-		RSTK[7] <= 0;
-
-		D0 = 0;
-		D1 = 0;
-
-		A <= 0;
-		B <= 0;
-		C <= 0;
-		D <= 0;
-
-		R0 <= 0;
-		R1 <= 0;
-		R2 <= 0;
-		R3 <= 0;
-		R4 <= 0;
-
-		halt <= 0;
-	end
-endtask
-
-task display_registers;
-	begin
-		$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
-		$display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", P, HST, ST, RSTK[6]);
-		$display("A:  %h    R0:  %h   RSTK5: %5h", A, R0, RSTK[5]);
-		$display("B:  %h    R1:  %h   RSTK4: %5h", B, R1, RSTK[4]);
-		$display("C:  %h    R2:  %h   RSTK3: %5h", C, R2, RSTK[3]);
-		$display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
-		$display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", D0, D1, R4, RSTK[1]);
-		$display("                                                RSTK0: %5h", RSTK[0]);
-	end
-endtask
+// display registers
+always @(posedge clk)
+	if ((runstate == RUN_START) & (~reset))
+		begin
+			saved_PC <= PC;
+			$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
+			$display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", P, HST, ST, RSTK[6]);
+			$display("A:  %h    R0:  %h   RSTK5: %5h", A, R0, RSTK[5]);
+			$display("B:  %h    R1:  %h   RSTK4: %5h", B, R1, RSTK[4]);
+			$display("C:  %h    R2:  %h   RSTK3: %5h", C, R2, RSTK[3]);
+			$display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
+			$display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", D0, D1, R4, RSTK[1]);
+			$display("                                                RSTK0: %5h", RSTK[0]);
+		end
 
 
 //--------------------------------------------------------------------------------------------------
@@ -202,50 +215,45 @@ endtask
 //
 //--------------------------------------------------------------------------------------------------
 
+// read from rom start
+always @(posedge clk)
+	if (runstate == READ_ROM_STA)
+		begin
+			//$display("READ_ROM_STA");
+			rom_enable <= 1'b1;
+			rom_address <= PC;
+			runstate <= READ_ROM_CLK;
+		end
 
-task read_rom_start;
-	begin
-		//$display("start read");
-		rom_enable <= 1'b1;
-		rom_address <= PC;
-		read_state <= READ_CLOCK;
-	end
-endtask
+// read from rom clock in
+always @(posedge clk)
+	if (runstate == READ_ROM_CLK)
+		begin				
+			//$display("READ_ROM_CLK");
+			rom_clock <= 1'b1;
+			runstate <= READ_ROM_STR;
+		end
 
-task read_rom_clock;
-	begin				
-		//$display("clocking rom");
-		rom_clock <= 1'b1;
-		read_state <= READ_STORE;
-	end
-endtask
+// read from rom store
+always @(posedge clk)
+	if (runstate == READ_ROM_STR)
+		begin				
+			//$display("READ_ROM_STR");
+			nibble <= rom_nibble;
+			//$display("PC: %h | read => %h", PC, rom_nibble);
+			PC <= PC + 1;
+			rom_enable <= 1'b0;
+			rom_clock <= 1'b0;
+			runstate <= READ_ROM_VAL;
+		end
 
-task read_rom_store;
-	begin				
-		//$display("storing result");
-		data_nibble = rom_nibble;
-		//$display("PC: %h | read => %h", PC, rom_nibble);
-		PC = PC + 1;
-		rom_enable = 1'b0;
-		rom_clock = 1'b0;
-		read_state = READ_VALID;
-	end
-endtask
-
-task read_rom;
-	case (read_state)
-		READ_START: read_rom_start();
-		READ_CLOCK: read_rom_clock();
-		READ_STORE: read_rom_store();
-	endcase
-endtask	
 
 //--------------------------------------------------------------------------------------------------
 //
 // INSTRUCTION DECODING
 //
 //--------------------------------------------------------------------------------------------------
-
+/*
 
 task run_nibble_start;
 	case (read_state)
@@ -263,7 +271,7 @@ endtask
 
 task run_nibble;
 	begin
-		if ((run_state == RUN_START) & (read_state == READ_START) & (decode_state == DECODE_START))
+		if ((run_state == RUN_START) & (read_state == READ_START) & (decstate  == DECODE_START))
 			display_registers();
 		case (run_state)
 			RUN_START:run_nibble_start();
@@ -272,37 +280,45 @@ task run_nibble;
 	end
 endtask
 
-task instruction_decoder_start;
-	case (data_nibble)
-		4'h0 : decode_0();
-		4'h1 : decode_1();
-		4'h2 : inst_p_equals();
-		4'h3 : inst_lc();
+*/
 
-		4'h6 : inst_goto();
-		4'h8 : decode_8();
+// first nibble instruction decoder
+always @(posedge clk)
+	if ((runstate == READ_ROM_VAL) & (decstate == DECODE_START))
+		begin
+			//$display("READ_ROM_VAL -> instruction decoder");
+			runstate <= RUN_DECODE;
+			case (nibble)
+				//4'h0 : decstate <= DECODE_0;
+				//4'h1 : decstate <= DECODE_1;
+				4'h2 : decstate <= DECODE_P_EQ;
+				//4'h3 : decstate <= DECODE_LC;
 
-		default: 
-			begin
-				$display("%05h nibble %h => unimplemented", saved_PC, data_nibble);
-				halt_processor();
-			end
-	endcase
-endtask
-
+				//4'h6 : decstate <= DECODE_GOTO;
+				//4'h8 : decstate <= DECODE_8;
+				//4'ha : decstate <= DECODE_A_FS;
+				default: 
+					begin
+						$display("%05h nibble %h => unimplemented", saved_PC, nibble);
+						halt <= 1;
+					end
+			endcase
+		end
+/*
 task instruction_decoder_unhandled;
 	begin
-		$display("unhandled state %h last nibble %h", decode_state, data_nibble);
+		$display("unhandled state %h last nibble %h", decstate , nibble);
 		halt_processor();
 	end
 endtask
 
 task instruction_decoder;
-	case (decode_state)
+	case (decstate )
 		DECODE_START:				instruction_decoder_start();
 		// instruction specific stuff
 		DECODE_0, DECODE_0X:			decode_0();
 		DECODE_1, DECODE_1X:			decode_1();
+		DECODE_14, DECODE_15:			decode_14_15();
 		DECODE_D0_EQ_5N:				inst_d0_eq_5n();
 		DECODE_P_EQ:					inst_p_equals();
 		DECODE_LC_LEN, DECODE_LC:		inst_lc(); 
@@ -314,6 +330,8 @@ task instruction_decoder;
 		DECODE_ST_EQ_0_N:				inst_st_eq_0_n();
 		DECODE_ST_EQ_1_N:				inst_st_eq_1_n();
 		DECODE_GOVLNG, DECODE_GOSBVL:	inst_govlng_gosbvl();
+		DECODE_A:						decode_a();
+		DECODE_A_FS:					decode_a_fs();
 		default: instruction_decoder_unhandled();
 	endcase
 endtask
@@ -328,15 +346,15 @@ task end_decode;
 	begin
 		read_state <= READ_START;
 		run_state <= RUN_START;
-		decode_state <= DECODE_START;
+		decstate  <= DECODE_START;
 	end
 endtask
 
 task decode_0;
-	case (decode_state)
+	case (decstate )
 		DECODE_START:
 			begin
-				decode_state <= DECODE_0X;
+				decstate  <= DECODE_0X;
 				read_state <= READ_START;
 			end
 		DECODE_0X:
@@ -346,7 +364,7 @@ task decode_0;
 endtask
 
 task decode_0x;
-	case (data_nibble)
+	case (nibble)
 		4'h3: inst_rtncc();
 		4'h4: inst_sethex();
 		default: instruction_decoder_unhandled();
@@ -375,10 +393,10 @@ task inst_sethex;
 endtask
 
 task decode_1;
-	case (decode_state)
+	case (decstate )
 		DECODE_START:
 			begin
-				decode_state = DECODE_1X;
+				decstate  = DECODE_1X;
 				read_state = READ_START;
 			end
 		DECODE_1X:
@@ -388,18 +406,42 @@ task decode_1;
 endtask
 
 task decode_1x;
-	case (data_nibble)
-		4'hb:	 inst_d0_eq_5n();
-		default: instruction_decoder_unhandled();
+	case (nibble)
+		4'h4, 4'h5:	decode_14_15();
+		4'hb:	 	inst_d0_eq_5n();
+		default: 	instruction_decoder_unhandled();
 	endcase
+endtask
+
+task decode_14_15;
+	case (decstate)
+		DECODE_1X: 
+			begin
+				read_state <= READ_START;
+				case (nibble)
+					4'h4: decstate <= DECODE_14;
+					4'h5: decstate <= DECODE_15;
+				endcase
+			end
+		DECODE_14, DECODE_15:
+			if (read_state != READ_VALID) read_rom();
+			else
+				case (nibble)
+					default:
+						begin
+							$display("memacess %h %h", decstate[11:8], nibble);
+							halt_processor();
+						end
+				endcase
+	endcase 
 endtask
 
 // 1bnnnnn	DO=(5) nnnnn
 task inst_d0_eq_5n;
-	case (decode_state)
+	case (decstate )
 		DECODE_1X:
 			begin
-				decode_state = DECODE_D0_EQ_5N;
+				decstate  = DECODE_D0_EQ_5N;
 				read_state = READ_START;
 				load_cnt = 4;
 				load_ctr = 0;
@@ -409,8 +451,8 @@ task inst_d0_eq_5n;
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					D0[load_ctr*4+:4] = data_nibble;
-					$write("%1h", data_nibble);
+					D0[load_ctr*4+:4] = nibble;
+					$write("%1h", nibble);
 					if (load_ctr == load_cnt) 
 						begin
 							$display("");
@@ -425,47 +467,48 @@ task inst_d0_eq_5n;
 	endcase
 endtask
 
-// 2n		P= n
+*/
 
-task inst_p_equals;
-	case (decode_state)
-		DECODE_START:
-			begin
-				//$display("decoding \"P= n\" - reading from rom");
-				decode_state <= DECODE_P_EQ;
-				read_state <= READ_START;
-			end
-		DECODE_P_EQ:
-			if (read_state != READ_VALID) read_rom();
-			else
+// 2n		P= n
+always @(posedge clk)
+	if (decstate == DECODE_P_EQ)
+		case (runstate)
+			RUN_DECODE:
 				begin
-					P <= data_nibble;	
-					$display("%05h P=\t%h", saved_PC, data_nibble);	
-					end_decode();
+					runstate <= READ_ROM_STA;
 				end
-		default:
-			begin
-				$display("unknown state while decoding \"P= n\" %d", decode_state);
-				halt_processor();
-			end
-	endcase		
-endtask
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
+				begin
+					P <= nibble;
+					$display("%05h P=\t%h", saved_PC, nibble);	
+					runstate <= RUN_START;
+					decstate <= DECODE_START;
+				end
+			default:
+				begin
+					$display("runstate %h", runstate);
+					halt <= 1;
+				end
+		endcase
+
+/*
 
 // 3nxxxxxxxxxxxxxxxx	LC xxxxxxxxxxxxxxxx
 task inst_lc;
-	case (decode_state)
+	case (decstate )
 		DECODE_START:
 			begin
-				decode_state = DECODE_LC_LEN;
+				decstate  = DECODE_LC_LEN;
 				read_state = READ_START;
 			end
 		DECODE_LC_LEN:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					load_cnt = data_nibble;
+					load_cnt = nibble;
 					load_ctr = 0;
-					decode_state = DECODE_LC;
+					decstate  = DECODE_LC;
 					read_state = READ_START;
 					$write("%5h LC (%h)\t", saved_PC, load_cnt);
 				end
@@ -473,8 +516,8 @@ task inst_lc;
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					C[((load_ctr+P)%16)*4+:4] = data_nibble;
-					$write("%1h", data_nibble);
+					C[((load_ctr+P)%16)*4+:4] = nibble;
+					$write("%1h", nibble);
 					if (load_ctr == load_cnt) 
 						begin
 							$display("");
@@ -491,10 +534,10 @@ endtask
 
 // 6zyx			GOTO	xyz
 task inst_goto;
-	case (decode_state)
+	case (decstate )
 		DECODE_START:
 			begin
-				decode_state <= DECODE_GOTO;
+				decstate  <= DECODE_GOTO;
 				read_state <= READ_START;
 				jump_base <= PC;
 				jump_offset <= 0;
@@ -506,8 +549,8 @@ task inst_goto;
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					jump_offset[load_ctr*4+:4] = data_nibble;
-					$write("%1h", data_nibble);
+					jump_offset[load_ctr*4+:4] = nibble;
+					$write("%1h", nibble);
 					if (load_ctr == load_cnt) 
 						begin
 							$display("\t=> %05h", jump_base + jump_offset);
@@ -526,10 +569,10 @@ endtask
 // 8x
 
 task decode_8;
-	case (decode_state)
+	case (decstate )
 		DECODE_START:
 			begin
-				decode_state <= DECODE_8X;
+				decstate  <= DECODE_8X;
 				read_state <= READ_START;
 			end
 		DECODE_8X:
@@ -539,7 +582,7 @@ task decode_8;
 endtask
 
 task decode_8x;
-	case (data_nibble)
+	case (nibble)
 		4'h0: decode_80();
 		4'h2: decode_82();
 		4'h4: inst_st_eq_0_n();
@@ -548,29 +591,29 @@ task decode_8x;
 		4'hf: inst_govlng_gosbvl();
 		default: 
 			begin
-				$display("unhandled instruction prefix 8%h", data_nibble);
+				$display("unhandled instruction prefix 8%h", nibble);
 				halt_processor();
 			end
 	endcase
 endtask
 
 task decode_80;
-	case (decode_state)
+	case (decstate )
 		DECODE_8X:
 			begin
-				decode_state <= DECODE_80;
+				decstate  <= DECODE_80;
 				read_state <= READ_START;
 			end
 		DECODE_80:
 			if (read_state != READ_VALID) read_rom();
 			else
-				case (data_nibble)
+				case (nibble)
 					4'h5:	inst_config();
 					4'ha:   inst_reset();
 					4'hc:	inst_c_eq_p_n();
 					default:
 						begin
-							$display("decode_80: %h", data_nibble);
+							$display("decode_80: %h", nibble);
 							halt_processor();
 						end
 				endcase
@@ -595,42 +638,42 @@ endtask
 
 // 80Cn		C=P	n
 task inst_c_eq_p_n;
-	case (decode_state)
+	case (decstate )
 		DECODE_80:
 			begin
-				decode_state <= DECODE_C_EQ_P_N;
+				decstate  <= DECODE_C_EQ_P_N;
 				read_state <= READ_START;
 			end
 		DECODE_C_EQ_P_N:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					$display("%05h C=P\t%h", saved_PC, data_nibble);
-					C[data_nibble*4+:4] <= P;
+					$display("%05h C=P\t%h", saved_PC, nibble);
+					C[nibble*4+:4] <= P;
 					end_decode();
 				end
 	endcase
 endtask
 
 task decode_82;
-	case (decode_state)
+	case (decstate )
 		DECODE_8X:
 			begin
-				decode_state <= DECODE_82;
+				decstate  <= DECODE_82;
 				read_state <= READ_START;
 			end
 		DECODE_82:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					HST <= HST & ~data_nibble;
-					case (data_nibble)
+					HST <= HST & ~nibble;
+					case (nibble)
 						4'h1:	 $display("%5h XM=0", saved_PC);
 						4'h2:	 $display("%5h SB=0", saved_PC);
 						4'h4:    $display("%5h SR=0", saved_PC);
 						4'h8:	 $display("%5h MP=0", saved_PC);
 						4'hf:    $display("%5h CLRHST", saved_PC);
-						default: $display("%5h CLRHST	%f", saved_PC, data_nibble);
+						default: $display("%5h CLRHST	%f", saved_PC, nibble);
 					endcase
 					end_decode();
 				end
@@ -639,18 +682,18 @@ endtask
 
 // 84n		ST=0	n
 task inst_st_eq_0_n;
-	case (decode_state)
+	case (decstate )
 		DECODE_8X:
 			begin
-				decode_state <= DECODE_ST_EQ_0_N;
+				decstate  <= DECODE_ST_EQ_0_N;
 				read_state <= READ_START;
 			end
 		DECODE_ST_EQ_0_N:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					$display("%05h ST=0\t%h", saved_PC, data_nibble);
-					ST[data_nibble] <= 0;
+					$display("%05h ST=0\t%h", saved_PC, nibble);
+					ST[nibble] <= 0;
 					end_decode();
 				end
 	endcase
@@ -658,18 +701,18 @@ endtask
 
 // 85n		ST=1	n
 task inst_st_eq_1_n;
-	case (decode_state)
+	case (decstate )
 		DECODE_8X:
 			begin
-				decode_state <= DECODE_ST_EQ_1_N;
+				decstate  <= DECODE_ST_EQ_1_N;
 				read_state <= READ_START;
 			end
 		DECODE_ST_EQ_1_N:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					$display("%05h ST=1\t%h", saved_PC, data_nibble);
-					ST[data_nibble] <= 1;
+					$display("%05h ST=1\t%h", saved_PC, nibble);
+					ST[nibble] <= 1;
 					end_decode();
 				end
 	endcase
@@ -678,22 +721,22 @@ endtask
 // 8Dzyxwv	GOVLNG	vwxyz
 // 8Fzyxwv	GOSBVL	vwxyz
 task inst_govlng_gosbvl;
-	case (decode_state)
+	case (decstate )
 		DECODE_8X:
 			begin
 				read_state <= READ_START;
 				jump_base <= 0;
 				load_cnt <= 4;
 				load_ctr <= 0;
-				case (data_nibble)
+				case (nibble)
 					4'hD: 
 						begin
-							decode_state <= DECODE_GOVLNG;	
+							decstate  <= DECODE_GOVLNG;	
 							$write("%5h GOVLNG\t", saved_PC);
 						end				
 					4'hF: 
 						begin
-							decode_state <= DECODE_GOSBVL;					
+							decstate  <= DECODE_GOSBVL;					
 							rstk_ptr <= rstk_ptr + 1;
 							$write("%5h GOSBVL\t", saved_PC);
 						end
@@ -703,12 +746,12 @@ task inst_govlng_gosbvl;
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					jump_base[load_ctr*4+:4] = data_nibble;
-					$write("%1h", data_nibble);
+					jump_base[load_ctr*4+:4] = nibble;
+					$write("%1h", nibble);
 					if (load_ctr == load_cnt) 
 						begin
 							$display("\t=> %5h", jump_base);
-							if (decode_state == DECODE_GOSBVL)
+							if (decstate  == DECODE_GOSBVL)
 								RSTK[rstk_ptr] <= PC;							  
 							PC <= jump_base;
 							end_decode();
@@ -722,35 +765,101 @@ task inst_govlng_gosbvl;
 	endcase
 endtask
 
+task decode_a;
+	case (decstate)
+		DECODE_START:
+			begin
+				decstate  <= DECODE_A;
+				read_state <= READ_START;
+			end
+		DECODE_A:
+			if (read_state != READ_VALID) read_rom();
+			else 
+				begin
+					tmp_field <= nibble;
+					decstate <= DECODE_A_FS;
+					read_state <= READ_START;
+				end
+	endcase		
+endtask
+	
+task decode_a_fs;
+	case (decstate)
+		DECODE_A_FS:
+			if (read_state != READ_VALID) read_rom();
+			else
+				begin
+					$write("%5h ", saved_PC);
+					case (tmp_field)
+						4'h0, 4'h1, 4'h2, 4'h3, 4'h4, 4'h5, 4'h6, 4'h7:
+							begin
+								$display("a%h%h", tmp_field, nibble);
+								halt_processor();
+							end
+						4'h8, 4'h9, 4'ha, 4'hb, 4'hc, 4'hd, 4'he, 4'hf:
+							begin
+								case (nibble)
+									4'h2: // C=0 fs
+										begin
+											$write("C=0\t");
+											case (tmp_field)
+												4'he: C[7:0] <= 0;
+												default: 
+													begin
+														$display("a%h%h", tmp_field, nibble);
+														halt_processor();
+													end
+											endcase
+										end
+									default: 
+										begin
+											$display("a%h%h", tmp_field, nibble);
+											halt_processor();
+										end
+								endcase
+								case (tmp_field)
+									4'he: $display("B");
+								endcase
+								if (~halt)
+									end_decode();
+							end
+					endcase
+				end
+	endcase
+endtask
+*/
 endmodule
 
 
 `ifdef SIM
 
 module rom_tb;
-reg		clk;
-reg		reset;
+reg			clk;
+reg			reset;
 wire		halt;
+wire [3:0]	runstate;
+wire [31:0]	decstate;
 
 saturn_core saturn (
-	.clk	(clk),
-	.reset	(reset),
-	.halt	(halt)
+	.clk		(clk),
+	.reset		(reset),
+	.halt		(halt),
+	.runstate	(runstate),
+	.decstate	(decstate)
 );
 
 always 
     #10 clk = (clk === 1'b0);
 
 initial begin
-	//$monitor ("clk %b | reset %b", clk, reset);
+	//$monitor ("c %b | r %b | run %h | dec %h", clk, reset, runstate, decstate);
 end 
 
 initial begin
+	$display("starting the simulation");
 	clk <= 0;
 	reset <= 1;
-	$display("starting the simulation");
 	@(posedge clk);
-	@(negedge clk);
 	reset <= 0;
 	@(posedge halt);
 	$finish;
