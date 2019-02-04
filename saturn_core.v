@@ -47,7 +47,7 @@ module saturn_core (
 `else
 module saturn_core (
 	input			clk_25mhz,
-    input [6:0] 	btn,
+	input [6:0] 	btn,
 	output 			wifi_gpio0
 );
 wire clk;
@@ -280,7 +280,7 @@ begin
 			//$display("READ_ROM_VAL -> instruction decoder");
 			runstate <= RUN_DECODE;
 			case (nibble)
-				//4'h0 : decstate <= DECODE_0;
+				4'h0 : decstate <= DECODE_0;
 				//4'h1 : decstate <= DECODE_1;
 				4'h2 : decstate <= DECODE_P_EQ;
 				//4'h3 : decstate <= DECODE_LC;
@@ -297,27 +297,34 @@ begin
 					end
 			endcase
 		end
-/*
-task decode_0;
-	case (decstate )
-		DECODE_START:
-			begin
-				decstate  <= DECODE_0X;
-				read_state <= READ_START;
-			end
-		DECODE_0X:
-			if (read_state != READ_VALID) read_rom();
-			else decode_0x();
-	endcase		
-endtask
 
-task decode_0x;
-	case (nibble)
-		4'h3: inst_rtncc();
-		4'h4: inst_sethex();
-		default: instruction_decoder_unhandled();
-	endcase
-endtask
+	if (decstate == DECODE_0)
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
+				case (nibble)
+					//4'h3: inst_rtncc();
+					//4'h4: inst_sethex();
+					default: 
+						begin
+`ifdef SIM
+							$display("%05h 0%h => unimplemented", saved_PC, nibble);
+`endif
+							halt <= 1;
+						end
+				endcase
+			default: 
+				begin
+`ifdef SIM
+					$display("DECODE_0 runstate %h", runstate);
+`endif
+					halt <= 1;
+				end
+		endcase
+
+
+/*
 
 // 03		RTNCC
 task inst_rtncc;
@@ -550,7 +557,7 @@ endtask
 				begin
 					case (nibble)
 						4'h0: decstate <= DECODE_80;
-						//4'h2: decode_82();
+						4'h2: decstate <= DECODE_82;
 						4'h4: decstate <= DECODE_ST_EQ_0_N;
 						4'h5: decstate <= DECODE_ST_EQ_1_N;
 						4'hd: decstate <= DECODE_GOVLNG;
@@ -669,20 +676,14 @@ endtask
  *
  */ 
 
-/*
-
-task decode_82;
-	case (decstate )
-		DECODE_8X:
-			begin
-				decstate  <= DECODE_82;
-				read_state <= READ_START;
-			end
-		DECODE_82:
-			if (read_state != READ_VALID) read_rom();
-			else
+	if (decstate == DECODE_82)
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
 				begin
 					HST <= HST & ~nibble;
+`ifdef SIM
 					case (nibble)
 						4'h1:	 $display("%5h XM=0", saved_PC);
 						4'h2:	 $display("%5h SB=0", saved_PC);
@@ -691,11 +692,18 @@ task decode_82;
 						4'hf:    $display("%5h CLRHST", saved_PC);
 						default: $display("%5h CLRHST	%f", saved_PC, nibble);
 					endcase
-					end_decode();
+`endif
+					runstate <= RUN_START;
+					decstate <= DECODE_START;
 				end
-	endcase
-endtask
-*/
+			default: 
+				begin
+`ifdef SIM
+					$display("DECODE_82 runstate %h", runstate);
+`endif
+					halt <= 1;
+				end
+		endcase
 
 /******************************************************************************
  * 84n	ST=0   n
