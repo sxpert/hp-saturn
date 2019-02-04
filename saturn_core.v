@@ -1,12 +1,12 @@
 
 
 module hp_rom (
-	input 			clk,
+	input 		clk,
 	input 		[19:0]	address,
-	input			enable,
-	output	reg 	[3:0]	nibble_out	
+	input		enable,
+	output	reg	[3:0]	nibble_out	
 );
-parameter 	ROM_FILENAME = "rom-gx-r.hex";
+localparam 	ROM_FILENAME = "rom-gx-r.hex";
 
 reg [7:0]	rom	[0:524287];
 //reg[7:0]	rom	[0:4096];
@@ -17,10 +17,9 @@ begin
 		$readmemh( ROM_FILENAME, rom);
 end
 
-always @(posedge clk & enable)
-begin
-	nibble_out <= address[0] ? rom[address[19:1]][7:4] : rom[address[19:1]][3:0];		
-end
+always @(posedge clk)
+	if (enable)
+		nibble_out <= address[0] ? rom[address[19:1]][7:4] : rom[address[19:1]][3:0];	
 
 endmodule
 
@@ -31,64 +30,53 @@ module saturn_core (
 	output	halt
 );
 
-parameter READ_START	= 2'b00;
-parameter READ_CLOCK	= 2'b01;
-parameter READ_STORE	= 2'b10;
-parameter READ_VALID	= 2'b11;
+localparam READ_START	= 2'b00;
+localparam READ_CLOCK	= 2'b01;
+localparam READ_STORE	= 2'b10;
+localparam READ_VALID	= 2'b11;
 
-parameter RUN_START   = 1'b0;
-parameter RUN_DECODE	= 1'b1;
+localparam RUN_START   = 1'b0;
+localparam RUN_DECODE	= 1'b1;
 
 // decoder stuff
 
-parameter DECODE_START		= 32'h00000000;
+localparam DECODE_START		= 32'h00000000;
 
-parameter DECODE_0		= 32'h00000001;
-parameter DECODE_0X		= 32'h00000002;
+localparam DECODE_0		= 32'h00000001;
+localparam DECODE_0X		= 32'h00000002;
 
-parameter DECODE_1		= 32'h00000010;
-parameter DECODE_1X		= 32'h00000011;
-parameter DECODE_D0_EQ_5N	= 32'h00000b10;
+localparam DECODE_1		= 32'h00000010;
+localparam DECODE_1X		= 32'h00000011;
+localparam DECODE_D0_EQ_5N	= 32'h00000b10;
 
-parameter DECODE_P_EQUALS	= 32'h00000020;
+localparam DECODE_P_EQUALS	= 32'h00000020;
 
-parameter DECODE_LC_LEN		= 32'h00000030;
-parameter DECODE_LC_LOAD_NIBBLE	= 32'h00000031;
+localparam DECODE_LC_LEN		= 32'h00000030;
+localparam DECODE_LC_LOAD_NIBBLE	= 32'h00000031;
 
-parameter DECODE_GOTO_Z		= 32'h00000060;
-parameter DECODE_GOTO_Y		= 32'h00000061;
-parameter DECODE_GOTO_X		= 32'h00000062;
-parameter DECODE_GOTO		= 32'h00000063;
+localparam DECODE_GOTO_Z		= 32'h00000060;
+localparam DECODE_GOTO_Y		= 32'h00000061;
+localparam DECODE_GOTO_X		= 32'h00000062;
+localparam DECODE_GOTO		= 32'h00000063;
 
-parameter DECODE_8		= 32'h00000080;
-parameter DECODE_8X		= 32'h00000081;
-parameter DECODE_80		= 32'h00000082;
+localparam DECODE_8		= 32'h00000080;
+localparam DECODE_8X		= 32'h00000081;
+localparam DECODE_80		= 32'h00000082;
 
-parameter DECODE_RESET		= 32'h0000A080;
+localparam DECODE_RESET		= 32'h0000A080;
 
-parameter DECODE_C_EQUALS_P_N	= 32'h0000C080;
+localparam DECODE_C_EQUALS_P_N	= 32'h0000C080;
 
-parameter DECODE_82		= 32'h00000280;
+localparam DECODE_82		= 32'h00000280;
 
-parameter DECODE_ST_EQUALS_0_N	= 32'h00000480;
-parameter DECODE_ST_EQUALS_1_N	= 32'h00000580;
+localparam DECODE_ST_EQUALS_0_N	= 32'h00000480;
+localparam DECODE_ST_EQUALS_1_N	= 32'h00000580;
 
-parameter DECODE_GOVLNG_Z	= 32'h00000d80;
-parameter DECODE_GOVLNG_Y	= 32'h00000d81;
-parameter DECODE_GOVLNG_X	= 32'h00000d82;
-parameter DECODE_GOVLNG_W	= 32'h00000d83;
-parameter DECODE_GOVLNG_V	= 32'h00000d84;
-parameter DECODE_GOVLNG		= 32'h00000d85;
+localparam DECODE_GOVLNG		= 32'h00000d80;
+localparam DECODE_GOSBVL		= 32'h00000f80;
 
-parameter DECODE_GOSBVL_Z	= 32'h00000f80;
-parameter DECODE_GOSBVL_Y	= 32'h00000f81;
-parameter DECODE_GOSBVL_X	= 32'h00000f82;
-parameter DECODE_GOSBVL_W	= 32'h00000f83;
-parameter DECODE_GOSBVL_V	= 32'h00000f84;
-parameter DECODE_GOSBVL		= 32'h00000f85;
-
-parameter HEX			= 0;
-parameter DEC			= 1;
+localparam HEX			= 0;
+localparam DEC			= 1;
 
 // state machine stuff
 reg		halt;
@@ -319,26 +307,22 @@ task instruction_decoder;
 		// instruction specific stuff
 		DECODE_0, DECODE_0X:			decode_0();
 		DECODE_1, DECODE_1X:			decode_1();
-		DECODE_D0_EQ_5N:			inst_d0_eq_5n();
-		DECODE_P_EQUALS:			inst_p_equals();
-		DECODE_LC_LEN, DECODE_LC_LOAD_NIBBLE:	inst_lc();
+		DECODE_D0_EQ_5N:				inst_d0_eq_5n();
+		DECODE_P_EQUALS:				inst_p_equals();
+		DECODE_LC_LEN,
+		DECODE_LC_LOAD_NIBBLE:			inst_lc();
 		DECODE_GOTO_Z, 
 		DECODE_GOTO_Y, 
 		DECODE_GOTO_X, 
-		DECODE_GOTO:				inst_goto();
+		DECODE_GOTO:					inst_goto();
 		DECODE_8, 
-		DECODE_8X:				decode_8();
-		DECODE_80:				decode_80();
+		DECODE_8X:						decode_8();
+		DECODE_80:						decode_80();
 		DECODE_C_EQUALS_P_N:			inst_c_equals_p_n();
-		DECODE_82:				decode_82();
+		DECODE_82:						decode_82();
 		DECODE_ST_EQUALS_0_N:			inst_st_equals_0_n();
 		DECODE_ST_EQUALS_1_N:			inst_st_equals_1_n();
-		DECODE_GOVLNG_Z, DECODE_GOVLNG_Y,
-		DECODE_GOVLNG_X, DECODE_GOVLNG_W,
-		DECODE_GOVLNG_V, DECODE_GOVLNG:		inst_govlng();
-		DECODE_GOSBVL_Z, DECODE_GOSBVL_Y,
-		DECODE_GOSBVL_X, DECODE_GOSBVL_W,
-		DECODE_GOSBVL_V, DECODE_GOSBVL:		inst_gosbvl();
+		DECODE_GOVLNG, DECODE_GOSBVL:	inst_govlng_gosbvl();
 		default: instruction_decoder_unhandled();
 	endcase
 endtask
@@ -583,8 +567,8 @@ task decode_8x;
 		4'h2: decode_82();
 		4'h4: inst_st_equals_0_n();
 		4'h5: inst_st_equals_1_n();
-		4'hd: inst_govlng();
-		4'hf: inst_gosbvl();
+		4'hd,
+		4'hf: inst_govlng_gosbvl();
 		default: 
 			begin
 				$display("unhandled instruction prefix 8%h", data_nibble);
@@ -714,123 +698,52 @@ task inst_st_equals_1_n;
 	endcase
 endtask
 
-
 // 8Dzyxwv	GOVLNG	vwxyz
-task inst_govlng;
-	case (decode_state)
-		DECODE_8X:
-			begin
-				decode_state <= DECODE_GOVLNG_Z;					
-				read_state <= READ_START;
-				jump_base <= 0;
-			end
-		DECODE_GOVLNG_Z:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[3:0] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOVLNG_Y;
-				end
-		DECODE_GOVLNG_Y:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[7:4] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOVLNG_X;
-				end
-		DECODE_GOVLNG_X:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[11:8] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOVLNG_W;
-				end
-		DECODE_GOVLNG_W:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[15:12] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOVLNG_V;
-				end
-		DECODE_GOVLNG_V:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[19:16] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOVLNG;
-				end
-		DECODE_GOVLNG:
-			begin
-				//$display("jump_base %05h | jump_offset %05h", jump_base, jump_offset);
-				$display("%05h GOVLNG\t%05h", saved_PC, jump_base);
-				PC <= jump_base;
-				end_decode();
-			end
-	endcase
-endtask
-
 // 8Fzyxwv	GOSBVL	vwxyz
-task inst_gosbvl;
+task inst_govlng_gosbvl;
 	case (decode_state)
 		DECODE_8X:
 			begin
-				decode_state <= DECODE_GOSBVL_Z;					
 				read_state <= READ_START;
 				jump_base <= 0;
-				rstk_ptr <= rstk_ptr + 1;
+				load_cnt <= 4;
+				load_ctr <= 0;
+				case (data_nibble)
+					4'hD: 
+						begin
+							decode_state <= DECODE_GOVLNG;	
+							$write("%5h GOVLNG\t", saved_PC);
+						end				
+					4'hF: 
+						begin
+							decode_state <= DECODE_GOSBVL;					
+							$write("%5h GOSBVL\t", saved_PC);
+						end
+				endcase				
 			end
-		DECODE_GOSBVL_Z:
+		DECODE_GOVLNG, DECODE_GOSBVL:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					jump_base[3:0] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOSBVL_Y;
+					jump_base[load_ctr*4+:4] = data_nibble;
+					$write("%1h", data_nibble);
+					if (load_ctr == load_cnt) 
+						begin
+							$display("\t=> %5h", jump_base);
+							if (decode_state == DECODE_GOSBVL)
+							begin
+								rstk_ptr = rstk_ptr + 1;
+								RSTK[rstk_ptr] = PC;							  
+							end
+							PC <= jump_base;
+							end_decode();
+						end 
+					else 
+						begin 
+							load_ctr = load_ctr + 1;
+							read_state = READ_START;
+						end
 				end
-		DECODE_GOSBVL_Y:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[7:4] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOSBVL_X;
-				end
-		DECODE_GOSBVL_X:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[11:8] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOSBVL_W;
-				end
-		DECODE_GOSBVL_W:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[15:12] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOSBVL_V;
-				end
-		DECODE_GOSBVL_V:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_base[19:16] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOSBVL;
-				end
-		DECODE_GOSBVL:
-			begin
-				$display("%05h GOSBVL\t%05h", saved_PC, jump_base);
-				RSTK[rstk_ptr] = PC;				
-				PC = jump_base;
-				end_decode();
-			end
 	endcase
 endtask
 
