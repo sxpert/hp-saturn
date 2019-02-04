@@ -1,3 +1,8 @@
 saturn_core.json
 rom_tb
-saturn_core.json
+obj_dir/Vsaturn_core.cpp
+obj_dir/Vsaturn_core.h
+obj_dir/Vsaturn_core.mk
+obj_dir/Vsaturn_core__Syms.cpp
+obj_dir/Vsaturn_core__Syms.h
+obj_dir/Vsaturn_core_classes.mk

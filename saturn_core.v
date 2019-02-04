@@ -1,3 +1,5 @@
+`default_nettype none //
+
 /**************************************************************************************************
  *
  *
@@ -20,8 +22,7 @@ reg [3:0]	rom	[0:(2**20)-1];
 
 initial
 begin
-	if ( ROM_FILENAME != "" )
-		$readmemh( ROM_FILENAME, rom);
+	$readmemh( ROM_FILENAME, rom);
 end
 
 always @(posedge clk)
@@ -116,7 +117,7 @@ reg	[3:0]	runstate;
 reg	[31:0]	decstate;
 
 // memory access
-reg			rom_clock;
+//reg			rom_clock;
 reg	[19:0]	rom_address;
 reg			rom_enable;
 wire[3:0]	rom_nibble;
@@ -175,6 +176,7 @@ begin
 			rstk_ptr	<= 7;
 
 			PC			<= 0;
+			saved_PC	<= 0;
 			P			<= 0;
 			ST			<= 0;
 			HST			<= 0;
@@ -251,7 +253,7 @@ begin
 	if (runstate == READ_ROM_CLK)
 		begin				
 			//$display("READ_ROM_CLK");
-			rom_clock <= 1'b1;
+//			rom_clock <= 1'b1;
 			runstate <= READ_ROM_STR;
 		end
 
@@ -263,7 +265,7 @@ begin
 			//$display("PC: %h | read => %h", PC, rom_nibble);
 			PC <= PC + 1;
 			rom_enable <= 1'b0;
-			rom_clock <= 1'b0;
+//			rom_clock <= 1'b0;
 			runstate <= READ_ROM_VAL;
 		end
 
@@ -771,7 +773,7 @@ endtask
 			READ_ROM_VAL:
 				begin
 				  //$display("decstate %h | nibble %h", decstate, nibble);
-				  jump_base[load_ctr*4+:4] = nibble;
+				  jump_base[load_ctr*4+:4] <= nibble;
 `ifdef SIM
 				  $write("%1h", nibble);
 `endif
@@ -867,6 +869,11 @@ task decode_a_fs;
 endtask
 */
 end
+
+ / Verilator lint_off UNUSED
+ wire [N-1:0] unused;
+ assign unused = { }; 
+ / Verilator lint_on UNUSED
 endmodule
 
 `ifdef SIM

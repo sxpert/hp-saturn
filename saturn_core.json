@@ -14309,22 +14309,68 @@
     "saturn_core": {
       "attributes": {
         "top": 1,
-        "src": "saturn_core.v:40"
+        "src": "saturn_core.v:49"
       },
       "ports": {
         "clk_25mhz": {
           "direction": "input",
           "bits": [ 2 ]
+        },
+        "btn": {
+          "direction": "input",
+          "bits": [ 3, 4, 5, 6, 7, 8, 9 ]
+        },
+        "wifi_gpio0": {
+          "direction": "output",
+          "bits": [ "1" ]
         }
       },
       "cells": {
       },
       "netnames": {
+        "btn": {
+          "hide_name": 0,
+          "bits": [ 3, 4, 5, 6, 7, 8, 9 ],
+          "attributes": {
+            "src": "saturn_core.v:51"
+          }
+        },
+        "calc_rom.clk": {
+          "hide_name": 0,
+          "bits": [ 2 ],
+          "attributes": {
+            "src": "saturn_core.v:157|saturn_core.v:12",
+            "unused_bits": "0"
+          }
+        },
+        "clk": {
+          "hide_name": 0,
+          "bits": [ 2 ],
+          "attributes": {
+            "src": "saturn_core.v:54",
+            "unused_bits": "0"
+          }
+        },
         "clk_25mhz": {
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:48"
+            "src": "saturn_core.v:50"
+          }
+        },
+        "reset": {
+          "hide_name": 0,
+          "bits": [ 4 ],
+          "attributes": {
+            "src": "saturn_core.v:55",
+            "unused_bits": "0"
+          }
+        },
+        "wifi_gpio0": {
+          "hide_name": 0,
+          "bits": [ "1" ],
+          "attributes": {
+            "src": "saturn_core.v:52"
           }
         }
       }

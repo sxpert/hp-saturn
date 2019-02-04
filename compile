@@ -2,4 +2,4 @@
 #yosys -p "synth_ecp5 -top mask_gen -json mask_gen.json" mask_gen.v
 #nextpnr-ecp5 --gui --um-85k --speed 6 --freq 5 --json mask_gen.json --save mask_gen.ecp5 
 yosys -p "synth_ecp5 -top saturn_core -json saturn_core.json" saturn_core.v
-nextpnr-ecp5 --gui --um-85k --speed 6 --freq 5 --lpf ulx3s_v20.lpf --json saturn_core.json --save saturn_core.ecp5 
+nextpnr-ecp5 --gui --um-85k --speed 6 --freq 5 --lpf ulx3s_v20.lpf --textcfg empty_lfe5u-85f.config --json saturn_core.json --save saturn_core.ecp5 

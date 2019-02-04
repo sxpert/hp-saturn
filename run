@@ -1,4 +1,11 @@
 #!/bin/bash
+verilator -Wall -cc saturn_core.v
+VERILATOR_STATUS=$?
+if [ "VERILATOR_STATUS" != "0" ]
+then
+    echo "verilator fail"
+    exit
+fi
 #iverilog -v -Wall -DSIM -o mask_gen_tb mask_gen.v
 iverilog -v -Wall -DSIM -o rom_tb saturn_core.v
 IVERILOG_STATUS=$?
