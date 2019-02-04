@@ -42,38 +42,35 @@ localparam RUN_DECODE	= 1'b1;
 
 localparam DECODE_START		= 32'h00000000;
 
-localparam DECODE_0		= 32'h00000001;
+localparam DECODE_0			= 32'h00000001;
 localparam DECODE_0X		= 32'h00000002;
 
-localparam DECODE_1		= 32'h00000010;
+localparam DECODE_1			= 32'h00000010;
 localparam DECODE_1X		= 32'h00000011;
 localparam DECODE_D0_EQ_5N	= 32'h00000b10;
 
-localparam DECODE_P_EQUALS	= 32'h00000020;
+localparam DECODE_P_EQ		= 32'h00000020;
 
-localparam DECODE_LC_LEN		= 32'h00000030;
-localparam DECODE_LC_LOAD_NIBBLE	= 32'h00000031;
+localparam DECODE_LC_LEN	= 32'h00000030;
+localparam DECODE_LC		= 32'h00000031;
 
-localparam DECODE_GOTO_Z		= 32'h00000060;
-localparam DECODE_GOTO_Y		= 32'h00000061;
-localparam DECODE_GOTO_X		= 32'h00000062;
-localparam DECODE_GOTO		= 32'h00000063;
+localparam DECODE_GOTO		= 32'h00000060;
 
-localparam DECODE_8		= 32'h00000080;
+localparam DECODE_8			= 32'h00000080;
 localparam DECODE_8X		= 32'h00000081;
 localparam DECODE_80		= 32'h00000082;
 
 localparam DECODE_RESET		= 32'h0000A080;
 
-localparam DECODE_C_EQUALS_P_N	= 32'h0000C080;
+localparam DECODE_C_EQ_P_N	= 32'h0000C080;
 
 localparam DECODE_82		= 32'h00000280;
 
-localparam DECODE_ST_EQUALS_0_N	= 32'h00000480;
-localparam DECODE_ST_EQUALS_1_N	= 32'h00000580;
+localparam DECODE_ST_EQ_0_N	= 32'h00000480;
+localparam DECODE_ST_EQ_1_N	= 32'h00000580;
 
-localparam DECODE_GOVLNG		= 32'h00000d80;
-localparam DECODE_GOSBVL		= 32'h00000f80;
+localparam DECODE_GOVLNG	= 32'h00000d80;
+localparam DECODE_GOSBVL	= 32'h00000f80;
 
 localparam HEX			= 0;
 localparam DEC			= 1;
@@ -308,20 +305,15 @@ task instruction_decoder;
 		DECODE_0, DECODE_0X:			decode_0();
 		DECODE_1, DECODE_1X:			decode_1();
 		DECODE_D0_EQ_5N:				inst_d0_eq_5n();
-		DECODE_P_EQUALS:				inst_p_equals();
-		DECODE_LC_LEN,
-		DECODE_LC_LOAD_NIBBLE:			inst_lc();
-		DECODE_GOTO_Z, 
-		DECODE_GOTO_Y, 
-		DECODE_GOTO_X, 
+		DECODE_P_EQ:					inst_p_equals();
+		DECODE_LC_LEN, DECODE_LC:		inst_lc(); 
 		DECODE_GOTO:					inst_goto();
-		DECODE_8, 
-		DECODE_8X:						decode_8();
+		DECODE_8, DECODE_8X:			decode_8();
 		DECODE_80:						decode_80();
-		DECODE_C_EQUALS_P_N:			inst_c_equals_p_n();
+		DECODE_C_EQ_P_N:				inst_c_eq_p_n();
 		DECODE_82:						decode_82();
-		DECODE_ST_EQUALS_0_N:			inst_st_equals_0_n();
-		DECODE_ST_EQUALS_1_N:			inst_st_equals_1_n();
+		DECODE_ST_EQ_0_N:				inst_st_eq_0_n();
+		DECODE_ST_EQ_1_N:				inst_st_eq_1_n();
 		DECODE_GOVLNG, DECODE_GOSBVL:	inst_govlng_gosbvl();
 		default: instruction_decoder_unhandled();
 	endcase
@@ -441,10 +433,10 @@ task inst_p_equals;
 		DECODE_START:
 			begin
 				//$display("decoding \"P= n\" - reading from rom");
-				decode_state <= DECODE_P_EQUALS;
+				decode_state <= DECODE_P_EQ;
 				read_state <= READ_START;
 			end
-		DECODE_P_EQUALS:
+		DECODE_P_EQ:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
@@ -474,11 +466,11 @@ task inst_lc;
 				begin
 					load_cnt = data_nibble;
 					load_ctr = 0;
-					decode_state = DECODE_LC_LOAD_NIBBLE;
+					decode_state = DECODE_LC;
 					read_state = READ_START;
 					$write("%5h LC (%h)\t", saved_PC, load_cnt);
 				end
-		DECODE_LC_LOAD_NIBBLE:
+		DECODE_LC:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
@@ -503,46 +495,32 @@ task inst_goto;
 	case (decode_state)
 		DECODE_START:
 			begin
-				//$display("decoding \"GOTO abc\" - reading from rom");
-				//$display("saved_PC %05h | PC %05h", saved_PC, PC);
-				decode_state <= DECODE_GOTO_Z;
+				decode_state <= DECODE_GOTO;
 				read_state <= READ_START;
 				jump_base <= PC;
 				jump_offset <= 0;
+				load_cnt = 2;
+				load_ctr = 0;
+				$write("%5h GOTO\t", saved_PC);
 			end
-		DECODE_GOTO_Z:
+		DECODE_GOTO:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
-					jump_offset[3:0] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOTO_Y;
+					jump_offset[load_ctr*4+:4] = data_nibble;
+					$write("%1h", data_nibble);
+					if (load_ctr == load_cnt) 
+						begin
+							$display("\t=> %05h", jump_base + jump_offset);
+							PC <= jump_base + jump_offset;
+							end_decode();
+						end 
+					else 
+						begin 
+							load_ctr = load_ctr + 1;
+							read_state = READ_START;
+						end
 				end
-		DECODE_GOTO_Y:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_offset[7:4] <= data_nibble;
-					read_state <= READ_START;
-					decode_state <= DECODE_GOTO_X;
-				end
-		DECODE_GOTO_X:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					jump_offset[11:8] <= data_nibble;
-					jump_offset[19:12] <= {8{data_nibble[3]}};
-					read_state <= READ_START;
-					decode_state <= DECODE_GOTO;
-				end
-		DECODE_GOTO: 
-			begin
-				//$display("jump_base %05h | jump_offset %05h", jump_base, jump_offset);
-				$display("%05h GOTO\t%03h\t=> %05h", saved_PC, jump_offset, jump_base + jump_offset);
-				PC <= jump_base + jump_offset;
-				end_decode();
-			end
-			
 	endcase	
 endtask
 
@@ -565,8 +543,8 @@ task decode_8x;
 	case (data_nibble)
 		4'h0: decode_80();
 		4'h2: decode_82();
-		4'h4: inst_st_equals_0_n();
-		4'h5: inst_st_equals_1_n();
+		4'h4: inst_st_eq_0_n();
+		4'h5: inst_st_eq_1_n();
 		4'hd,
 		4'hf: inst_govlng_gosbvl();
 		default: 
@@ -590,7 +568,7 @@ task decode_80;
 				case (data_nibble)
 					4'h5:	inst_config();
 					4'ha:   inst_reset();
-					4'hc:	inst_c_equals_p_n();
+					4'hc:	inst_c_eq_p_n();
 					default:
 						begin
 							$display("decode_80: %h", data_nibble);
@@ -617,14 +595,14 @@ task inst_reset;
 endtask
 
 // 80Cn		C=P	n
-task inst_c_equals_p_n;
+task inst_c_eq_p_n;
 	case (decode_state)
 		DECODE_80:
 			begin
-				decode_state <= DECODE_C_EQUALS_P_N;
+				decode_state <= DECODE_C_EQ_P_N;
 				read_state <= READ_START;
 			end
-		DECODE_C_EQUALS_P_N:
+		DECODE_C_EQ_P_N:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
@@ -661,14 +639,14 @@ task decode_82;
 endtask
 
 // 84n		ST=0	n
-task inst_st_equals_0_n;
+task inst_st_eq_0_n;
 	case (decode_state)
 		DECODE_8X:
 			begin
-				decode_state <= DECODE_ST_EQUALS_0_N;
+				decode_state <= DECODE_ST_EQ_0_N;
 				read_state <= READ_START;
 			end
-		DECODE_ST_EQUALS_0_N:
+		DECODE_ST_EQ_0_N:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
@@ -680,14 +658,14 @@ task inst_st_equals_0_n;
 endtask
 
 // 85n		ST=1	n
-task inst_st_equals_1_n;
+task inst_st_eq_1_n;
 	case (decode_state)
 		DECODE_8X:
 			begin
-				decode_state <= DECODE_ST_EQUALS_1_N;
+				decode_state <= DECODE_ST_EQ_1_N;
 				read_state <= READ_START;
 			end
-		DECODE_ST_EQUALS_1_N:
+		DECODE_ST_EQ_1_N:
 			if (read_state != READ_VALID) read_rom();
 			else
 				begin
