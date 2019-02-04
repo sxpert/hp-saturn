@@ -581,8 +581,8 @@ always @(posedge clk)
 					case (nibble)
 						//4'h0: decode_80();
 						//4'h2: decode_82();
-						//4'h4: inst_st_eq_0_n();
-						//4'h5: inst_st_eq_1_n();
+						4'h4: decstate <= DECODE_ST_EQ_0_N;
+						4'h5: decstate <= DECODE_ST_EQ_1_N;
 						4'hd: decstate <= DECODE_GOVLNG;
 						//4'hf: decstate <= DECODE_GOSBVL;
 						default:
@@ -690,65 +690,44 @@ endtask
 */
 
 /******************************************************************************
- * ---------- field -----------
- *  A	 B	 fs	 d
- * ----------------------------	
- * 140	148	150a	158x	DAT0=A field
- * 141	149	151a	159x	DAT1=A field
- * 142	14A	152a	15Ax	A=DAT0 field
- * 143	14B	153a	15Bx	A=DAT1 field
- * 144	14C	154a	15Cx	DAT0=C field
- * 145	14D	155a	15Dx	DAT1=C field
- * 146	14E	156a	15Ex	C=DAT0 field
- * 147	14F	157a	15Fx	C=DAT1 field
- * 
- * fs: P  WP XS X  S  M  B  W
- * a:  0  1  2  3  4  5  6  7
- * 
- * x = d - 1		x = n - 1
+ * 84n	ST=0   n
+ * 85n	ST=1   n
  */ 
 
-
-
-/*
-// 84n		ST=0	n
-task inst_st_eq_0_n;
-	case (decstate )
-		DECODE_8X:
-			begin
-				decstate  <= DECODE_ST_EQ_0_N;
-				read_state <= READ_START;
-			end
-		DECODE_ST_EQ_0_N:
-			if (read_state != READ_VALID) read_rom();
-			else
+always @(posedge clk)
+	if ((decstate == DECODE_ST_EQ_0_N) | (decstate == DECODE_ST_EQ_1_N))
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: ;
+			READ_ROM_VAL:
 				begin
-					$display("%05h ST=0\t%h", saved_PC, nibble);
-					ST[nibble] <= 0;
-					end_decode();
+					case (decstate)
+						DECODE_ST_EQ_0_N: 
+							begin
+`ifdef SIM
+								$display("%05h ST=0\t%h", saved_PC, nibble);
+`endif
+								ST[nibble] <= 0;
+							end
+						DECODE_ST_EQ_1_N:
+							begin
+`ifdef SIM
+								$display("%05h ST=1\t%h", saved_PC, nibble);
+`endif
+								ST[nibble] <= 1;
+							end
+					endcase
+					runstate <= RUN_START;
+					decstate <= DECODE_START;
 				end
-	endcase
-endtask
-
-// 85n		ST=1	n
-task inst_st_eq_1_n;
-	case (decstate )
-		DECODE_8X:
-			begin
-				decstate  <= DECODE_ST_EQ_1_N;
-				read_state <= READ_START;
-			end
-		DECODE_ST_EQ_1_N:
-			if (read_state != READ_VALID) read_rom();
-			else
+			default:
 				begin
-					$display("%05h ST=1\t%h", saved_PC, nibble);
-					ST[nibble] <= 1;
-					end_decode();
+`ifdef SIM
+					$display("decstate %h", decstate);
+`endif
+					halt <= 1;
 				end
-	endcase
-endtask
-*/
+		endcase
 
 /******************************************************************************
  * 8Dzyxwv	GOVLNG		vwxyz
