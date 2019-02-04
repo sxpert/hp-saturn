@@ -49,7 +49,7 @@ module saturn_core (
 	input			reset,
 	output			halt,
 	output [3:0] 	runstate,
-	output [31:0] 	decstate
+	output [15:0] 	decstate
 );
 `else
 module saturn_core (
@@ -68,7 +68,7 @@ assign reset		= btn[1];
 `endif
 
 // led display states
-localparam	REGDMP_HEX		= 16'h0000;
+localparam	REGDMP_HEX		= 8'h00;
 
 
 // runstate
@@ -83,48 +83,48 @@ localparam RUN_DECODE	= 15;
 
 // instruction decoder states
 
-localparam DECODE_START		= 32'h00000000;
+localparam DECODE_START		= 16'h0000;
 
-localparam DECODE_0			= 32'h00000001;
-localparam DECODE_0X		= 32'h00000002;
+localparam DECODE_0			= 16'h0001;
+localparam DECODE_0X		= 16'h0002;
 
-localparam DECODE_RTNCC		= 32'h00000300;
-localparam DECODE_SETHEX	= 32'h00000400;
-localparam DECODE_SETDEC	= 32'h00000500;
+localparam DECODE_RTNCC		= 16'h0300;
+localparam DECODE_SETHEX	= 16'h0400;
+localparam DECODE_SETDEC	= 16'h0500;
 
-localparam DECODE_1			= 32'h00000010;
-localparam DECODE_1X		= 32'h00000011;
-localparam DECODE_14		= 32'h00000410;
-localparam DECODE_15		= 32'h00000510;
-localparam DECODE_MEMACCESS	= 32'h00000411;
-localparam DECODE_D0_EQ_5N	= 32'h00000b10;
+localparam DECODE_1			= 16'h0010;
+localparam DECODE_1X		= 16'h0011;
+localparam DECODE_14		= 16'h0410;
+localparam DECODE_15		= 16'h0510;
+localparam DECODE_MEMACCESS	= 16'h0411;
+localparam DECODE_D0_EQ_5N	= 16'h0b10;
 
-localparam DECODE_P_EQ		= 32'h00000020;
+localparam DECODE_P_EQ		= 16'h0020;
 
-localparam DECODE_LC_LEN	= 32'h00000030;
-localparam DECODE_LC		= 32'h00000031;
+localparam DECODE_LC_LEN	= 16'h0030;
+localparam DECODE_LC		= 16'h0031;
 
-localparam DECODE_GOTO		= 32'h00000060;
+localparam DECODE_GOTO		= 16'h0060;
 
-localparam DECODE_8			= 32'h00000080;
-localparam DECODE_8X		= 32'h00000081;
-localparam DECODE_80		= 32'h00000082;
+localparam DECODE_8			= 16'h0080;
+localparam DECODE_8X		= 16'h0081;
+localparam DECODE_80		= 16'h0082;
 
-localparam DECODE_CONFIG	= 32'h00005080;
-localparam DECODE_RESET		= 32'h0000A080;
+localparam DECODE_CONFIG	= 16'h5080;
+localparam DECODE_RESET		= 16'hA080;
 
-localparam DECODE_C_EQ_P_N	= 32'h0000C080;
+localparam DECODE_C_EQ_P_N	= 16'hC080;
 
-localparam DECODE_82		= 32'h00000280;
+localparam DECODE_82		= 16'h0280;
 
-localparam DECODE_ST_EQ_0_N	= 32'h00000480;
-localparam DECODE_ST_EQ_1_N	= 32'h00000580;
+localparam DECODE_ST_EQ_0_N	= 16'h0480;
+localparam DECODE_ST_EQ_1_N	= 16'h0580;
 
-localparam DECODE_GOVLNG	= 32'h00000d80;
-localparam DECODE_GOSBVL	= 32'h00000f80;
+localparam DECODE_GOVLNG	= 16'h0d80;
+localparam DECODE_GOSBVL	= 16'h0f80;
 
-localparam DECODE_A			= 32'h000000a0;
-localparam DECODE_A_FS		= 32'h000000a1;
+localparam DECODE_A			= 16'h00a0;
+localparam DECODE_A_FS		= 16'h00a1;
 
 localparam HEX			= 0;
 localparam DEC			= 1;
@@ -132,8 +132,8 @@ localparam DEC			= 1;
 // state machine stuff
 reg			halt;
 reg	[3:0]	runstate;
-reg	[31:0]	decstate;
-reg [15:0]  regdump;
+reg	[15:0]	decstate;
+reg [7:0]	regdump;
 
 // memory access
 //reg			rom_clock;
@@ -303,13 +303,13 @@ begin
 			runstate <= RUN_DECODE;
 			case (nibble)
 				4'h0 : decstate <= DECODE_0;
-				//4'h1 : decstate <= DECODE_1;
+				4'h1 : decstate <= DECODE_1;
 				4'h2 : decstate <= DECODE_P_EQ;
 				4'h3 : decstate <= DECODE_LC_LEN;
 
 				4'h6 : decstate <= DECODE_GOTO;
 				4'h8 : decstate <= DECODE_8;
-				//4'ha : decstate <= DECODE_A_FS;
+				4'ha : decstate <= DECODE_A;
 				default: 
 					begin
 `ifdef SIM
@@ -319,6 +319,12 @@ begin
 					end
 			endcase
 		end
+
+/******************************************************************************
+ * 0X			
+ *
+ *
+ */ 
 
 	if (decstate == DECODE_0)
 		case (runstate)
@@ -347,8 +353,6 @@ begin
 				end
 		endcase
 
-
-
 /******************************************************************************
  * 03			RTNCC
  *
@@ -367,21 +371,6 @@ begin
 			runstate <= RUN_START;
 			decstate <= DECODE_START;
 		end
-
-/*
-
-// 03		RTNCC
-task inst_rtncc;
-	begin
-		Carry = 0;
-		PC = RSTK[rstk_ptr];
-		RSTK[rstk_ptr] = 0;		
-		rstk_ptr = rstk_ptr - 1;
-		$display("%05h RTNCC", saved_PC);
-		end_decode();
-	end
-endtask
-*/
 
 /******************************************************************************
  * 04			SETHEX
@@ -415,85 +404,132 @@ endtask
 			decstate <= DECODE_START;
 		end
 
+/******************************************************************************
+ * 1X
+ *
+ *
+ */ 
 
+	if (decstate == DECODE_1)
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
+			READ_ROM_VAL:
+				begin
+					case (nibble)
+						//4'h4, 4'h5:	decode_14_15();
+						4'h4:	decstate <= DECODE_14;
+						4'hb:	decstate <= DECODE_D0_EQ_5N;
+						default:
+							begin
+`ifdef SIM
+								$display("unhandled instruction prefix 1%h", nibble);
+`endif
+								halt <= 1;
+							end
+					endcase
+					runstate <= RUN_DECODE;
+				end
+			default: 
+				begin
+`ifdef SIM
+					$display("decstate %h", decstate);
+`endif
+					halt <= 1;
+				end
+		endcase
 
-/*
-task decode_1;
-	case (decstate )
-		DECODE_START:
-			begin
-				decstate  = DECODE_1X;
-				read_state = READ_START;
-			end
-		DECODE_1X:
-			if (read_state != READ_VALID) read_rom();
-			else decode_1x();
-	endcase		
-endtask
+/******************************************************************************
+ * 1[45]
+ *
+ *	---------- field -----------
+ *	 A	 B	 fs	 d
+ *	----------------------------	
+ *	140	148	150a	158x	DAT0=A field
+ *	141	149	151a	159x	DAT1=A field
+ *	142	14A	152a	15Ax	A=DAT0 field
+ *	143	14B	153a	15Bx	A=DAT1 field
+ *	144	14C	154a	15Cx	DAT0=C field
+ *	145	14D	155a	15Dx	DAT1=C field
+ *	146	14E	156a	15Ex	C=DAT0 field
+ *	147	14F	157a	15Fx	C=DAT1 field
+ *
+ *	fs: P  WP XS X  S  M  B  W
+ *	a:  0  1  2  3  4  5  6  7
+ *
+ *	x = d - 1		x = n - 1
+ *	
+ */ 
 
-task decode_1x;
-	case (nibble)
-		4'h4, 4'h5:	decode_14_15();
-		4'hb:	 	inst_d0_eq_5n();
-		default: 	instruction_decoder_unhandled();
-	endcase
-endtask
-
-task decode_14_15;
-	case (decstate)
-		DECODE_1X: 
-			begin
-				read_state <= READ_START;
-				case (nibble)
-					4'h4: decstate <= DECODE_14;
-					4'h5: decstate <= DECODE_15;
-				endcase
-			end
-		DECODE_14, DECODE_15:
-			if (read_state != READ_VALID) read_rom();
-			else
+	if ((decstate == DECODE_14)|(decstate == DECODE_15))
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
+			READ_ROM_VAL:
 				case (nibble)
 					default:
 						begin
-							$display("memacess %h %h", decstate[11:8], nibble);
-							halt_processor();
+`ifdef SIM
+							$display("runstate %h %h", decstate, nibble);
+`endif
+							halt <= 1;
 						end
 				endcase
-	endcase 
-endtask
-
-// 1bnnnnn	DO=(5) nnnnn
-task inst_d0_eq_5n;
-	case (decstate )
-		DECODE_1X:
-			begin
-				decstate  = DECODE_D0_EQ_5N;
-				read_state = READ_START;
-				load_cnt = 4;
-				load_ctr = 0;
-				$write("%5h D0=(5)\t", saved_PC);
-			end
-		DECODE_D0_EQ_5N:
-			if (read_state != READ_VALID) read_rom();
-			else
+			default: 
 				begin
-					D0[load_ctr*4+:4] = nibble;
+`ifdef SIM
+					$display("runstate %h", decstate);
+`endif
+					halt <= 1;
+				end
+		endcase
+
+/******************************************************************************
+ *1bnnnnn		DO=(5) nnnnn
+ *
+ *
+ */ 
+
+	if (decstate == DECODE_D0_EQ_5N)
+		case (runstate)
+			RUN_DECODE:
+				begin
+					runstate <= READ_ROM_STA;
+					load_cnt <= 4;
+					load_ctr <= 0;
+`ifdef SIM
+					$write("%5h D0=(5)\t", saved_PC);
+`endif
+				end
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
+			READ_ROM_VAL:
+				begin
+					D0[load_ctr*4+:4] <= nibble;
+`ifdef SIM
 					$write("%1h", nibble);
-					if (load_ctr == load_cnt) 
+`endif
+					if (load_ctr == load_cnt)
 						begin
+`ifdef SIM
 							$display("");
-							end_decode();
-						end 
+`endif
+							runstate <= RUN_START;
+							decstate <= DECODE_START;
+						end
 					else 
 						begin 
-							load_ctr = load_ctr + 1;
-							read_state = READ_START;
+							load_ctr <= load_ctr + 1;
+							runstate <= READ_ROM_STA;
 						end
 				end
-	endcase
-endtask
-
-*/
+			default: 
+				begin
+`ifdef SIM
+					$display("runstate %h", runstate);
+`endif
+					halt <= 1;
+				end
+		endcase
 
 /******************************************************************************
  * 2n			P= 		n
@@ -563,7 +599,7 @@ endtask
 								end 
 							else 
 								begin 
-									load_ctr <= (load_ctr + 1)%4'hf;
+									load_ctr <= (load_ctr + 1)&4'hf;
 									runstate <= READ_ROM_STA;
 								end							
 						end
@@ -901,71 +937,65 @@ endtask
 				end
 		endcase
 
-/*
-task decode_a;
-	case (decstate)
-		DECODE_START:
-			begin
-				decstate  <= DECODE_A;
-				read_state <= READ_START;
-			end
-		DECODE_A:
-			if (read_state != READ_VALID) read_rom();
-			else 
-				begin
-					tmp_field <= nibble;
-					decstate <= DECODE_A_FS;
-					read_state <= READ_START;
-				end
-	endcase		
-endtask
-	
-task decode_a_fs;
-	case (decstate)
-		DECODE_A_FS:
-			if (read_state != READ_VALID) read_rom();
-			else
-				begin
-					$write("%5h ", saved_PC);
-					case (tmp_field)
-						4'h0, 4'h1, 4'h2, 4'h3, 4'h4, 4'h5, 4'h6, 4'h7:
-							begin
-								$display("a%h%h", tmp_field, nibble);
-								halt_processor();
-							end
-						4'h8, 4'h9, 4'ha, 4'hb, 4'hc, 4'hd, 4'he, 4'hf:
-							begin
-								case (nibble)
-									4'h2: // C=0 fs
-										begin
-											$write("C=0\t");
-											case (tmp_field)
-												4'he: C[7:0] <= 0;
-												default: 
-													begin
-														$display("a%h%h", tmp_field, nibble);
-														halt_processor();
-													end
-											endcase
-										end
-									default: 
-										begin
-											$display("a%h%h", tmp_field, nibble);
-											halt_processor();
-										end
-								endcase
-								case (tmp_field)
-									4'he: $display("B");
-								endcase
-								if (~halt)
-									end_decode();
-							end
-					endcase
-				end
-	endcase
-endtask
-*/
+/******************************************************************************
+ * A[ab]x
+ * 
+ * lots of things there
+ *
+ */ 
 
+	if ((decstate == DECODE_A)|(decstate == DECODE_A_FS))
+		case (runstate)
+			RUN_DECODE: runstate <= READ_ROM_STA;
+			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
+			READ_ROM_VAL:
+				case (decstate)
+					DECODE_A: 
+						begin
+							tmp_field <= nibble;
+							decstate <= DECODE_A_FS;
+							runstate <= READ_ROM_STA;
+						end
+					DECODE_A_FS: 
+						begin				
+							case (nibble)
+								4'h2:
+									case (tmp_field)
+										4'he: 
+											begin
+												C[7:0] <= 0;
+`ifdef SIM
+												$display("%5h C=0\tB", saved_PC);
+`endif
+											end
+									endcase
+								default:
+									begin
+`ifdef SIM
+										$display("decstate %h %h %h", decstate, tmp_field, nibble);
+`endif
+										halt <= 1;
+									end
+							endcase
+							runstate <= RUN_START;
+							decstate <= DECODE_START;
+						end
+					default:
+						begin
+`ifdef SIM
+							$display("decstate %h %h", decstate, nibble);
+`endif
+							halt <= 1;
+						end
+				endcase
+			default:
+				begin
+`ifdef SIM
+					$display("decstate %h", decstate);
+`endif
+					halt <= 1;
+				end
+		endcase
 
 /**************************************************************************************************
  *
@@ -973,6 +1003,7 @@ endtask
  *
  */
 
+`ifndef SIM
 
 	case (regdump)
 		REGDMP_HEX:	led <= {7'b0000000, hex_dec};
@@ -980,6 +1011,7 @@ endtask
 	endcase
 	regdump <= regdump + 1;
 	
+`endif
 
 end
 // Verilator lint_off UNUSED
@@ -995,7 +1027,7 @@ reg			clk;
 reg			reset;
 wire		halt;
 wire [3:0]	runstate;
-wire [31:0]	decstate;
+wire [15:0]	decstate;
 
 saturn_core saturn (
 	.clk		(clk),
