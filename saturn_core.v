@@ -15,6 +15,7 @@ module hp_rom (
 localparam 	ROM_FILENAME = "rom-gx-r.hex";
 
 reg [3:0]	rom	[0:(2**20)-1];
+
 //reg[3:0]	rom	[0:(2**16)-1];
 
 initial
@@ -37,7 +38,11 @@ endmodule
  */
 
 module saturn_core (
+`ifdef SIM
 	input			clk,
+`else
+	input			clk_25mhz,
+`endif
 	input			reset,
 	output			halt,
 	output [3:0] 	runstate,

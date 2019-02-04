@@ -14312,7 +14312,7 @@
         "src": "saturn_core.v:39"
       },
       "ports": {
-        "clk": {
+        "clk_25mhz": {
           "direction": "input",
           "bits": [ 2 ]
         },
@@ -14336,47 +14336,39 @@
       "cells": {
       },
       "netnames": {
-        "calc_rom.clk": {
+        "clk_25mhz": {
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:141|saturn_core.v:10",
-            "unused_bits": "0"
-          }
-        },
-        "clk": {
-          "hide_name": 0,
-          "bits": [ 2 ],
-          "attributes": {
-            "src": "saturn_core.v:40"
+            "src": "saturn_core.v:43"
           }
         },
         "decstate": {
           "hide_name": 0,
           "bits": [ "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0" ],
           "attributes": {
-            "src": "saturn_core.v:44"
+            "src": "saturn_core.v:48"
           }
         },
         "halt": {
           "hide_name": 0,
           "bits": [ "0" ],
           "attributes": {
-            "src": "saturn_core.v:42"
+            "src": "saturn_core.v:46"
           }
         },
         "reset": {
           "hide_name": 0,
           "bits": [ 3 ],
           "attributes": {
-            "src": "saturn_core.v:41"
+            "src": "saturn_core.v:45"
           }
         },
         "runstate": {
           "hide_name": 0,
           "bits": [ "1", "1", "1", "1" ],
           "attributes": {
-            "src": "saturn_core.v:43"
+            "src": "saturn_core.v:47"
           }
         }
       }
