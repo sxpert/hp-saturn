@@ -2,8 +2,8 @@
 
 /**************************************************************************************************
  *
- *
- *
+ * Rom module
+ * accesses the calculators firmware
  *
  *
  */
@@ -35,6 +35,63 @@ always @(posedge clk)
 	if (enable)
 		nibble_out <= rom[address];
 endmodule
+
+/**************************************************************************************************
+ *
+ * I/O ram 
+ * length: 64 nibbles
+ *
+ *
+ */
+
+module hp48_io_ram (
+	input			clk,
+	input	[19:0]	address,
+	input			configure,
+	input			write,
+	input	[3:0]	nibble_in,
+	output	[3:0]	nibble_out
+);
+
+localparam IO_RAM_LEN	= 64;
+
+reg			configured;
+reg [19:0]	base_addr;
+reg [3:0]	io_ram [0:IO_RAM_LEN-1];
+
+initial
+	begin
+`ifdef SIM
+		$display("io_ram: unconfigured");
+`endif
+		configured = 0;
+`ifdef SIM
+		$display("io_ram: initializing to 0");
+`endif
+		for (base_addr = 0; base_addr < IO_RAM_LEN; base_addr++)
+			begin
+`ifdef SIM
+				$write(".");
+`endif
+				io_ram[base_addr] = 0; 
+			end
+`ifdef SIM	
+		$display("");
+		$display("io_ram: setting base address to 0");
+`endif
+		base_addr = 0;
+`ifdef SIM
+		$display("io_ram: initialized");
+`endif
+	end
+
+//always @(posedge clk)
+
+
+endmodule
+
+
+
 
 /**************************************************************************************************
  *
@@ -164,6 +221,12 @@ reg	[19:0]	rom_address;
 reg			rom_enable;
 wire[3:0]	rom_nibble;
 
+// io_ram access
+reg				io_configure;
+reg				io_write;
+reg		[3:0]	nibble_in;
+wire	[3:0]	nibble_out;
+
 // internal registers
 reg	[3:0]	nibble;
 reg	[19:0]  saved_PC;
@@ -209,6 +272,14 @@ hp_rom calc_rom (
 	.nibble_out	(rom_nibble)
 );
 
+hp48_io_ram io_ram (
+	.clk		(clk),
+	.address	(rom_address),
+	.configure	(io_configure),
+	.write		(io_write),
+	.nibble_in	(nibble_in),
+	.nibble_out	(nibble_out)
+);
 /**************************************************************************************************
  *
  * one single process...
@@ -562,6 +633,7 @@ begin
 					endcase
 `endif
 				end
+			
 			default: 
 				begin
 `ifdef SIM
