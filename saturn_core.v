@@ -78,6 +78,8 @@ localparam READ_ROM_STA	= 1;
 localparam READ_ROM_CLK	= 2;
 localparam READ_ROM_STR	= 3;
 localparam READ_ROM_VAL	= 4;
+localparam WRITE_STA	= 5;
+localparam WRITE_DONE	= 8;
 localparam RUN_EXEC		= 14;
 localparam RUN_DECODE	= 15;
 
@@ -126,8 +128,29 @@ localparam DECODE_GOSBVL	= 16'h0f80;
 localparam DECODE_A			= 16'h00a0;
 localparam DECODE_A_FS		= 16'h00a1;
 
+// status registers constants
+
 localparam HEX			= 0;
 localparam DEC			= 1;
+
+// data transfer constants
+
+localparam T_DIR_OUT	= 0;
+localparam T_DIR_IN		= 1;
+localparam T_PTR_0		= 0;
+localparam T_PTR_1		= 1;
+localparam T_REG_A		= 0;
+localparam T_REG_C		= 1;
+localparam T_FIELD_P	= 0;
+localparam T_FIELD_WP	= 1;
+localparam T_FIELD_XS	= 2;
+localparam T_FIELD_X	= 3;
+localparam T_FIELD_S	= 4;
+localparam T_FIELD_M	= 5;
+localparam T_FIELD_B	= 6;
+localparam T_FIELD_W	= 7;
+localparam T_FIELD_LEN	= 13;
+localparam T_FIELD_A	= 15;
 
 // state machine stuff
 reg			halt;
@@ -148,9 +171,15 @@ reg	[2:0]	rstk_ptr;
 reg	[19:0]  jump_base;
 reg	[19:0]	jump_offset;
 reg			hex_dec;
-reg	[3:0]	load_cnt;
-reg	[3:0]	load_ctr;
-reg [3:0]	tmp_field;
+
+// data transfer registers
+reg [3:0]	t_offset;
+reg	[3:0]	t_cnt;
+reg	[3:0]	t_ctr;
+reg 		t_dir;
+reg			t_ptr;
+reg			t_reg;
+reg	[3:0]	t_field;
 
 // processor registers
 reg	[19:0]	PC;
@@ -466,11 +495,24 @@ begin
 			RUN_DECODE: runstate <= READ_ROM_STA;
 			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
 			READ_ROM_VAL:
-				case (nibble)
+				case (decstate)
+					DECODE_14:
+						begin
+`ifdef SIM
+							$display("14%h ", nibble);
+`endif
+							t_ptr <= nibble[0];
+							t_dir <= nibble[1];
+							t_reg <= nibble[2];
+							if (~nibble[3]) t_field <= T_FIELD_A;
+							else t_field <= T_FIELD_B;
+							decstate <= DECODE_MEMACCESS;
+							runstate <= RUN_EXEC;
+						end
 					default:
 						begin
 `ifdef SIM
-							$display("runstate %h %h", decstate, nibble);
+							$display("15%h UNIMPLEMENTED", nibble);
 `endif
 							halt <= 1;
 						end
@@ -479,6 +521,52 @@ begin
 				begin
 `ifdef SIM
 					$display("runstate %h", decstate);
+`endif
+					halt <= 1;
+				end
+		endcase
+
+	if (decstate == DECODE_MEMACCESS)
+		case (runstate)
+			RUN_EXEC:
+				begin
+					t_ctr <= 0;
+					case (t_field)
+						T_FIELD_B:
+							begin
+								t_offset <= 0;
+								t_cnt <= 1;
+							end
+					endcase
+					case (t_dir)
+						T_DIR_OUT: runstate <= WRITE_STA;
+						T_DIR_IN:  runstate <= READ_ROM_STA;
+					endcase
+`ifdef SIM
+					$write("%5h ", saved_PC);
+					case (t_dir)
+						T_DIR_OUT: $write("%s=%s\t", t_ptr?"DAT1":"DAT0", t_reg?"C":"A");
+						T_DIR_IN:  $write("%s=%s\t", t_reg?"C":"A", t_ptr?"DAT1":"DAT0");
+					endcase
+					case (t_field)
+						T_FIELD_P:   $display("P");
+						T_FIELD_WP:  $display("WP");
+						T_FIELD_XS:  $display("XS");
+						T_FIELD_X:   $display("X");
+						T_FIELD_S:   $display("S");
+						T_FIELD_M:   $display("M");
+						T_FIELD_B:   $display("B");
+						T_FIELD_W:   $display("W");
+						T_FIELD_LEN: $display("%d", t_cnt);
+						T_FIELD_A:   $display("A");
+					endcase
+`endif
+				end
+			default: 
+				begin
+`ifdef SIM
+					$display("runstate %h | decstate %h | ptr %s | dir %s | reg %s | field %h", 
+							 runstate, decstate, t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field);
 `endif
 					halt <= 1;
 				end
@@ -495,8 +583,8 @@ begin
 			RUN_DECODE:
 				begin
 					runstate <= READ_ROM_STA;
-					load_cnt <= 4;
-					load_ctr <= 0;
+					t_cnt <= 4;
+					t_ctr <= 0;
 `ifdef SIM
 					$write("%5h D0=(5)\t", saved_PC);
 `endif
@@ -504,11 +592,11 @@ begin
 			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
 			READ_ROM_VAL:
 				begin
-					D0[load_ctr*4+:4] <= nibble;
+					D0[t_ctr*4+:4] <= nibble;
 `ifdef SIM
 					$write("%1h", nibble);
 `endif
-					if (load_ctr == load_cnt)
+					if (t_ctr == t_cnt)
 						begin
 `ifdef SIM
 							$display("");
@@ -518,7 +606,7 @@ begin
 						end
 					else 
 						begin 
-							load_ctr <= load_ctr + 1;
+							t_ctr <= t_ctr + 1;
 							runstate <= READ_ROM_STA;
 						end
 				end
@@ -577,18 +665,18 @@ begin
 `ifdef SIM
 							$write("%5h LC (%h)\t", saved_PC, nibble);
 `endif
-							load_cnt <= nibble;
-							load_ctr <= 0;
+							t_cnt <= nibble;
+							t_ctr <= 0;
 							decstate <= DECODE_LC;
 							runstate <= READ_ROM_STA;
 						end
 					DECODE_LC:
 						begin
-							C[((load_ctr+P)%16)*4+:4] <= nibble;
+							C[((t_ctr+P)%16)*4+:4] <= nibble;
 `ifdef SIM
 							$write("%1h", nibble);
 `endif
-							if (load_ctr == load_cnt) 
+							if (t_ctr == t_cnt) 
 								begin
 `ifdef SIM
 									$display("");
@@ -599,7 +687,7 @@ begin
 								end 
 							else 
 								begin 
-									load_ctr <= (load_ctr + 1)&4'hf;
+									t_ctr <= (t_ctr + 1)&4'hf;
 									runstate <= READ_ROM_STA;
 								end							
 						end
@@ -633,8 +721,8 @@ begin
 					runstate <= READ_ROM_STA;
 					jump_base <= PC;
 					jump_offset <= 0;
-					load_cnt <= 2;
-					load_ctr <= 0;
+					t_cnt <= 2;
+					t_ctr <= 0;
 `ifdef SIM
 					$write("%5h GOTO\t", saved_PC);
 `endif
@@ -642,14 +730,14 @@ begin
 			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
 			READ_ROM_VAL:
 				begin
-					jump_offset[load_ctr*4+:4] <= nibble;
+					jump_offset[t_ctr*4+:4] <= nibble;
 `ifdef SIM
 					$write("%1h", nibble);
 `endif
-					if (load_ctr == load_cnt) runstate <= RUN_EXEC;
+					if (t_ctr == t_cnt) runstate <= RUN_EXEC;
 					else 
 						begin 
-							load_ctr <= load_ctr + 1;
+							t_ctr <= t_ctr + 1;
 							runstate <= READ_ROM_STA;
 						end
 				end
@@ -890,8 +978,8 @@ begin
 			RUN_DECODE:
 				begin
 					jump_base <= 0;
-					load_cnt <= 4;
-					load_ctr <= 0;
+					t_cnt <= 4;
+					t_ctr <= 0;
 `ifdef SIM
 					case (decstate)
 						DECODE_GOVLNG: $write("%5h GOVLNG\t", saved_PC);
@@ -906,14 +994,14 @@ begin
 			READ_ROM_VAL:
 				begin
 				  //$display("decstate %h | nibble %h", decstate, nibble);
-				  jump_base[load_ctr*4+:4] <= nibble;
+				  jump_base[t_ctr*4+:4] <= nibble;
 `ifdef SIM
 				  $write("%1h", nibble);
 `endif
-				  if (load_ctr == load_cnt) runstate <= RUN_EXEC;
+				  if (t_ctr == t_cnt) runstate <= RUN_EXEC;
 					else 
 						begin 
-							load_ctr <= load_ctr + 1;
+							t_ctr <= t_ctr + 1;
 							runstate <= READ_ROM_STA;
 						end
 				end
@@ -952,7 +1040,7 @@ begin
 				case (decstate)
 					DECODE_A: 
 						begin
-							tmp_field <= nibble;
+							t_field <= nibble;
 							decstate <= DECODE_A_FS;
 							runstate <= READ_ROM_STA;
 						end
@@ -960,7 +1048,7 @@ begin
 						begin				
 							case (nibble)
 								4'h2:
-									case (tmp_field)
+									case (t_field)
 										4'he: 
 											begin
 												C[7:0] <= 0;
@@ -972,7 +1060,7 @@ begin
 								default:
 									begin
 `ifdef SIM
-										$display("decstate %h %h %h", decstate, tmp_field, nibble);
+										$display("decstate %h %h %h", decstate, t_field, nibble);
 `endif
 										halt <= 1;
 									end
