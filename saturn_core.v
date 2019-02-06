@@ -255,7 +255,7 @@ module hp48_bus (
 	input			[19:0]	address,
 	input			[3:0]	command,
 	input			[3:0]	nibble_in,
-	output			[3:0]	nibble_out,
+	output	reg		[3:0]	nibble_out,
 	output					bus_error
 );
 
@@ -291,9 +291,9 @@ hp48_rom dev_rom (
 
 always @(*)
 	begin
+		nibble_out = 0;
 		if ((command == `BUSCMD_PC_READ)|(command == `BUSCMD_DP_READ))
 			begin
-				nibble_out = 0;
 				if (io_ram_active) nibble_out = io_ram_nibble_out;	
 				if (~io_ram_active) nibble_out = rom_nibble_out;
 			end
