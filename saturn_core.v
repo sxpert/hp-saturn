@@ -279,11 +279,11 @@ always @(*)
 		case (command)
 			`BUSCMD_PC_READ, `BUSCMD_DP_READ:
 				begin
-					if (io_ram_active) nibble_out <= io_ram_nibble_out;	
-					if (~io_ram_active) nibble_out <= rom_nibble_out;
+					if (io_ram_active) nibble_out = io_ram_nibble_out;	
+					if (~io_ram_active) nibble_out = rom_nibble_out;
 				end
 		endcase
-		bus_error <= io_ram_error;
+		bus_error = io_ram_error;
 	end
 
 endmodule
