@@ -33,7 +33,7 @@
  *
  */
 
-module hp_rom (
+module hp48_rom (
 	input 				clk,
 	input 		[19:0]	address,
 	input		[3:0]	command,
@@ -97,14 +97,14 @@ endmodule
 
 
 module hp48_io_ram (
-	input			clk,
-	input			reset,
-	input	[19:0]	address,
-	input	[3:0]	command,
-	input	[3:0]	nibble_in,
-	output	[3:0]	nibble_out,
-	output	reg		io_ram_active,
-	output	reg		io_ram_error
+	input				clk,
+	input				reset,
+	input		[19:0]	address,
+	input		[3:0]	command,
+	input		[3:0]	nibble_in,
+	output	reg [3:0]	nibble_out,
+	output				io_ram_active,
+	output	reg			io_ram_error
 );
 
 localparam IO_RAM_LEN		= 64;
@@ -118,7 +118,7 @@ reg [19:0]	base_addr;
 reg [19:0]	pc_ptr;
 reg [19:0]	data_ptr;
 reg [3:0]	io_ram [0:IO_RAM_LEN-1];
-
+wire		io_ram_active;
 /*
  *
  *
@@ -133,7 +133,7 @@ initial
 `ifdef SIM
 		$display("io_ram: reset error flag");
 `endif
-		io_ram_error = 0;	
+		io_ram_error = 1'b0;	
 `ifdef SIM
 		$display("io_ram: setting base address to 0");
 `endif
@@ -153,7 +153,7 @@ initial
 				io_ram[base_addr] = 0; 
 			end
 `ifdef SIM	
-		$display("");
+		$write("\n");
 		$display("io_ram: initialized");
 `endif
 	end
@@ -165,9 +165,11 @@ initial
 
 always @(*)
 	case (command)
-		`BUSCMD_PC_READ, `BUSCMD_PC_WRITE,
-		`BUSCMD_DP_READ, `BUSCMD_DP_WRITE:
-				io_ram_active = ((base_addr>=data_ptr)&(data_ptr<base_addr+IO_RAM_LEN))&(configured);
+		`BUSCMD_PC_READ, `BUSCMD_DP_READ,
+		`BUSCMD_PC_WRITE, `BUSCMD_PC_WRITE:
+			io_ram_active = ((base_addr>=data_ptr)&(data_ptr<base_addr+IO_RAM_LEN))&(configured);
+		default:
+			io_ram_active = 0;
 	endcase
 
 always @(negedge clk)
@@ -176,6 +178,19 @@ always @(negedge clk)
 			`BUSCMD_NOP: begin end				// do nothing	
 			`BUSCMD_PC_READ:	
 				begin
+					// test if write can be done
+					if (io_ram_active)
+						begin
+							nibble_out <= io_ram[pc_ptr - base_addr];
+`ifdef SIM
+							$display("io_ram: PC_READ %5h %h | OK", data_ptr, nibble_in); 
+`endif
+						end
+`ifdef SIM
+					else
+						$display("io_ram: PC_READ %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
+`endif
+					pc_ptr <= pc_ptr + 1;
 				end
 			`BUSCMD_DP_WRITE:
 				begin
@@ -183,7 +198,6 @@ always @(negedge clk)
 					if (io_ram_active)
 						begin
 							io_ram[data_ptr - base_addr] <= nibble_in;
-							data_ptr <= data_ptr + 1;
 `ifdef SIM
 							$display("io_ram: DP_WRITE %5h %h | OK", data_ptr, nibble_in); 
 `endif
@@ -192,6 +206,7 @@ always @(negedge clk)
 					else
 							$display("io_ram: DP_WRITE %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
 `endif
+					data_ptr <= data_ptr + 1;
 				end
 			`BUSCMD_LOAD_PC:
 				begin
@@ -240,8 +255,8 @@ module hp48_bus (
 	input			[19:0]	address,
 	input			[3:0]	command,
 	input			[3:0]	nibble_in,
-	output	reg		[3:0]	nibble_out,
-	output	reg					bus_error
+	output			[3:0]	nibble_out,
+	output					bus_error
 );
 
 // io_ram
@@ -255,7 +270,7 @@ wire [3:0]	rom_nibble_out;
 //
 // listed in order of priority
 //
-hp48_io_ram io_ram (
+hp48_io_ram dev_io_ram (
 	.clk			(clk),
 	.reset			(reset),
 	.address		(address),
@@ -266,7 +281,7 @@ hp48_io_ram io_ram (
 	.io_ram_error	(io_ram_error)
 );
 
-hp_rom calc_rom (
+hp48_rom dev_rom (
 	.clk			(clk),
 	.address		(address),
 	.command		(command),
@@ -276,13 +291,12 @@ hp_rom calc_rom (
 
 always @(*)
 	begin
-		case (command)
-			`BUSCMD_PC_READ, `BUSCMD_DP_READ:
-				begin
-					if (io_ram_active) nibble_out = io_ram_nibble_out;	
-					if (~io_ram_active) nibble_out = rom_nibble_out;
-				end
-		endcase
+		if ((command == `BUSCMD_PC_READ)|(command == `BUSCMD_DP_READ))
+			begin
+				nibble_out = 0;
+				if (io_ram_active) nibble_out = io_ram_nibble_out;	
+				if (~io_ram_active) nibble_out = rom_nibble_out;
+			end
 		bus_error = io_ram_error;
 	end
 
@@ -1362,6 +1376,13 @@ begin
 `ifdef SIM
 												$display("%5h C=0\tB", saved_PC);
 `endif
+											end
+										default:
+											begin
+`ifdef SIM
+												$display("decstate %h %h %h", decstate, t_field, nibble);
+`endif
+												halt <= 1;
 											end
 									endcase
 								default:
