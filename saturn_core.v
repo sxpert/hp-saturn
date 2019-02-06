@@ -1040,17 +1040,11 @@ begin
 					jump_offset <= 0;
 					t_cnt <= 2;
 					t_ctr <= 0;
-`ifdef SIM
-					$write("%5h GOTO\t", saved_PC);
-`endif
 				end
 			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
 			READ_ROM_VAL:
 				begin
 					jump_offset[t_ctr*4+:4] <= nibble;
-`ifdef SIM
-					$write("%1h", nibble);
-`endif
 					if (t_ctr == t_cnt) runstate <= RUN_EXEC;
 					else 
 						begin 
@@ -1061,7 +1055,7 @@ begin
 			RUN_EXEC:
 				begin
 `ifdef SIM
-					$display("\t=> %05h", jump_base + jump_offset);
+					$display("%5h GOTO\t%3h\t=> %05h", saved_PC, jump_offset[11:0], jump_base + jump_offset);
 `endif					PC <= jump_base + jump_offset;
 					runstate <= RUN_START;
 					decstate <= DECODE_START;
@@ -1297,12 +1291,6 @@ begin
 					jump_base <= 0;
 					t_cnt <= 4;
 					t_ctr <= 0;
-`ifdef SIM
-					case (decstate)
-						DECODE_GOVLNG: $write("%5h GOVLNG\t", saved_PC);
-						DECODE_GOSBVL: $write("%5h GOSBVL\t", saved_PC);
-					endcase
-`endif
 					if (decstate == DECODE_GOSBVL)
 						rstk_ptr <= rstk_ptr + 1;
 					runstate <= READ_ROM_STA;
@@ -1312,9 +1300,6 @@ begin
 				begin
 				  //$display("decstate %h | nibble %h", decstate, nibble);
 				  jump_base[t_ctr*4+:4] <= nibble;
-`ifdef SIM
-				  $write("%1h", nibble);
-`endif
 				  if (t_ctr == t_cnt) runstate <= RUN_EXEC;
 					else 
 						begin 
@@ -1325,7 +1310,12 @@ begin
 			RUN_EXEC:
 				begin
 `ifdef SIM
-					$display("\t=> %5h", jump_base);
+					$write("%5h GO", saved_PC);
+					case (decstate)
+						DECODE_GOVLNG: $write("VLNG");
+						DECODE_GOSBVL: $write("SBVL");
+					endcase
+					$display("\t%5h", jump_base);
 `endif
 					if (decstate  == DECODE_GOSBVL)
 						RSTK[rstk_ptr] <= PC;							  
