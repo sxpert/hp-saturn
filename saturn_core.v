@@ -49,15 +49,19 @@ endmodule
  */
 `define BUSCMD_NOP			0
 `define BUSCMD_DP_WRITE		5
+`define BUSCMD_LOAD_DP		7
 `define BUSCMD_CONFIGURE	8
 
 
 module hp48_io_ram (
 	input			clk,
+	input			reset,
 	input	[19:0]	address,
 	input	[3:0]	command,
 	input	[3:0]	nibble_in,
-	output	[3:0]	nibble_out
+	output	[3:0]	nibble_out,
+	output	reg		io_ram_active,
+	output	reg		io_ram_error
 );
 
 localparam IO_RAM_LEN		= 64;
@@ -66,16 +70,34 @@ localparam IO_RAM_LEN		= 64;
 // localparam BUSCMD_CONFIGURE = C_BUSCMD_CONFIGURE;
 
 
-reg			configured;
+reg	[0:0]	configured;
 reg [19:0]	base_addr;
+reg [19:0]	data_ptr;
 reg [3:0]	io_ram [0:IO_RAM_LEN-1];
+
+/*
+ *
+ *
+ */
 
 initial
 	begin
 `ifdef SIM
-		$display("io_ram: unconfigured");
+		$display("io_ram: set unconfigured");
 `endif
 		configured = 0;
+`ifdef SIM
+		$display("io_ram: reset error flag");
+`endif
+		io_ram_error = 0;	
+`ifdef SIM
+		$display("io_ram: setting base address to 0");
+`endif
+		base_addr = 0;
+`ifdef SIM
+		$display("io_ram: setting data pointer to 0");
+`endif
+		data_ptr = 0;
 `ifdef SIM
 		$display("io_ram: initializing to 0");
 `endif
@@ -88,27 +110,68 @@ initial
 			end
 `ifdef SIM	
 		$display("");
-		$display("io_ram: setting base address to 0");
-`endif
-		base_addr = 0;
-`ifdef SIM
 		$display("io_ram: initialized");
 `endif
 	end
 
-always @(posedge clk)
+/*
+ *
+ *
+ */
+
+always @(*)
 	case (command)
-		`BUSCMD_NOP: begin end				// do nothing	
-		`BUSCMD_CONFIGURE:
-			begin
-`ifdef SIM
-				$display("io_ram: configure at %5h len %d", address, IO_RAM_LEN);
-`endif
-				base_addr <= address;
-			end
-		default:
-				$display("io_ram: unhandled command %h", command);
+		`BUSCMD_DP_WRITE:
+			io_ram_active = ((base_addr >= data_ptr)&(data_ptr < base_addr+IO_RAM_LEN))&(configured);
 	endcase
+
+
+always @(negedge clk)
+	if ((~reset)&(~io_ram_error))
+		case (command)
+			`BUSCMD_NOP: begin end				// do nothing	
+			`BUSCMD_DP_WRITE:
+				begin
+`ifdef SIM
+					$write("io_ram: DP_WRITE %5h %h | ", data_ptr, nibble_in); 
+`endif
+					// test if write can be done
+					if (io_ram_active)
+						begin
+							io_ram[data_ptr - base_addr] <= nibble_in;
+							data_ptr <= data_ptr + 1;
+`ifdef SIM
+							$display("OK"); 
+`endif
+						end
+					else
+`ifdef SIM
+							$display("NOK - IO_RAM not active (conf: %b)", configured); 
+`endif
+				end
+			`BUSCMD_LOAD_DP:
+				begin
+`ifdef SIM
+					$display("io_ram: LOAD_DP %5h", address);
+`endif
+					data_ptr <= address;
+				end
+			`BUSCMD_CONFIGURE:
+				begin
+`ifdef SIM
+					$display("io_ram: configure at %5h len %d", address, IO_RAM_LEN);
+`endif
+					base_addr <= address;
+					configured <= 1;
+				end
+			default:
+				begin
+`ifdef SIM
+					$display("io_ram: unhandled command %h", command);
+`endif
+					io_ram_error <= 1;
+				end
+		endcase
 
 endmodule
 
@@ -163,6 +226,7 @@ localparam READ_ROM_CLK	= 2;
 localparam READ_ROM_STR	= 3;
 localparam READ_ROM_VAL	= 4;
 localparam WRITE_STA	= 5;
+localparam WRITE_STROBE	= 6;
 localparam WRITE_DONE	= 8;
 localparam RUN_EXEC		= 14;
 localparam RUN_DECODE	= 15;
@@ -237,21 +301,20 @@ localparam T_FIELD_LEN	= 13;
 localparam T_FIELD_A	= 15;
 
 // state machine stuff
-reg			halt;
-reg	[3:0]	runstate;
-reg	[15:0]	decstate;
-reg [7:0]	regdump;
+reg				halt;
+reg		[3:0]	runstate;
+reg		[15:0]	decstate;
+reg		[7:0]	regdump;
 
-// memory access
-//reg			rom_clock;
-reg	[19:0]		rom_address;
-reg				rom_enable;
-wire[3:0]		rom_nibble;
-
-// io_ram access
+// bus access
+reg		[19:0]	bus_address;
 reg		[3:0]	bus_command;
 reg		[3:0]	nibble_in;
 wire	[3:0]	nibble_out;
+wire			io_ram_error;
+
+// should go away, the rom should work like any other bus module
+reg				rom_enable;
 
 // internal registers
 reg	[3:0]	nibble;
@@ -293,17 +356,19 @@ reg	[63:0]	R4;
 
 hp_rom calc_rom (
 	.clk		(clk),
-	.address	(rom_address),
+	.address	(bus_address),
 	.enable		(rom_enable),
-	.nibble_out	(rom_nibble)
+	.nibble_out	(nibble_out)
 );
 
 hp48_io_ram io_ram (
-	.clk		(clk),
-	.address	(rom_address),
-	.command	(bus_command),
-	.nibble_in	(nibble_in),
-	.nibble_out	(nibble_out)
+	.clk			(clk),
+	.reset			(reset),
+	.address		(bus_address),
+	.command		(bus_command),
+	.nibble_in		(nibble_in),
+	.nibble_out		(nibble_out),
+	.io_ram_error	(io_ram_error)
 );
 /**************************************************************************************************
  *
@@ -366,6 +431,11 @@ begin
 		if (runstate == RUN_START) 
 			runstate <= READ_ROM_STA;
 
+	if (io_ram_error)
+		begin	
+			halt <= 1;
+		end
+
 //--------------------------------------------------------------------------------------------------
 //
 // REGISTER UTILITIES
@@ -399,7 +469,7 @@ begin
 		begin
 			//$display("READ_ROM_STA");
 			rom_enable <= 1'b1;
-			rom_address <= PC;
+			bus_address <= PC;
 			runstate <= READ_ROM_CLK;
 		end
 
@@ -415,8 +485,8 @@ begin
 	if (runstate == READ_ROM_STR)
 		begin				
 			//$display("READ_ROM_STR");
-			nibble <= rom_nibble;
-			//$display("PC: %h | read => %h", PC, rom_nibble);
+			nibble <= nibble_out;
+			//$display("PC: %h | read => %h", PC, nibble_out);
 			PC <= PC + 1;
 			rom_enable <= 1'b0;
 //			rom_clock <= 1'b0;
@@ -583,14 +653,14 @@ begin
  *	---------- field -----------
  *	 A	 B	 fs	 d
  *	----------------------------	
- *	140	148	150a	158x	DAT0=A field
- *	141	149	151a	159x	DAT1=A field
- *	142	14A	152a	15Ax	A=DAT0 field
- *	143	14B	153a	15Bx	A=DAT1 field
- *	144	14C	154a	15Cx	DAT0=C field
- *	145	14D	155a	15Dx	DAT1=C field
- *	146	14E	156a	15Ex	C=DAT0 field
- *	147	14F	157a	15Fx	C=DAT1 field
+ *	140	148	150a	158x	DAT0=A field	0000 1000
+ *	141	149	151a	159x	DAT1=A field	0001 1001
+ *	142	14A	152a	15Ax	A=DAT0 field	0010 1010
+ *	143	14B	153a	15Bx	A=DAT1 field	0011 1011
+ *	144	14C	154a	15Cx	DAT0=C field	0100 1100
+ *	145	14D	155a	15Dx	DAT1=C field	0101 1101
+ *	146	14E	156a	15Ex	C=DAT0 field	0110 1110
+ *	147	14F	157a	15Fx	C=DAT1 field	0111 1111
  *
  *	fs: P  WP XS X  S  M  B  W
  *	a:  0  1  2  3  4  5  6  7
@@ -671,7 +741,41 @@ begin
 					endcase
 `endif
 				end
-			
+			WRITE_STA:
+				begin
+`ifdef SIM
+					$display("WRITE_STA    | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
+							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_field, t_offset, t_ctr, t_cnt);
+`endif
+					bus_command <= `BUSCMD_LOAD_DP;
+					bus_address <= (~t_ptr)?D0:D1;
+					runstate <= WRITE_STROBE;
+				end
+			WRITE_STROBE:
+				begin
+`ifdef SIM
+					$display("WRITE_STROBE | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
+							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_offset, t_ctr, t_cnt);
+`endif
+					bus_command <= `BUSCMD_DP_WRITE;
+					nibble_in <= (~t_reg)?A[t_offset*4+:4]:C[t_offset*4+:4];
+					t_offset <= t_offset + 1;
+					t_ctr <= t_ctr + 1;
+					if (t_ctr == t_cnt)
+						begin
+							runstate <= WRITE_DONE;
+						end
+				end
+			WRITE_DONE:
+				begin
+`ifdef SIM
+					$display("WRITE_DONE   | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
+							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_offset, t_ctr, t_cnt);
+`endif
+					bus_command <= `BUSCMD_NOP;
+					runstate <= RUN_START;
+					decstate <= DECODE_START;
+				end
 			default: 
 				begin
 `ifdef SIM
