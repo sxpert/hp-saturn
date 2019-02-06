@@ -103,7 +103,7 @@ module hp48_io_ram (
 	input		[3:0]	command,
 	input		[3:0]	nibble_in,
 	output	reg [3:0]	nibble_out,
-	output				io_ram_active,
+	output	reg			io_ram_active,
 	output	reg			io_ram_error
 );
 
@@ -118,7 +118,7 @@ reg [19:0]	base_addr;
 reg [19:0]	pc_ptr;
 reg [19:0]	data_ptr;
 reg [3:0]	io_ram [0:IO_RAM_LEN-1];
-wire		io_ram_active;
+
 /*
  *
  *
@@ -164,13 +164,12 @@ initial
  */
 
 always @(*)
-	case (command)
-		`BUSCMD_PC_READ, `BUSCMD_DP_READ,
-		`BUSCMD_PC_WRITE, `BUSCMD_PC_WRITE:
+	begin
+		io_ram_active = 0;
+		if ((command==`BUSCMD_PC_READ)|(command==`BUSCMD_DP_READ)|
+			(command==`BUSCMD_PC_WRITE)|(command==`BUSCMD_PC_WRITE))
 			io_ram_active = ((base_addr>=data_ptr)&(data_ptr<base_addr+IO_RAM_LEN))&(configured);
-		default:
-			io_ram_active = 0;
-	endcase
+	end
 
 always @(negedge clk)
 	if ((~reset)&(~io_ram_error))
@@ -186,10 +185,10 @@ always @(negedge clk)
 							$display("io_ram: PC_READ %5h %h | OK", data_ptr, nibble_in); 
 `endif
 						end
-`ifdef SIM
-					else
-						$display("io_ram: PC_READ %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
-`endif
+// `ifdef SIM
+// 					else
+// 						$display("io_ram: PC_READ %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
+// `endif
 					pc_ptr <= pc_ptr + 1;
 				end
 			`BUSCMD_DP_WRITE:
@@ -256,7 +255,7 @@ module hp48_bus (
 	input			[3:0]	command,
 	input			[3:0]	nibble_in,
 	output	reg		[3:0]	nibble_out,
-	output					bus_error
+	output	reg				bus_error
 );
 
 // io_ram
@@ -291,13 +290,13 @@ hp48_rom dev_rom (
 
 always @(*)
 	begin
+		bus_error = io_ram_error;
 		nibble_out = 0;
 		if ((command == `BUSCMD_PC_READ)|(command == `BUSCMD_DP_READ))
 			begin
 				if (io_ram_active) nibble_out = io_ram_nibble_out;	
 				if (~io_ram_active) nibble_out = rom_nibble_out;
 			end
-		bus_error = io_ram_error;
 	end
 
 endmodule
