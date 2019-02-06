@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#
+# licence: GPLv3 or later
+#
 
 f = open("../docs/gxrom-r", "rb")
 count=0

@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# licence: GPLv3 or later
+# 
 verilator -Wall -cc saturn_core.v
 VERILATOR_STATUS=$?
 if [ "VERILATOR_STATUS" != "0" ]

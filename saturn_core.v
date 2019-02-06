@@ -1,3 +1,7 @@
+/*
+ * Licence: GPLv3 or later
+ */
+
 `default_nettype none //
 
 /**************************************************************************************************
@@ -43,17 +47,24 @@ endmodule
  *
  *
  */
+`define BUSCMD_NOP			0
+`define BUSCMD_DP_WRITE		5
+`define BUSCMD_CONFIGURE	8
+
 
 module hp48_io_ram (
 	input			clk,
 	input	[19:0]	address,
-	input			configure,
-	input			write,
+	input	[3:0]	command,
 	input	[3:0]	nibble_in,
 	output	[3:0]	nibble_out
 );
 
-localparam IO_RAM_LEN	= 64;
+localparam IO_RAM_LEN		= 64;
+
+// localparam BUSCMD_DP_WRITE	= C_BUSCMD_DP_WRITE;
+// localparam BUSCMD_CONFIGURE = C_BUSCMD_CONFIGURE;
+
 
 reg			configured;
 reg [19:0]	base_addr;
@@ -85,8 +96,19 @@ initial
 `endif
 	end
 
-//always @(posedge clk)
-
+always @(posedge clk)
+	case (command)
+		`BUSCMD_NOP: begin end				// do nothing	
+		`BUSCMD_CONFIGURE:
+			begin
+`ifdef SIM
+				$display("io_ram: configure at %5h len %d", address, IO_RAM_LEN);
+`endif
+				base_addr <= address;
+			end
+		default:
+				$display("io_ram: unhandled command %h", command);
+	endcase
 
 endmodule
 
@@ -127,6 +149,11 @@ assign reset		= btn[1];
 // led display states
 localparam	REGDMP_HEX		= 8'h00;
 
+
+// bus commands
+
+// localparam BUSCMD_DP_WRITE	= `C_BUSCMD_DP_WRITE;
+// localparam BUSCMD_CONFIGURE = `C_BUSCMD_CONFIGURE;
 
 // runstate
 
@@ -217,13 +244,12 @@ reg [7:0]	regdump;
 
 // memory access
 //reg			rom_clock;
-reg	[19:0]	rom_address;
-reg			rom_enable;
-wire[3:0]	rom_nibble;
+reg	[19:0]		rom_address;
+reg				rom_enable;
+wire[3:0]		rom_nibble;
 
 // io_ram access
-reg				io_configure;
-reg				io_write;
+reg		[3:0]	bus_command;
 reg		[3:0]	nibble_in;
 wire	[3:0]	nibble_out;
 
@@ -275,8 +301,7 @@ hp_rom calc_rom (
 hp48_io_ram io_ram (
 	.clk		(clk),
 	.address	(rom_address),
-	.configure	(io_configure),
-	.write		(io_write),
+	.command	(bus_command),
 	.nibble_in	(nibble_in),
 	.nibble_out	(nibble_out)
 );
@@ -291,6 +316,19 @@ begin
 
 	if (reset)
 		begin
+			// bus
+
+			bus_command <= `BUSCMD_NOP;
+			
+			// processor state machine
+			
+			halt		<= 0;
+			runstate	<= RUN_START;
+			decstate 	<= DECODE_START;
+			regdump		<= REGDMP_HEX;
+
+			// processor registers
+
 			hex_dec		<= HEX;
 			rstk_ptr	<= 7;
 
@@ -323,10 +361,6 @@ begin
 			R3			<= 0;
 			R4			<= 0;
 
-			halt		<= 0;
-			runstate	<= RUN_START;
-			decstate 	<= DECODE_START;
-			regdump		<= REGDMP_HEX;
 		end
 	else
 		if (runstate == RUN_START) 
@@ -389,6 +423,10 @@ begin
 			runstate <= READ_ROM_VAL;
 		end
 
+	if (runstate == WRITE_STA)
+		begin
+			bus_command <= `BUSCMD_DP_WRITE;
+		end
 
 //--------------------------------------------------------------------------------------------------
 //
