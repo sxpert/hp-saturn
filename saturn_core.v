@@ -6,6 +6,27 @@
 
 /**************************************************************************************************
  *
+ * Bus commands
+ * 
+ *
+ *
+ */
+
+`define BUSCMD_NOP			0
+`define BUSCMD_ID			1
+`define BUSCMD_PC_READ		2
+`define BUSCMD_DP_READ		3
+`define BUSCMD_PC_WRITE		4	
+`define BUSCMD_DP_WRITE		5
+`define BUSCMD_LOAD_PC		6
+`define BUSCMD_LOAD_DP		7
+`define BUSCMD_CONFIGURE	8
+`define BUSCMD_UNCONFIGURE	9
+`define BUSCMD_RESET		15
+
+
+/**************************************************************************************************
+ *
  * Rom module
  * accesses the calculators firmware
  *
@@ -13,9 +34,9 @@
  */
 
 module hp_rom (
-	input 		clk,
+	input 				clk,
 	input 		[19:0]	address,
-	input		enable,
+	input		[3:0]	command,
 	output	reg	[3:0]	nibble_out	
 );
 localparam 	ROM_FILENAME = "rom-gx-r.hex";
@@ -30,14 +51,40 @@ reg [3:0]	rom	[0:(2**20)-1];
 reg[3:0]	rom	[0:(2**16)-1];
 `endif
 
+reg [19:0]	pc_ptr;
+reg [19:0]	data_ptr;
+
 initial
 begin
 	$readmemh( ROM_FILENAME, rom);
 end
 
-always @(posedge clk)
-	if (enable)
-		nibble_out <= rom[address];
+always @(negedge clk)
+		case (command)
+			`BUSCMD_NOP: begin end				// do nothing	
+			`BUSCMD_PC_READ:	
+				begin
+`ifdef SIM
+					//$display("rom: PC_READ %5h => %h", address, rom[pc_ptr]);
+`endif
+					nibble_out <= rom[pc_ptr];
+					pc_ptr <= pc_ptr + 1;
+				end
+			`BUSCMD_LOAD_PC:
+				begin
+`ifdef SIM
+					//$display("rom: LOAD_PC %5h", address);
+`endif
+					pc_ptr <= address;
+				end
+			`BUSCMD_LOAD_DP:
+				begin
+`ifdef SIM
+					//$display("rom: LOAD_DP %5h", address);
+`endif
+					data_ptr <= address;
+				end
+		endcase
 endmodule
 
 /**************************************************************************************************
@@ -47,10 +94,6 @@ endmodule
  *
  *
  */
-`define BUSCMD_NOP			0
-`define BUSCMD_DP_WRITE		5
-`define BUSCMD_LOAD_DP		7
-`define BUSCMD_CONFIGURE	8
 
 
 module hp48_io_ram (
@@ -72,6 +115,7 @@ localparam IO_RAM_LEN		= 64;
 
 reg	[0:0]	configured;
 reg [19:0]	base_addr;
+reg [19:0]	pc_ptr;
 reg [19:0]	data_ptr;
 reg [3:0]	io_ram [0:IO_RAM_LEN-1];
 
@@ -121,38 +165,45 @@ initial
 
 always @(*)
 	case (command)
-		`BUSCMD_DP_WRITE:
-			io_ram_active = ((base_addr >= data_ptr)&(data_ptr < base_addr+IO_RAM_LEN))&(configured);
+		`BUSCMD_PC_READ, `BUSCMD_PC_WRITE,
+		`BUSCMD_DP_READ, `BUSCMD_DP_WRITE:
+				io_ram_active = ((base_addr>=data_ptr)&(data_ptr<base_addr+IO_RAM_LEN))&(configured);
 	endcase
-
 
 always @(negedge clk)
 	if ((~reset)&(~io_ram_error))
 		case (command)
 			`BUSCMD_NOP: begin end				// do nothing	
+			`BUSCMD_PC_READ:	
+				begin
+				end
 			`BUSCMD_DP_WRITE:
 				begin
-`ifdef SIM
-					$write("io_ram: DP_WRITE %5h %h | ", data_ptr, nibble_in); 
-`endif
 					// test if write can be done
 					if (io_ram_active)
 						begin
 							io_ram[data_ptr - base_addr] <= nibble_in;
 							data_ptr <= data_ptr + 1;
 `ifdef SIM
-							$display("OK"); 
+							$display("io_ram: DP_WRITE %5h %h | OK", data_ptr, nibble_in); 
 `endif
 						end
-					else
 `ifdef SIM
-							$display("NOK - IO_RAM not active (conf: %b)", configured); 
+					else
+							$display("io_ram: DP_WRITE %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
 `endif
+				end
+			`BUSCMD_LOAD_PC:
+				begin
+`ifdef SIM
+					//$display("io_ram: LOAD_PC %5h", address);
+`endif
+					pc_ptr <= address;
 				end
 			`BUSCMD_LOAD_DP:
 				begin
 `ifdef SIM
-					$display("io_ram: LOAD_DP %5h", address);
+					//$display("io_ram: LOAD_DP %5h", address);
 `endif
 					data_ptr <= address;
 				end
@@ -175,6 +226,67 @@ always @(negedge clk)
 
 endmodule
 
+/**************************************************************************************************
+ *
+ *  Bus manager
+ *
+ *
+ *
+ */
+
+module hp48_bus (
+	input					clk,
+	input					reset,
+	input			[19:0]	address,
+	input			[3:0]	command,
+	input			[3:0]	nibble_in,
+	output	reg		[3:0]	nibble_out,
+	output	reg					bus_error
+);
+
+// io_ram
+wire [3:0]	io_ram_nibble_out;
+wire		io_ram_active;
+wire		io_ram_error;
+
+// rom
+wire [3:0]	rom_nibble_out;
+
+//
+// listed in order of priority
+//
+hp48_io_ram io_ram (
+	.clk			(clk),
+	.reset			(reset),
+	.address		(address),
+	.command		(command),
+	.nibble_in		(nibble_in),
+	.nibble_out		(io_ram_nibble_out),
+	.io_ram_active	(io_ram_active),
+	.io_ram_error	(io_ram_error)
+);
+
+hp_rom calc_rom (
+	.clk			(clk),
+	.address		(address),
+	.command		(command),
+	.nibble_out		(rom_nibble_out)
+);
+
+
+always @(*)
+	begin
+		case (command)
+			`BUSCMD_PC_READ, `BUSCMD_DP_READ:
+				begin
+					if (io_ram_active) nibble_out <= io_ram_nibble_out;	
+					if (~io_ram_active) nibble_out <= rom_nibble_out;
+				end
+		endcase
+		bus_error <= io_ram_error;
+	end
+
+endmodule
 
 
 
@@ -309,9 +421,9 @@ reg		[7:0]	regdump;
 // bus access
 reg		[19:0]	bus_address;
 reg		[3:0]	bus_command;
-reg		[3:0]	nibble_in;
-wire	[3:0]	nibble_out;
-wire			io_ram_error;
+reg		[3:0]	bus_nibble_in;
+wire	[3:0]	bus_nibble_out;
+wire			bus_error;
 
 // should go away, the rom should work like any other bus module
 reg				rom_enable;
@@ -354,22 +466,17 @@ reg	[63:0]	R2;
 reg	[63:0]	R3;
 reg	[63:0]	R4;
 
-hp_rom calc_rom (
-	.clk		(clk),
-	.address	(bus_address),
-	.enable		(rom_enable),
-	.nibble_out	(nibble_out)
-);
-
-hp48_io_ram io_ram (
+hp48_bus bus_ctrl (
 	.clk			(clk),
 	.reset			(reset),
 	.address		(bus_address),
 	.command		(bus_command),
-	.nibble_in		(nibble_in),
-	.nibble_out		(nibble_out),
-	.io_ram_error	(io_ram_error)
+	.nibble_in		(bus_nibble_in),
+	.nibble_out		(bus_nibble_out),
+	.bus_error		(bus_error)
 );
+
+
 /**************************************************************************************************
  *
  * one single process...
@@ -392,7 +499,7 @@ begin
 			decstate 	<= DECODE_START;
 			regdump		<= REGDMP_HEX;
 
-			// processor registers
+ 			// processor registers
 
 			hex_dec		<= HEX;
 			rstk_ptr	<= 7;
@@ -425,13 +532,13 @@ begin
 			R2			<= 0;
 			R3			<= 0;
 			R4			<= 0;
-
+						
 		end
 	else
 		if (runstate == RUN_START) 
 			runstate <= READ_ROM_STA;
 
-	if (io_ram_error)
+	if (bus_error)
 		begin	
 			halt <= 1;
 		end
@@ -468,8 +575,8 @@ begin
 	if (runstate == READ_ROM_STA)
 		begin
 			//$display("READ_ROM_STA");
-			rom_enable <= 1'b1;
 			bus_address <= PC;
+			bus_command <= `BUSCMD_LOAD_PC;
 			runstate <= READ_ROM_CLK;
 		end
 
@@ -477,7 +584,7 @@ begin
 	if (runstate == READ_ROM_CLK)
 		begin				
 			//$display("READ_ROM_CLK");
-//			rom_clock <= 1'b1;
+			bus_command <= `BUSCMD_PC_READ;
 			runstate <= READ_ROM_STR;
 		end
 
@@ -485,17 +592,13 @@ begin
 	if (runstate == READ_ROM_STR)
 		begin				
 			//$display("READ_ROM_STR");
-			nibble <= nibble_out;
-			//$display("PC: %h | read => %h", PC, nibble_out);
+			bus_command <= `BUSCMD_NOP;
+			nibble <= bus_nibble_out;
+			//$display("PC: %h | read => %h", PC, bus_nibble_out);
 			PC <= PC + 1;
 			rom_enable <= 1'b0;
 //			rom_clock <= 1'b0;
 			runstate <= READ_ROM_VAL;
-		end
-
-	if (runstate == WRITE_STA)
-		begin
-			bus_command <= `BUSCMD_DP_WRITE;
 		end
 
 //--------------------------------------------------------------------------------------------------
@@ -758,7 +861,7 @@ begin
 							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_offset, t_ctr, t_cnt);
 `endif
 					bus_command <= `BUSCMD_DP_WRITE;
-					nibble_in <= (~t_reg)?A[t_offset*4+:4]:C[t_offset*4+:4];
+					bus_nibble_in <= (~t_reg)?A[t_offset*4+:4]:C[t_offset*4+:4];
 					t_offset <= t_offset + 1;
 					t_ctr <= t_ctr + 1;
 					if (t_ctr == t_cnt)
