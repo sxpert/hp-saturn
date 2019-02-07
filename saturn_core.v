@@ -311,7 +311,9 @@ always @(posedge clk)
 always @(negedge clk)
 	if ((runstate == `NEXT_INSTR)&(bus_load_pc))
 		begin
+`ifdef SIM
 			$display("NEXT_INSTR /clk load PC %5h", PC);
+`endif
 			bus_address <= PC;
 			bus_command <= `BUSCMD_LOAD_PC;
 			bus_load_pc <= 0;
@@ -356,7 +358,6 @@ always @(posedge clk)
 
 always @(posedge clk)
 begin
-
 // first nibble instruction decoder
 	if ((runstate == `READ_VALUE) & (decstate == DECODE_START))
 		begin
