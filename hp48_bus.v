@@ -15,7 +15,7 @@
  */
 
 module hp48_bus (
-	input					clk,
+	input					strobe,
 	input					reset,
 	input			[19:0]	address,
 	input			[3:0]	command,
@@ -36,7 +36,7 @@ wire [3:0]	rom_nibble_out;
 // listed in order of priority
 //
 hp48_io_ram dev_io_ram (
-	.clk			(clk),
+	.strobe		(strobe),
 	.reset			(reset),
 	.address		(address),
 	.command		(command),
@@ -47,7 +47,7 @@ hp48_io_ram dev_io_ram (
 );
 
 hp48_rom dev_rom (
-	.clk			(clk),
+	.strobe 		(strobe),
 	.address		(address),
 	.command		(command),
 	.nibble_out		(rom_nibble_out)
@@ -57,15 +57,8 @@ hp48_rom dev_rom (
 always @(*)
 	begin
 		bus_error = io_ram_error;
-		if ((command == `BUSCMD_PC_READ)|(command == `BUSCMD_DP_READ))
-			begin
-				if (io_ram_active) nibble_out = io_ram_nibble_out;	
-				if (~io_ram_active) nibble_out = rom_nibble_out;
-			end
-        else
-            begin
-                nibble_out = 0;
-            end 
+		if (io_ram_active) nibble_out = io_ram_nibble_out;	
+		if (~io_ram_active) nibble_out = rom_nibble_out;
 	end
 
 endmodule

@@ -15,46 +15,13 @@
  *
  */
 
-/****************************
- *
- * runstate
- *
- */
-
-`define NEXT_INSTR    0
-`define INSTR_START   1
-`define INSTR_STROBE  2
-`define INSTR_READY	  3
-
-`define READ_START    4
-`define READ_STROBE   5
-`define READ_DONE     6
-`define READ_VALUE    7
-
-`define WRITE_START   8
-`define WRITE_STROBE  9
-`define WRITE_DONE   10
-
-`define RUN_DECODE   12
-`define RUN_EXEC     13
-
-`define RUN_INIT     15
-
-/****************************
- *
- * runstate
- *
- */
-
-
-
 `ifdef SIM
 module saturn_core (
 	input			clk,
 	input			reset,
 	output			halt,
-	output [3:0] 	runstate,
-	output [4:0] 	decstate
+	output [3:0] 	busstate,
+	output [6:0] 	decstate
 );
 `else
 module saturn_core (
@@ -65,60 +32,13 @@ module saturn_core (
 );
 wire 		clk;
 wire 		reset;
+reg			clk2;
 
 assign wifi_gpio0	= 1'b1;
 assign clk			= clk_25mhz;
 assign reset		= btn[1];
 
 `endif
-
-// led display states
-localparam	REGDMP_HEX		= 0;
-
-// instruction decoder states
-
-localparam DECODE_START		= 0;			//		x
-
-localparam DECODE_0			= 1;			//		0
-localparam DECODE_0X		= 2;			//		0x
-
-localparam DECODE_RTNCC		= 3;			//		03
-localparam DECODE_SETHEX	= 4;			//		04
-localparam DECODE_SETDEC	= 5;			//		05
-
-localparam DECODE_1			= 6;			//		1
-localparam DECODE_1X		= 7;			//		1x
-localparam DECODE_14		= 8;			//		14
-localparam DECODE_15		= 9;			//		15
-localparam DECODE_MEMACCESS	= 10;			//		1[45]x[y]
-localparam DECODE_D0_EQ_5N	= 11;			//		1Bzyxwv
-
-localparam DECODE_P_EQ		= 12;			//		2n
-
-localparam DECODE_LC_LEN	= 13;			//		3n
-localparam DECODE_LC		= 14;			//		3n{xxxxxxxxxxxxxxxx}
-
-localparam DECODE_GOTO		= 15;			//		6zyx
-
-localparam DECODE_8			= 16;			//		8
-localparam DECODE_8X		= 17;			//		8x
-localparam DECODE_80		= 18;			//		80
-
-localparam DECODE_CONFIG	= 19;			//		805
-localparam DECODE_RESET		= 20;			//		80A
-
-localparam DECODE_C_EQ_P_N	= 21;			//		80Cn
-
-localparam DECODE_82		= 22;			//		82
-
-localparam DECODE_ST_EQ_0_N	= 23;			//		84n
-localparam DECODE_ST_EQ_1_N	= 24;			//		85n
-
-localparam DECODE_GOVLNG	= 25;			//		8Dzyxwv
-localparam DECODE_GOSBVL	= 26;			//		8Fzyxwv
-
-localparam DECODE_A			= 27;			//		A
-localparam DECODE_A_FS		= 28;			//		A()
 
 // status registers constants
 
@@ -144,10 +64,31 @@ localparam T_FIELD_W	= 7;
 localparam T_FIELD_LEN	= 13;
 localparam T_FIELD_A	= 15;
 
+// clocks
+reg				clk2;
+reg				clk3;
+wire			bus_ctrl_clk;
+wire			ph0;
+wire			ph1;
+wire			ph2;
+wire			ph3;
+reg				en_bus_clk;
+wire			bus_strobe;
+reg				en_dec_clk;
+wire			dec_strobe;
+
 // state machine stuff
-reg				halt;
-reg		[3:0]	runstate;
-reg		[4:0]	decstate;
+wire			halt;
+reg		[31:0]	cycle_ctr;
+reg				decode_error;
+reg		[3:0]	busstate;
+
+reg 			read_next_pc;
+reg				execute_cycle;
+reg 			read_nibble;
+reg				first_nibble;
+
+reg		[6:0]	decstate;
 reg		[3:0]	regdump;
 
 // bus access
@@ -168,6 +109,8 @@ reg	[2:0]	rstk_ptr;
 reg	[19:0]  jump_base;
 reg	[19:0]	jump_offset;
 reg			hex_dec;
+`define	MODE_HEX	0;
+`define MODE_DEC	1;
 
 // data transfer registers
 reg [3:0]	t_offset;
@@ -200,7 +143,7 @@ reg	[63:0]	R3;
 reg	[63:0]	R4;
 
 hp48_bus bus_ctrl (
-	.clk			(clk),
+	.strobe			(bus_strobe),
 	.reset			(reset),
 	.address		(bus_address),
 	.command		(bus_command),
@@ -209,1039 +152,184 @@ hp48_bus bus_ctrl (
 	.bus_error		(bus_error)
 );
 
+initial
+	begin
+		$display("initializing clocks");
+		clk2					= 0;
+		clk3					= 0;
+		en_bus_clk				= 0;
+		$display("initialize cycle counter");
+		cycle_ctr				= -1;
+		$display("initializing bus_command");
+		bus_command				= `BUSCMD_NOP;
+		$display("initializing busstate");
+		busstate				= 0;
+		$display("Initializing decstate");
+		decstate				= 0;
+		$display("initializing control bits");
+		decode_error			= 0;
+		bus_load_pc				= 1;
+		read_next_pc			= 1;
+		execute_cycle			= 0;
+		$display("should be initializing registers");
+		hex_dec 				= HEX;
+		PC 						= 0;
+		saved_PC				= 0;
 
-/**************************************************************************************************
- *
- * one single process...
- *
- */
+		// $monitor("rst %b | CLK %b | CLK2 %b | CLK3 %b | PH0 %b | PH1 %b | PH2 %b | PH3 %b | CTR %d | EBCLK %b| STRB %b  | BLPC %b | bnbi %b | bnbo %b | nb %b ",
+		// 		 reset, clk, clk2, clk3, ph0, ph1, ph2, ph3, cycle_ctr, en_bus_clk, strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
+		// $monitor("CTR %d | EBCLK %b| B_STRB %b  | EDCLK %b | D_STRB %b | BLPC %b | bnbi %b | bnbo %b | nb %b ",
+		// 		 cycle_ctr, en_bus_clk, bus_strobe, en_dec_clk, dec_strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
+	end
+
+//--------------------------------------------------------------------------------------------------
+//
+// clock generation
+//
+//--------------------------------------------------------------------------------------------------
 
 always @(posedge clk)
+	if (~reset) clk2 <= ~clk2;
+
+always @(negedge clk)
+	clk3 <= ~clk3 | reset;
+
+assign bus_ctrl_clk = clk & ~reset;
+assign ph0 =  clk &  clk3 & ~reset;
+assign ph1 = ~clk & ~clk2 & ~reset;
+assign ph2 =  clk & ~clk3 & ~reset;
+assign ph3 = ~clk &  clk2 & ~reset; 
+assign bus_strobe = ph1 & en_bus_clk;
+assign dec_strobe = ph3 & en_dec_clk;
+
+//--------------------------------------------------------------------------------------------------
+//
+// bus control
+//
+//--------------------------------------------------------------------------------------------------
+
+`define INSTR_LOAD_PC	0
+`define INSTR_READ_NBL 	1
+
+always @(posedge bus_ctrl_clk)
 begin
-	if (reset)
-		begin
-			// bus
-
-			bus_command <= `BUSCMD_NOP;
-			
-			// processor state machine
-			
-			halt		<= 0;
-			runstate	<= `RUN_INIT;
-			decstate 	<= DECODE_START;
-			regdump		<= REGDMP_HEX;
-
- 			// processor registers
-
-			hex_dec		<= HEX;
-			rstk_ptr	<= 7;
-
-			PC			<= 0;
-			saved_PC	<= 0;
-			P			<= 0;
-			ST			<= 0;
-			HST			<= 0;
-			Carry		<= 0;
-			RSTK[0]		<= 0;
-			RSTK[1]		<= 0;
-			RSTK[2]		<= 0;
-			RSTK[3]		<= 0;
-			RSTK[4]		<= 0;
-			RSTK[5]		<= 0;
-			RSTK[6]		<= 0;
-			RSTK[7]		<= 0;
-
-			D0			<= 0;
-			D1			<= 0;
-
-			A			<= 0;
-			B			<= 0;
-			C			<= 0;
-			D			<= 0;
-
-			R0			<= 0;
-			R1			<= 0;
-			R2			<= 0;
-			R3			<= 0;
-			R4			<= 0;		
-		end
-
-	if (bus_error)
-		begin	
-			halt <= 1;
-		end
-
-	if (runstate == `RUN_INIT)
-		begin
-`ifdef SIM
-			$display("RUN_INIT => NEXT_INSTR");
-`endif
-			bus_load_pc <= 1;
-			runstate <=  `NEXT_INSTR;
-		end
-
-/*--------------------------------------------------------------------------------------------------
- *
- * REGISTER UTILITIES
- *
- *------------------------------------------------------------------------------------------------*/
-
-// display registers
-`ifdef SIM
-	if ((runstate == `NEXT_INSTR) & (~reset))
-		begin
-			saved_PC <= PC;
-			$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
-			$display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", P, HST, ST, RSTK[6]);
-			$display("A:  %h    R0:  %h   RSTK5: %5h", A, R0, RSTK[5]);
-			$display("B:  %h    R1:  %h   RSTK4: %5h", B, R1, RSTK[4]);
-			$display("C:  %h    R2:  %h   RSTK3: %5h", C, R2, RSTK[3]);
-			$display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
-			$display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", D0, D1, R4, RSTK[1]);
-			$display("                                                RSTK0: %5h", RSTK[0]);
-		end
-`endif
-
-//--------------------------------------------------------------------------------------------------
-//
-// Read from bus
-//
-//--------------------------------------------------------------------------------------------------
-
-
-/****
- * Instruction data read
- *
- *
- */
-
-	if (runstate == `NEXT_INSTR)
-		if (bus_load_pc)
-			begin
-`ifdef SIM
-				//$display("NEXT_INSTR load PC %5h => INSTR_START", PC);
-`endif
-				bus_address <= PC;
+	if (~reset) begin
+		if (clk3) begin
+			en_dec_clk <= 0;
+			cycle_ctr <= cycle_ctr + 1;
+			if (bus_load_pc) begin
 				bus_command <= `BUSCMD_LOAD_PC;
+				bus_address <= PC;
 				bus_load_pc <= 0;
-				runstate <= `INSTR_START;
+				en_bus_clk <= 1;
+			end else begin
+				if (read_next_pc) begin
+					//$display("sending BUSCMD_PC_READ");
+					bus_command <= `BUSCMD_PC_READ;
+					read_nibble <= 1;
+					en_bus_clk <= 1;
+				end else $display("BUS NOT READING, STILL CLOCKING");
 			end
-		else
-			begin
-`ifdef SIM
-				//$display("NEXT_INSTR => INSTR_STROBE");
-`endif
-				bus_command <= `BUSCMD_PC_READ;
-				runstate <= `INSTR_STROBE;
+		end
+		else begin
+			if (bus_command == `BUSCMD_LOAD_PC)
+				$display("CYCLE %d -> BUSCMD_LOAD_PC %h", cycle_ctr, PC);
+			if (read_next_pc&read_nibble) begin
+				nibble <= bus_nibble_out;
+				en_dec_clk <= 1;
+				//$display("reading nibble %h", bus_nibble_out);
 			end
-
-// start reading instruction
-	if (runstate == `INSTR_START)
-		begin
-`ifdef SIM
-			//$display("INSTR_START => INSTR_STROBE");
-`endif
-			bus_command <= `BUSCMD_PC_READ;
-			runstate <= `INSTR_STROBE;
+			if (execute_cycle) en_dec_clk <= 1;
+			read_nibble <= 0;
+			en_bus_clk <= 0;
 		end
+	end
+	else begin
+		$display("RESET");
+	end
+end
 
-	if (runstate == `INSTR_STROBE)
-		begin
-`ifdef SIM
-			//$display("INSTR_STROBE => INSTR_READY");
-`endif
-			bus_command <= `BUSCMD_NOP;
-			nibble <= bus_nibble_out;
-			PC <= PC + 1;
-			runstate <= `INSTR_READY;
-`ifdef SIM
-			//$display("PC: %h | read => %h", PC, bus_nibble_out);
-`endif
-		end
+always @(posedge ph1)
+	begin
+	end
 
-/****
- *
- * read data from bus
- *
- */
+always @(posedge ph2)
+	begin
+	end
 
-// read from rom clock in
-	if (runstate == `READ_STROBE)
-		begin
-			//$display("READ_STROBE");
-			runstate <= `READ_DONE;
-		end
-
-// read from rom store
-	if (runstate == `READ_DONE)
-		begin				
-			//$display("READ_DONE");
-			bus_command <= `BUSCMD_NOP;
-			nibble <= bus_nibble_out;
-			//$display("PC: %h | read => %h", PC, bus_nibble_out);
-			PC <= PC + 1;
-//			rom_enable <= 1'b0;
-//			rom_clock <= 1'b0;
-			runstate <= `READ_VALUE;
-		end
+always @(posedge ph3) begin
+	if (cycle_ctr == 20)
+		decode_error <= 1;
+end
 
 //--------------------------------------------------------------------------------------------------
 //
-// INSTRUCTION DECODING
+// instruction decoder
 //
 //--------------------------------------------------------------------------------------------------
 
-// first nibble instruction decoder
-	if ((runstate == `INSTR_READY) & (decstate == DECODE_START))
-		begin
-			//$display("`READ_VALUE -> instruction decoder");
-			runstate <= `RUN_DECODE;
-			case (nibble)
-				4'h0 : decstate <= DECODE_0;
-				4'h1 : decstate <= DECODE_1;
-				4'h2 : decstate <= DECODE_P_EQ;
-				4'h3 : decstate <= DECODE_LC_LEN;
+`include "decstates.v"
 
-				4'h6 : decstate <= DECODE_GOTO;
-				4'h8 : decstate <= DECODE_8;
-				4'ha : decstate <= DECODE_A;
-				default: 
-					begin
+always @(posedge dec_strobe) begin
+	PC <= PC + 1;
 `ifdef SIM
-						$display("%05h nibble %h => unimplemented", saved_PC, nibble);
+	if (decstate == `DEC_START) begin
+		// display registers
+		$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
+		$display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", P, HST, ST, RSTK[6]);
+		$display("A:  %h    R0:  %h   RSTK5: %5h", A, R0, RSTK[5]);
+		$display("B:  %h    R1:  %h   RSTK4: %5h", B, R1, RSTK[4]);
+		$display("C:  %h    R2:  %h   RSTK3: %5h", C, R2, RSTK[3]);
+		$display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
+		$display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", D0, D1, R4, RSTK[1]);
+		$display("                                                RSTK0: %5h", RSTK[0]);
+	end
 `endif
-						halt <= 1;
-					end
-			endcase
-		end
-
-/******************************************************************************
- * 0X			
- *
- *
- */ 
-
+	$display("CYCLE %d | DECSTATE %d | NIBBLE %h", cycle_ctr, decstate, nibble);
 	case (decstate)
-
-	//if (decstate == DECODE_0)
-	DECODE_0:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				case (nibble)
-					4'h3: decstate <= DECODE_RTNCC;
-					4'h4: decstate <= DECODE_SETHEX;
-					4'h5: decstate <= DECODE_SETDEC;
-					
-					default: 
-						begin
-`ifdef SIM
-							$display("%05h 0%h => unimplemented", saved_PC, nibble);
-`endif
-							halt <= 1;
-						end
-				endcase
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_0 runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
+	`DEC_START:	begin
+		saved_PC <= PC;
+		case (nibble)
+		4'h2: decstate <= `DEC_P_EQ_N;
+		4'h6: decstate <= `DEC_GOTO;
+		4'h8: decstate <= `DEC_8;
+		default: begin end
 		endcase
-
-/******************************************************************************
- * 03			RTNCC
- *
- *
- */ 
-
-	//if (decstate == DECODE_RTNCC)
-	DECODE_RTNCC:
-		begin
-			Carry <= 0;
-			PC <= RSTK[rstk_ptr];
-			RSTK[rstk_ptr] <= 0;		
-			rstk_ptr <= rstk_ptr - 1;
-`ifdef SIM
-			$display("%05h RTNCC", saved_PC);
-`endif
-			bus_load_pc <= 1;
-			runstate <= `NEXT_INSTR;
-			decstate <= DECODE_START;
-		end
-
-/******************************************************************************
- * 04			SETHEX
- *
- *
- */ 
-
-	//if (decstate == DECODE_SETHEX)
-	DECODE_SETHEX:
-		begin
-			hex_dec <= HEX;
-`ifdef SIM
-			$display("%05h SETHEX", saved_PC);
-`endif
-			runstate <= `NEXT_INSTR;
-			decstate <= DECODE_START;
-		end
-
-/******************************************************************************
- * 05			SETDEC
- *
- *
- */ 
-
-	//if (decstate == DECODE_SETDEC)
-	DECODE_SETDEC:
-		begin
-			hex_dec <= DEC;
-`ifdef SIM
-			$display("%05h SETDEC", saved_PC);
-`endif
-			runstate <= `NEXT_INSTR;
-			decstate <= DECODE_START;
-		end
-
-/******************************************************************************
- * 1X
- *
- *
- */ 
-
-	//if (decstate == DECODE_1)
-	DECODE_1:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					case (nibble)
-						//4'h4, 4'h5:	decode_14_15();
-						4'h4:	decstate <= DECODE_14;
-						4'hb:	decstate <= DECODE_D0_EQ_5N;
-						default:
-							begin
-`ifdef SIM
-								$display("unhandled instruction prefix 1%h", nibble);
-`endif
-								halt <= 1;
-							end
-					endcase
-					runstate <= `RUN_DECODE;
-				end
-			default: 
-				begin
-`ifdef SIM
-					$display("decstate %h", decstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * 1[45]
- *
- *	---------- field -----------
- *	 A	 B	 fs	 d
- *	----------------------------	
- *	140	148	150a	158x	DAT0=A field	0000 1000
- *	141	149	151a	159x	DAT1=A field	0001 1001
- *	142	14A	152a	15Ax	A=DAT0 field	0010 1010
- *	143	14B	153a	15Bx	A=DAT1 field	0011 1011
- *	144	14C	154a	15Cx	DAT0=C field	0100 1100
- *	145	14D	155a	15Dx	DAT1=C field	0101 1101
- *	146	14E	156a	15Ex	C=DAT0 field	0110 1110
- *	147	14F	157a	15Fx	C=DAT1 field	0111 1111
- *
- *	fs: P  WP XS X  S  M  B  W
- *	a:  0  1  2  3  4  5  6  7
- *
- *	x = d - 1		x = n - 1
- *	
- */ 
-
-	//if ((decstate == DECODE_14)|(decstate == DECODE_15))
-	DECODE_14, DECODE_15:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				case (decstate)
-					DECODE_14:
-						begin
-`ifdef SIM
-							$display("14%h ", nibble);
-`endif
-							t_ptr <= nibble[0];
-							t_dir <= nibble[1];
-							t_reg <= nibble[2];
-							if (~nibble[3]) t_field <= T_FIELD_A;
-							else t_field <= T_FIELD_B;
-							decstate <= DECODE_MEMACCESS;
-							runstate <= `RUN_EXEC;
-						end
-					default:
-						begin
-`ifdef SIM
-							$display("15%h UNIMPLEMENTED", nibble);
-`endif
-							halt <= 1;
-						end
-				endcase
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_14_15: runstate %h", decstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-	//if (decstate == DECODE_MEMACCESS)
-	DECODE_MEMACCESS:
-		case (runstate)
-			`RUN_EXEC:
-				begin
-					t_ctr <= 0;
-					case (t_field)
-						T_FIELD_B:
-							begin
-								t_offset <= 0;
-								t_cnt <= 1;
-							end
-					endcase
-					case (t_dir)
-						T_DIR_OUT: runstate <= `WRITE_START;
-						T_DIR_IN:  runstate <= `READ_START;
-					endcase
-`ifdef SIM
-					$write("%5h ", saved_PC);
-					case (t_dir)
-						T_DIR_OUT: $write("%s=%s\t", t_ptr?"DAT1":"DAT0", t_reg?"C":"A");
-						T_DIR_IN:  $write("%s=%s\t", t_reg?"C":"A", t_ptr?"DAT1":"DAT0");
-					endcase
-					case (t_field)
-						T_FIELD_P:   $display("P");
-						T_FIELD_WP:  $display("WP");
-						T_FIELD_XS:  $display("XS");
-						T_FIELD_X:   $display("X");
-						T_FIELD_S:   $display("S");
-						T_FIELD_M:   $display("M");
-						T_FIELD_B:   $display("B");
-						T_FIELD_W:   $display("W");
-						T_FIELD_LEN: $display("%d", t_cnt);
-						T_FIELD_A:   $display("A");
-					endcase
-`endif
-				end
-			`WRITE_START:
-				begin
-`ifdef SIM
-					$display("`WRITE_START    | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
-							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_field, t_offset, t_ctr, t_cnt);
-`endif
-					bus_command <= `BUSCMD_LOAD_DP;
-					bus_address <= (~t_ptr)?D0:D1;
-					runstate <= `WRITE_STROBE;
-				end
-			`WRITE_STROBE:
-				begin
-`ifdef SIM
-					$display("`WRITE_STROBE | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
-							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_offset, t_ctr, t_cnt);
-`endif
-					bus_command <= `BUSCMD_DP_WRITE;
-					bus_nibble_in <= (~t_reg)?A[t_offset*4+:4]:C[t_offset*4+:4];
-					t_offset <= t_offset + 1;
-					t_ctr <= t_ctr + 1;
-					if (t_ctr == t_cnt)
-						begin
-							runstate <= `WRITE_DONE;
-						end
-				end
-			`WRITE_DONE:
-				begin
-`ifdef SIM
-					$display("`WRITE_DONE   | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
-							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_offset, t_ctr, t_cnt);
-`endif
-					bus_command <= `BUSCMD_NOP;
-					runstate <= `NEXT_INSTR;
-					decstate <= DECODE_START;
-				end
-			default: 
-				begin
-`ifdef SIM
-					$display("runstate %h | decstate %h | ptr %s | dir %s | reg %s | field %h", 
-							 runstate, decstate, t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- *1bnnnnn		DO=(5) nnnnn
- *
- *
- */ 
-
-	//if (decstate == DECODE_D0_EQ_5N)
-	DECODE_D0_EQ_5N:
-		case (runstate)
-			`RUN_DECODE:
-				begin
-					runstate <= `INSTR_START;
-					t_cnt <= 4;
-					t_ctr <= 0;
-`ifdef SIM
-					$write("%5h D0=(5)\t", saved_PC);
-`endif
-				end
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					D0[t_ctr*4+:4] <= nibble;
-`ifdef SIM
-					$write("%1h", nibble);
-`endif
-					if (t_ctr == t_cnt)
-						begin
-`ifdef SIM
-							$display("");
-`endif
-							runstate <= `NEXT_INSTR;
-							decstate <= DECODE_START;
-						end
-					else 
-						begin 
-							t_ctr <= t_ctr + 1;
-							runstate <= `INSTR_START;
-						end
-				end
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_D0_EQ_5N: runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * 2n			P= 		n
- *
- *
- */ 
- 
-	//if (decstate == DECODE_P_EQ)
-	DECODE_P_EQ:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					P <= nibble;
-`ifdef SIM
-					$display("%05h P=\t%h", saved_PC, nibble);	
-`endif
-					runstate <= `NEXT_INSTR;
-					decstate <= DECODE_START;
-				end
-			default:
-				begin
-`ifdef SIM
-					$display("DECODE_P_EQ: runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-
-/******************************************************************************
- * 3n[xxxxxx]	LC (n) [xxxxxx]
- *
- *
- */ 
- 
-	//if ((decstate == DECODE_LC_LEN) | (decstate == DECODE_LC))
-	DECODE_LC_LEN, DECODE_LC:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				case (decstate)
-					DECODE_LC_LEN:
-						begin
-`ifdef SIM
-							$write("%5h LC (%h)\t", saved_PC, nibble);
-`endif
-							t_cnt <= nibble;
-							t_ctr <= 0;
-							decstate <= DECODE_LC;
-							runstate <= `INSTR_START;
-						end
-					DECODE_LC:
-						begin
-							C[((t_ctr+P)%16)*4+:4] <= nibble;
-`ifdef SIM
-							$write("%1h", nibble);
-`endif
-							if (t_ctr == t_cnt) 
-								begin
-`ifdef SIM
-									$display("");
-`endif
-									runstate <= `NEXT_INSTR;
-									decstate <= DECODE_START;
-									
-								end 
-							else 
-								begin 
-									t_ctr <= (t_ctr + 1)&4'hf;
-									runstate <= `INSTR_START;
-								end							
-						end
-					default:
-						begin
-`ifdef SIM
-							$display("decstate %h nibble %h", decstate, nibble);
-`endif
-							halt <= 1;
-						end
-				endcase
-			default:
-				begin
-`ifdef SIM
-					$display("DECODE_LC decstate %h", decstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * 6zyx			GOTO	xyz
- * 
- *
- */ 
-
-	//if (decstate == DECODE_GOTO)
-	DECODE_GOTO:
-		case (runstate)
-			`RUN_DECODE:
-				begin
-					runstate <= `INSTR_START;
-					jump_base <= PC;
-					jump_offset <= 0;
-					t_cnt <= 2;
-					t_ctr <= 0;
-				end
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					jump_offset[t_ctr*4+:4] <= nibble;
-					if (t_ctr == t_cnt) 
-						begin
-							// load PC
-							runstate <= `RUN_EXEC;
-						end
-					else 
-						begin 
-							t_ctr <= t_ctr + 1;
-							runstate <= `INSTR_START;
-						end
-				end
-			`RUN_EXEC:
-				begin
-`ifdef SIM
-					$display("%5h GOTO\t%3h\t=> %05h", saved_PC, jump_offset[11:0], jump_base + jump_offset);
-`endif
-					PC <= jump_base + jump_offset;
-					bus_load_pc <= 1;
-					runstate <= `NEXT_INSTR;
-					decstate <= DECODE_START;
-				end 
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_GOTO: runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * 8
- * a lot of things start with 8...
- *
- */ 
-
-	//if (decstate == DECODE_8)
-	DECODE_8:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					case (nibble)
-						4'h0: decstate <= DECODE_80;
-						4'h2: decstate <= DECODE_82;
-						4'h4: decstate <= DECODE_ST_EQ_0_N;
-						4'h5: decstate <= DECODE_ST_EQ_1_N;
-						4'hd: decstate <= DECODE_GOVLNG;
-						4'hf: decstate <= DECODE_GOSBVL;
-						default:
-							begin
-`ifdef SIM
-								$display("unhandled instruction prefix 8%h", nibble);
-`endif
-								halt <= 1;
-							end
-					endcase
-					runstate <= `RUN_DECODE;
-				end
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_8: runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * 80
- * a lot of things start with 80...
- *
- */ 
-
-	//if (decstate == DECODE_80)
-	DECODE_80:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					case (nibble)
-						4'h5:   decstate <= DECODE_CONFIG;
-						4'ha:   decstate <= DECODE_RESET;
-						4'hc:	decstate <= DECODE_C_EQ_P_N;
-						default:
-							begin
-`ifdef SIM
-								$display("unhandled instruction prefix 80%h", nibble);
-`endif
-								halt <= 1;
-							end
-					endcase
-					runstate <= `RUN_DECODE;
-				end
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_80: runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-		
-/*
-
-/******************************************************************************
- * 805		CONFIG
- *
- *
- */ 
-
-	//if ((decstate == DECODE_CONFIG) & (runstate == `RUN_DECODE))
-	DECODE_CONFIG:
-		if (runstate == `RUN_DECODE)	
-			begin
-`ifdef SIM
-				$display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
-`endif
-				runstate <= `NEXT_INSTR;
-				decstate <= DECODE_START;
-			end
-
-/******************************************************************************
- * 80A		RESET
- *
- *
- */ 
-
-	//if ((decstate == DECODE_RESET) & (runstate == `RUN_DECODE))	
-	DECODE_RESET:
-		if (runstate == `RUN_DECODE)
-			begin
-`ifdef SIM
-				$display("%05h RESET\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
-`endif
-				runstate <= `NEXT_INSTR;
-				decstate <= DECODE_START;
-			end
-
-/******************************************************************************
- * 80Cn		C=P	n
- *
- *
- */ 
-
-	//if (decstate == DECODE_C_EQ_P_N)
-	DECODE_C_EQ_P_N:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					C[nibble*4+:4] <= P;
-`ifdef SIM
-					$display("%05h C=P\t%h", saved_PC, nibble);	
-`endif
-					runstate <= `NEXT_INSTR;
-					decstate <= DECODE_START;
-				end
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_80C runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-
-/******************************************************************************
- * 82x
- * 
- * lots of things there
- *
- */ 
-
-	//if (decstate == DECODE_82)
-	DECODE_82:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					HST <= HST & ~nibble;
-`ifdef SIM
-					case (nibble)
-						4'h1:	 $display("%5h XM=0", saved_PC);
-						4'h2:	 $display("%5h SB=0", saved_PC);
-						4'h4:    $display("%5h SR=0", saved_PC);
-						4'h8:	 $display("%5h MP=0", saved_PC);
-						4'hf:    $display("%5h CLRHST", saved_PC);
-						default: $display("%5h CLRHST	%f", saved_PC, nibble);
-					endcase
-`endif
-					runstate <= `NEXT_INSTR;
-					decstate <= DECODE_START;
-				end
-			default: 
-				begin
-`ifdef SIM
-					$display("DECODE_82 runstate %h", runstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * 84n	ST=0   n
- * 85n	ST=1   n
- */ 
-
-	//if ((decstate == DECODE_ST_EQ_0_N) | (decstate == DECODE_ST_EQ_1_N))
-	DECODE_ST_EQ_0_N, DECODE_ST_EQ_1_N:
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-					case (decstate)
-						DECODE_ST_EQ_0_N: 
-							begin
-`ifdef SIM
-								$display("%05h ST=0\t%h", saved_PC, nibble);
-`endif
-								ST[nibble] <= 0;
-							end
-						DECODE_ST_EQ_1_N:
-							begin
-`ifdef SIM
-								$display("%05h ST=1\t%h", saved_PC, nibble);
-`endif
-								ST[nibble] <= 1;
-							end
-					endcase
-					runstate <= `NEXT_INSTR;
-					decstate <= DECODE_START;
-				end
-			default:
-				begin
-`ifdef SIM
-					$display("decstate %h", decstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * 8Dzyxwv	GOVLNG		vwxyz
- * 8Fzyxwv	GOSBVL		vwxyz
- * two for the price of one...
- */ 
-
-	//if ((decstate == DECODE_GOVLNG) | (decstate == DECODE_GOSBVL))
-	DECODE_GOVLNG, DECODE_GOSBVL:
-		case (runstate)
-			`RUN_DECODE:
-				begin
-					jump_base <= 0;
-					t_cnt <= 4;
-					t_ctr <= 0;
-					if (decstate == DECODE_GOSBVL)
-						rstk_ptr <= rstk_ptr + 1;
-					runstate <= `INSTR_START;
-				end
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				begin
-				  //$display("decstate %h | nibble %h", decstate, nibble);
-				  jump_base[t_ctr*4+:4] <= nibble;
-				  if (t_ctr == t_cnt) runstate <= `RUN_EXEC;
-					else 
-						begin 
-							t_ctr <= t_ctr + 1;
-							runstate <= `INSTR_START;
-						end
-				end
-			`RUN_EXEC:
-				begin
-`ifdef SIM
-					$write("%5h GO", saved_PC);
-					case (decstate)
-						DECODE_GOVLNG: $write("VLNG");
-						DECODE_GOSBVL: $write("SBVL");
-					endcase
-					$display("\t%5h", jump_base);
-`endif
-					if (decstate  == DECODE_GOSBVL)
-						RSTK[rstk_ptr] <= PC;							  
-					PC <= jump_base;
-					bus_load_pc <= 1;
-					runstate <= `NEXT_INSTR;
-					decstate <= DECODE_START;
-				end
-			default:
-				begin
-`ifdef SIM
-					$display("decstate %h", decstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-
-/******************************************************************************
- * A[ab]x
- * 
- * lots of things there
- *
- */ 
-
-	//if ((decstate == DECODE_A)|(decstate == DECODE_A_FS))
-	DECODE_A, DECODE_A_FS: 
-		case (runstate)
-			`RUN_DECODE: runstate <= `INSTR_START;
-			`INSTR_START, `INSTR_STROBE: begin end
-			`INSTR_READY:
-				case (decstate)
-					DECODE_A: 
-						begin
-							t_field <= nibble;
-							decstate <= DECODE_A_FS;
-							runstate <= `INSTR_START;
-						end
-					DECODE_A_FS: 
-						begin				
-							case (nibble)
-								4'h2:
-									case (t_field)
-										4'he: 
-											begin
-												C[7:0] <= 0;
-`ifdef SIM
-												$display("%5h C=0\tB", saved_PC);
-`endif
-											end
-										default:
-											begin
-`ifdef SIM
-												$display("decstate %h %h %h", decstate, t_field, nibble);
-`endif
-												halt <= 1;
-											end
-									endcase
-								default:
-									begin
-`ifdef SIM
-										$display("decstate %h %h %h", decstate, t_field, nibble);
-`endif
-										halt <= 1;
-									end
-							endcase
-							runstate <= `NEXT_INSTR;
-							decstate <= DECODE_START;
-						end
-					default:
-						begin
-`ifdef SIM
-							$display("decstate %h %h", decstate, nibble);
-`endif
-							halt <= 1;
-						end
-				endcase
-			default:
-				begin
-`ifdef SIM
-					$display("decstate %h", decstate);
-`endif
-					halt <= 1;
-				end
-		endcase
-	
-
-	default:
-		begin
-`ifdef SIM
-			$display("decstate %h not handled", decstate);
-`endif
-			//halt <= 1;
-		end
+	end
+`include "opcodes/2n_P_EQ_n.v"
+`include "opcodes/6xxx_GOTO.v"
+`include "opcodes/8x.v"
+`include "opcodes/8[DF]xxxxx_GO.v"
 	endcase
+end
 
-/**************************************************************************************************
- *
- * Dump all registers to leds, one piece at a time
- *
- */
+//--------------------------------------------------------------------------------------------------
+//
+// dump all registers on leds
+//
+//--------------------------------------------------------------------------------------------------
 
 `ifndef SIM
 
+`define REGDMP_HEX	0
+
+
+always @(negedge clk)
+begin
 	case (regdump)
-		REGDMP_HEX:	led <= {7'b0000000, hex_dec};
+		`REGDMP_HEX:	led <= {7'b0000000, hex_dec};
 		default: led <= 8'b11111111;
 	endcase
 	regdump <= regdump + 1;
-	
+
+	if (reset)
+		regdump <= `REGDMP_HEX;
+end	
 `endif
 
-end
+assign halt = bus_error | decode_error;
+
+
 // Verilator lint_off UNUSED
 //wire [N-1:0] unused;
 //assign unused = { }; 
@@ -1254,14 +342,14 @@ module saturn_tb;
 reg			clk;
 reg			reset;
 wire		halt;
-wire [3:0]	runstate;
-wire [4:0]	decstate;
+wire [3:0]	busstate;
+wire [6:0]	decstate;
 
 saturn_core saturn (
 	.clk		(clk),
 	.reset		(reset),
 	.halt		(halt),
-	.runstate	(runstate),
+	.busstate	(busstate),
 	.decstate	(decstate)
 );
 
@@ -1276,6 +364,8 @@ initial begin
 	$display("starting the simulation");
 	clk <= 0;
 	reset <= 1;
+	@(posedge clk);
+	@(posedge clk);
 	@(posedge clk);
 	reset <= 0;
 	@(posedge halt);

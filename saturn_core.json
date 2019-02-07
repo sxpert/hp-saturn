@@ -1,5 +1,5 @@
 {
-  "creator": "Yosys 0.8+147 (git sha1 266511b2, gcc 8.2.0-7ubuntu1 -fPIC -Os)",
+  "creator": "Yosys 0.8+148 (git sha1 e112d2fb, gcc 8.2.0-7ubuntu1 -fPIC -Os)",
   "modules": {
     "ALU54B": {
       "attributes": {
@@ -5013,7 +5013,6 @@
     "CCU2C": {
       "attributes": {
         "blackbox": 1,
-        "cells_not_processed": 1,
         "src": "/usr/local/bin/../share/yosys/ecp5/cells_sim.v:19"
       },
       "ports": {
@@ -10509,7 +10508,6 @@
     "LUT4": {
       "attributes": {
         "blackbox": 1,
-        "cells_not_processed": 1,
         "src": "/usr/local/bin/../share/yosys/ecp5/cells_sim.v:3"
       },
       "ports": {
@@ -13552,7 +13550,6 @@
     "TRELLIS_FF": {
       "attributes": {
         "blackbox": 1,
-        "cells_not_processed": 1,
         "src": "/usr/local/bin/../share/yosys/ecp5/cells_sim.v:206"
       },
       "ports": {
@@ -14309,7 +14306,7 @@
     "saturn_core": {
       "attributes": {
         "top": 1,
-        "src": "saturn_core.v:60"
+        "src": "saturn_core.v:27"
       },
       "ports": {
         "clk_25mhz": {
@@ -14326,94 +14323,545 @@
         },
         "led": {
           "direction": "output",
-          "bits": [ "0", "0", "0", "0", "0", "0", "0", "0" ]
+          "bits": [ 10, 11, 12, 13, 14, 15, 16, 17 ]
         }
       },
       "cells": {
+        "$abc$771$auto$blifparse.cc:492:parse_blif$772": {
+          "hide_name": 1,
+          "type": "LUT4",
+          "parameters": {
+            "INIT": 65534
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/usr/local/bin/../share/yosys/ecp5/cells_map.v:72"
+          },
+          "port_directions": {
+            "A": "input",
+            "B": "input",
+            "C": "input",
+            "D": "input",
+            "Z": "output"
+          },
+          "connections": {
+            "A": [ 18 ],
+            "B": [ 19 ],
+            "C": [ 20 ],
+            "D": [ 21 ],
+            "Z": [ 22 ]
+          }
+        },
+        "$auto$alumacc.cc:474:replace_alu$625.slice[0].ccu2c_i": {
+          "hide_name": 1,
+          "type": "CCU2C",
+          "parameters": {
+            "INIT0": 26282,
+            "INIT1": 26282,
+            "INJECT1_0": "NO",
+            "INJECT1_1": "NO"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:282|/usr/local/bin/../share/yosys/ecp5/arith_map.v:58"
+          },
+          "port_directions": {
+            "A0": "input",
+            "A1": "input",
+            "B0": "input",
+            "B1": "input",
+            "C0": "input",
+            "C1": "input",
+            "CIN": "input",
+            "COUT": "output",
+            "D0": "input",
+            "D1": "input",
+            "S0": "output",
+            "S1": "output"
+          },
+          "connections": {
+            "A0": [ "1" ],
+            "A1": [ "0" ],
+            "B0": [ 18 ],
+            "B1": [ 19 ],
+            "C0": [ "0" ],
+            "C1": [ "0" ],
+            "CIN": [ "0" ],
+            "COUT": [ 23 ],
+            "D0": [ "1" ],
+            "D1": [ "1" ],
+            "S0": [ 24 ],
+            "S1": [ 25 ]
+          }
+        },
+        "$auto$alumacc.cc:474:replace_alu$625.slice[2].ccu2c_i": {
+          "hide_name": 1,
+          "type": "CCU2C",
+          "parameters": {
+            "INIT0": 26282,
+            "INIT1": 26282,
+            "INJECT1_0": "NO",
+            "INJECT1_1": "NO"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:282|/usr/local/bin/../share/yosys/ecp5/arith_map.v:58"
+          },
+          "port_directions": {
+            "A0": "input",
+            "A1": "input",
+            "B0": "input",
+            "B1": "input",
+            "C0": "input",
+            "C1": "input",
+            "CIN": "input",
+            "COUT": "output",
+            "D0": "input",
+            "D1": "input",
+            "S0": "output",
+            "S1": "output"
+          },
+          "connections": {
+            "A0": [ "0" ],
+            "A1": [ "0" ],
+            "B0": [ 20 ],
+            "B1": [ 21 ],
+            "C0": [ "0" ],
+            "C1": [ "0" ],
+            "CIN": [ 23 ],
+            "COUT": [ 26 ],
+            "D0": [ "1" ],
+            "D1": [ "1" ],
+            "S0": [ 27 ],
+            "S1": [ 28 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$696": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 10 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$697": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 11 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$698": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 12 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$699": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 13 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$700": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 14 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$701": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 15 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$702": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 16 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$703": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "SET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ "0" ],
+            "LSR": [ 22 ],
+            "Q": [ 17 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$704": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "RESET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ 24 ],
+            "LSR": [ 4 ],
+            "Q": [ 18 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$705": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "RESET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ 25 ],
+            "LSR": [ 4 ],
+            "Q": [ 19 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$706": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "RESET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ 27 ],
+            "LSR": [ 4 ],
+            "Q": [ 20 ]
+          }
+        },
+        "$auto$simplemap.cc:420:simplemap_dff$707": {
+          "hide_name": 1,
+          "type": "TRELLIS_FF",
+          "parameters": {
+            "CEMUX": "1",
+            "CLKMUX": "INV",
+            "GSR": "DISABLED",
+            "LSRMUX": "LSR",
+            "REGSET": "RESET",
+            "SRMODE": "LSR_OVER_CE"
+          },
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "saturn_core.v:276|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+          },
+          "port_directions": {
+            "CLK": "input",
+            "DI": "input",
+            "LSR": "input",
+            "Q": "output"
+          },
+          "connections": {
+            "CLK": [ 2 ],
+            "DI": [ 28 ],
+            "LSR": [ 4 ],
+            "Q": [ 21 ]
+          }
+        }
       },
       "netnames": {
+        "$abc$771$n2": {
+          "hide_name": 1,
+          "bits": [ 22 ],
+          "attributes": {
+          }
+        },
+        "$add$saturn_core.v:282$379_Y": {
+          "hide_name": 1,
+          "bits": [ 24, 25, 27, 28 ],
+          "attributes": {
+          }
+        },
+        "$auto$alumacc.cc:474:replace_alu$625.C": {
+          "hide_name": 1,
+          "bits": [ 29, 30, 23, 31 ],
+          "attributes": {
+            "src": "saturn_core.v:282|/usr/local/bin/../share/yosys/ecp5/arith_map.v:53"
+          }
+        },
+        "$auto$alumacc.cc:474:replace_alu$625.FCO": {
+          "hide_name": 1,
+          "bits": [ 32, 33, 26, 34 ],
+          "attributes": {
+            "src": "saturn_core.v:282|/usr/local/bin/../share/yosys/ecp5/arith_map.v:54",
+            "unused_bits": "0 1 2 3"
+          }
+        },
         "btn": {
           "hide_name": 0,
           "bits": [ 3, 4, 5, 6, 7, 8, 9 ],
           "attributes": {
-            "src": "saturn_core.v:62"
-          }
-        },
-        "bus_ctrl.clk": {
-          "hide_name": 0,
-          "bits": [ 2 ],
-          "attributes": {
-            "src": "saturn_core.v:208|hp48_bus.v:18",
-            "unused_bits": "0"
-          }
-        },
-        "bus_ctrl.dev_io_ram.clk": {
-          "hide_name": 0,
-          "bits": [ 2 ],
-          "attributes": {
-            "src": "saturn_core.v:208|hp48_bus.v:38|hp48_io_ram.v:16",
-            "unused_bits": "0"
+            "src": "saturn_core.v:29"
           }
         },
         "bus_ctrl.dev_io_ram.reset": {
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:208|hp48_bus.v:38|hp48_io_ram.v:17",
-            "unused_bits": "0"
-          }
-        },
-        "bus_ctrl.dev_rom.clk": {
-          "hide_name": 0,
-          "bits": [ 2 ],
-          "attributes": {
-            "src": "saturn_core.v:208|hp48_bus.v:49|hp48_rom.v:16",
-            "unused_bits": "0"
+            "src": "saturn_core.v:143|hp48_bus.v:38|hp48_io_ram.v:17"
           }
         },
         "bus_ctrl.reset": {
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:208|hp48_bus.v:19",
-            "unused_bits": "0"
+            "src": "saturn_core.v:143|hp48_bus.v:19"
           }
         },
         "clk": {
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:66",
-            "unused_bits": "0"
+            "src": "saturn_core.v:33"
           }
         },
         "clk_25mhz": {
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:61"
+            "src": "saturn_core.v:28"
           }
         },
         "led": {
           "hide_name": 0,
-          "bits": [ "0", "0", "0", "0", "0", "0", "0", "0" ],
+          "bits": [ 10, 11, 12, 13, 14, 15, 16, 17 ],
           "attributes": {
-            "src": "saturn_core.v:64"
+            "src": "saturn_core.v:31"
+          }
+        },
+        "regdump": {
+          "hide_name": 0,
+          "bits": [ 18, 19, 20, 21 ],
+          "attributes": {
+            "src": "saturn_core.v:90"
           }
         },
         "reset": {
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:67",
-            "unused_bits": "0"
+            "src": "saturn_core.v:34"
           }
         },
         "wifi_gpio0": {
           "hide_name": 0,
           "bits": [ "1" ],
           "attributes": {
-            "src": "saturn_core.v:63"
+            "src": "saturn_core.v:30"
           }
         }
       }

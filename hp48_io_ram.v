@@ -13,7 +13,7 @@
 
 
 module hp48_io_ram (
-	input				clk,
+	input				strobe,
 	input				reset,
 	input		[19:0]	address,
 	input		[3:0]	command,
@@ -87,89 +87,10 @@ always @(*)
 			io_ram_active = ((base_addr>=data_ptr)&(data_ptr<base_addr+IO_RAM_LEN))&(configured);
 	end
 
-always @(negedge clk)
-    case (command)
-        `BUSCMD_PC_READ:
-            begin
-            	pc_ptr <= pc_ptr + 1;
-            end
-        `BUSCMD_LOAD_PC:
-            begin
-`ifdef SIM
-                $display("io_ram: LOAD_PC %5h", address);
-`endif
-                pc_ptr <= address;
-            end
-        `BUSCMD_LOAD_DP:
-            begin
-`ifdef SIM
-                $display("io_ram: LOAD_DP %5h", address);
-`endif
-                data_ptr <= address;
-            end
-		`BUSCMD_DP_WRITE:
-            begin
-				data_ptr <= data_ptr + 1;
-            end
-        
-        default: begin end
-    endcase
-
-/*
- *
- *
- *
- */
-
-always @(negedge clk)
-	if ((~reset)&(~io_ram_error))
-		case (command)
-			`BUSCMD_NOP: begin end				// do nothing	
-			`BUSCMD_PC_READ:	
-				begin
-					// test if write can be done
-					if (io_ram_active)
-						begin
-							nibble_out <= io_ram[pc_ptr - base_addr];
-`ifdef SIM
-							$display("io_ram: PC_READ %5h %h | OK", data_ptr, nibble_in); 
-`endif
-						end
-				end
-			`BUSCMD_DP_WRITE:
-				begin
-					// test if write can be done
-					if (io_ram_active)
-						begin
-							io_ram[data_ptr[5:0] - base_addr[5:0]] <= nibble_in;
-`ifdef SIM
-							$display("io_ram: DP_WRITE %5h %h | OK", data_ptr, nibble_in); 
-`endif
-						end
-`ifdef SIM
-					else
-							$display("io_ram: DP_WRITE %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
-`endif
-//					data_ptr <= data_ptr + 1;
-				end
-			`BUSCMD_LOAD_PC: begin end // done on posedge
-			`BUSCMD_LOAD_DP: begin end
-			`BUSCMD_CONFIGURE:
-				begin
-`ifdef SIM
-					$display("io_ram: configure at %5h len %d", address, IO_RAM_LEN);
-`endif
-					base_addr <= address;
-					configured <= 1;
-				end
-			default:
-				begin
-`ifdef SIM
-					$display("io_ram: unhandled command %h", command);
-`endif
-					io_ram_error <= 1;
-				end
-		endcase
+always @(posedge strobe)
+    begin
+      
+    end
 
 endmodule
 
