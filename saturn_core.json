@@ -14309,7 +14309,7 @@
     "saturn_core": {
       "attributes": {
         "top": 1,
-        "src": "saturn_core.v:53"
+        "src": "saturn_core.v:60"
       },
       "ports": {
         "clk_25mhz": {
@@ -14336,14 +14336,14 @@
           "hide_name": 0,
           "bits": [ 3, 4, 5, 6, 7, 8, 9 ],
           "attributes": {
-            "src": "saturn_core.v:55"
+            "src": "saturn_core.v:62"
           }
         },
         "bus_ctrl.clk": {
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:201|hp48_bus.v:18",
+            "src": "saturn_core.v:208|hp48_bus.v:18",
             "unused_bits": "0"
           }
         },
@@ -14351,7 +14351,7 @@
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:201|hp48_bus.v:38|hp48_io_ram.v:16",
+            "src": "saturn_core.v:208|hp48_bus.v:38|hp48_io_ram.v:16",
             "unused_bits": "0"
           }
         },
@@ -14359,7 +14359,7 @@
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:201|hp48_bus.v:38|hp48_io_ram.v:17",
+            "src": "saturn_core.v:208|hp48_bus.v:38|hp48_io_ram.v:17",
             "unused_bits": "0"
           }
         },
@@ -14367,7 +14367,7 @@
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:201|hp48_bus.v:49|hp48_rom.v:16",
+            "src": "saturn_core.v:208|hp48_bus.v:49|hp48_rom.v:16",
             "unused_bits": "0"
           }
         },
@@ -14375,7 +14375,7 @@
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:201|hp48_bus.v:19",
+            "src": "saturn_core.v:208|hp48_bus.v:19",
             "unused_bits": "0"
           }
         },
@@ -14383,7 +14383,7 @@
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:59",
+            "src": "saturn_core.v:66",
             "unused_bits": "0"
           }
         },
@@ -14391,21 +14391,21 @@
           "hide_name": 0,
           "bits": [ 2 ],
           "attributes": {
-            "src": "saturn_core.v:54"
+            "src": "saturn_core.v:61"
           }
         },
         "led": {
           "hide_name": 0,
           "bits": [ "0", "0", "0", "0", "0", "0", "0", "0" ],
           "attributes": {
-            "src": "saturn_core.v:57"
+            "src": "saturn_core.v:64"
           }
         },
         "reset": {
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:60",
+            "src": "saturn_core.v:67",
             "unused_bits": "0"
           }
         },
@@ -14413,7 +14413,7 @@
           "hide_name": 0,
           "bits": [ "1" ],
           "attributes": {
-            "src": "saturn_core.v:56"
+            "src": "saturn_core.v:63"
           }
         }
       }

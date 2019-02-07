@@ -66,7 +66,7 @@ initial
 `ifdef SIM
 				$write(".");
 `endif
-				io_ram[base_addr] <= 0; 
+				io_ram[base_addr] = 0; 
 			end
 `ifdef SIM	
 		$write("\n");

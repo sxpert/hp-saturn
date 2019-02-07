@@ -21,17 +21,24 @@
  *
  */
 
-`define RUN_INIT      0
-`define NEXT_INSTR    1
+`define NEXT_INSTR    0
+`define INSTR_START   1
+`define INSTR_STROBE  2
+`define INSTR_READY	  3
+
 `define READ_START    4
 `define READ_STROBE   5
 `define READ_DONE     6
 `define READ_VALUE    7
+
 `define WRITE_START   8
 `define WRITE_STROBE  9
-`define WRITE_DONE   11
+`define WRITE_DONE   10
+
 `define RUN_DECODE   12
 `define RUN_EXEC     13
+
+`define RUN_INIT     15
 
 /****************************
  *
@@ -221,7 +228,6 @@ always @(posedge clk)
 			// bus
 
 			bus_command <= `BUSCMD_NOP;
-			bus_load_pc <= 0;
 			
 			// processor state machine
 			
@@ -274,8 +280,10 @@ always @(posedge clk)
 always @(posedge clk)
 	if (runstate == `RUN_INIT)
 		begin
-			bus_command <= `BUSCMD_LOAD_PC;
-			bus_address <= PC;
+`ifdef SIM
+			$display("RUN_INIT => NEXT_INSTR");
+`endif
+			bus_load_pc <= 1;
 			runstate <=  `NEXT_INSTR;
 		end
 
@@ -308,28 +316,68 @@ always @(posedge clk)
 //
 //--------------------------------------------------------------------------------------------------
 
-always @(negedge clk)
-	if ((runstate == `NEXT_INSTR)&(bus_load_pc))
+
+/****
+ * Instruction data read
+ *
+ *
+ */
+
+always @(posedge clk)
+	if (runstate == `NEXT_INSTR)
+		if (bus_load_pc)
+			begin
+`ifdef SIM
+				//$display("NEXT_INSTR load PC %5h => INSTR_START", PC);
+`endif
+				bus_address <= PC;
+				bus_command <= `BUSCMD_LOAD_PC;
+				bus_load_pc <= 0;
+				runstate <= `INSTR_START;
+			end
+		else
+			begin
+`ifdef SIM
+				//$display("NEXT_INSTR => INSTR_STROBE");
+`endif
+				bus_command <= `BUSCMD_PC_READ;
+				runstate <= `INSTR_STROBE;
+			end
+
+// start reading instruction
+always @(posedge clk)
+	if (runstate == `INSTR_START)
 		begin
 `ifdef SIM
-			$display("NEXT_INSTR /clk load PC %5h", PC);
+			//$display("INSTR_START => INSTR_STROBE");
 `endif
-			bus_address <= PC;
-			bus_command <= `BUSCMD_LOAD_PC;
-			bus_load_pc <= 0;
+			bus_command <= `BUSCMD_PC_READ;
+			runstate <= `INSTR_STROBE;
 		end
 
-// read from rom start
 always @(posedge clk)
-	if ((runstate == `READ_START)|(runstate == `NEXT_INSTR))
+	if (runstate == `INSTR_STROBE)
 		begin
-			//$display("READ_START");
-			bus_command <= `BUSCMD_PC_READ;
-			runstate <= `READ_STROBE;
+`ifdef SIM
+			//$display("INSTR_STROBE => INSTR_READY");
+`endif
+			bus_command <= `BUSCMD_NOP;
+			nibble <= bus_nibble_out;
+			PC <= PC + 1;
+			runstate <= `INSTR_READY;
+`ifdef SIM
+			//$display("PC: %h | read => %h", PC, bus_nibble_out);
+`endif
 		end
+
+/****
+ *
+ * read data from bus
+ *
+ */
 
 // read from rom clock in
-always @(negedge clk)
+always @(posedge clk)
 	if (runstate == `READ_STROBE)
 		begin
 			//$display("READ_STROBE");
@@ -359,7 +407,7 @@ always @(posedge clk)
 always @(posedge clk)
 begin
 // first nibble instruction decoder
-	if ((runstate == `READ_VALUE) & (decstate == DECODE_START))
+	if ((runstate == `INSTR_READY) & (decstate == DECODE_START))
 		begin
 			//$display("`READ_VALUE -> instruction decoder");
 			runstate <= `RUN_DECODE;
@@ -390,9 +438,9 @@ begin
 
 	if (decstate == DECODE_0)
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				case (nibble)
 					4'h3: decstate <= DECODE_RTNCC;
 					4'h4: decstate <= DECODE_SETHEX;
@@ -475,9 +523,9 @@ begin
 
 	if (decstate == DECODE_1)
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					case (nibble)
 						//4'h4, 4'h5:	decode_14_15();
@@ -526,9 +574,9 @@ begin
 
 	if ((decstate == DECODE_14)|(decstate == DECODE_15))
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				case (decstate)
 					DECODE_14:
 						begin
@@ -554,7 +602,7 @@ begin
 			default: 
 				begin
 `ifdef SIM
-					$display("runstate %h", decstate);
+					$display("DECODE_14_15: runstate %h", decstate);
 `endif
 					halt <= 1;
 				end
@@ -651,15 +699,15 @@ begin
 		case (runstate)
 			`RUN_DECODE:
 				begin
-					runstate <= `READ_START;
+					runstate <= `INSTR_START;
 					t_cnt <= 4;
 					t_ctr <= 0;
 `ifdef SIM
 					$write("%5h D0=(5)\t", saved_PC);
 `endif
 				end
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					D0[t_ctr*4+:4] <= nibble;
 `ifdef SIM
@@ -676,13 +724,13 @@ begin
 					else 
 						begin 
 							t_ctr <= t_ctr + 1;
-							runstate <= `READ_START;
+							runstate <= `INSTR_START;
 						end
 				end
 			default: 
 				begin
 `ifdef SIM
-					$display("runstate %h", runstate);
+					$display("DECODE_D0_EQ_5N: runstate %h", runstate);
 `endif
 					halt <= 1;
 				end
@@ -696,9 +744,9 @@ begin
  
 	if (decstate == DECODE_P_EQ)
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					P <= nibble;
 `ifdef SIM
@@ -710,7 +758,7 @@ begin
 			default:
 				begin
 `ifdef SIM
-					$display("runstate %h", runstate);
+					$display("DECODE_P_EQ: runstate %h", runstate);
 `endif
 					halt <= 1;
 				end
@@ -725,9 +773,9 @@ begin
  
 	if ((decstate == DECODE_LC_LEN) | (decstate == DECODE_LC))
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				case (decstate)
 					DECODE_LC_LEN:
 						begin
@@ -737,7 +785,7 @@ begin
 							t_cnt <= nibble;
 							t_ctr <= 0;
 							decstate <= DECODE_LC;
-							runstate <= `READ_START;
+							runstate <= `INSTR_START;
 						end
 					DECODE_LC:
 						begin
@@ -757,7 +805,7 @@ begin
 							else 
 								begin 
 									t_ctr <= (t_ctr + 1)&4'hf;
-									runstate <= `READ_START;
+									runstate <= `INSTR_START;
 								end							
 						end
 					default:
@@ -787,14 +835,14 @@ begin
 		case (runstate)
 			`RUN_DECODE:
 				begin
-					runstate <= `READ_START;
+					runstate <= `INSTR_START;
 					jump_base <= PC;
 					jump_offset <= 0;
 					t_cnt <= 2;
 					t_ctr <= 0;
 				end
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					jump_offset[t_ctr*4+:4] <= nibble;
 					if (t_ctr == t_cnt) 
@@ -805,7 +853,7 @@ begin
 					else 
 						begin 
 							t_ctr <= t_ctr + 1;
-							runstate <= `READ_START;
+							runstate <= `INSTR_START;
 						end
 				end
 			`RUN_EXEC:
@@ -821,7 +869,7 @@ begin
 			default: 
 				begin
 `ifdef SIM
-					$display("runstate %h", runstate);
+					$display("DECODE_GOTO: runstate %h", runstate);
 `endif
 					halt <= 1;
 				end
@@ -835,9 +883,9 @@ begin
 
 	if (decstate == DECODE_8)
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					case (nibble)
 						4'h0: decstate <= DECODE_80;
@@ -859,7 +907,7 @@ begin
 			default: 
 				begin
 `ifdef SIM
-					$display("runstate %h", runstate);
+					$display("DECODE_8: runstate %h", runstate);
 `endif
 					halt <= 1;
 				end
@@ -873,9 +921,9 @@ begin
 
 	if (decstate == DECODE_80)
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					case (nibble)
 						4'h5:   decstate <= DECODE_CONFIG;
@@ -894,7 +942,7 @@ begin
 			default: 
 				begin
 `ifdef SIM
-					$display("DECODE_80 runstate %h", runstate);
+					$display("DECODE_80: runstate %h", runstate);
 `endif
 					halt <= 1;
 				end
@@ -940,9 +988,9 @@ begin
 
 	if (decstate == DECODE_C_EQ_P_N)
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					C[nibble*4+:4] <= P;
 `ifdef SIM
@@ -970,9 +1018,9 @@ begin
 
 	if (decstate == DECODE_82)
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					HST <= HST & ~nibble;
 `ifdef SIM
@@ -1004,9 +1052,9 @@ begin
 
 	if ((decstate == DECODE_ST_EQ_0_N) | (decstate == DECODE_ST_EQ_1_N))
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 					case (decstate)
 						DECODE_ST_EQ_0_N: 
@@ -1051,10 +1099,10 @@ begin
 					t_ctr <= 0;
 					if (decstate == DECODE_GOSBVL)
 						rstk_ptr <= rstk_ptr + 1;
-					runstate <= `READ_START;
+					runstate <= `INSTR_START;
 				end
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				begin
 				  //$display("decstate %h | nibble %h", decstate, nibble);
 				  jump_base[t_ctr*4+:4] <= nibble;
@@ -1062,7 +1110,7 @@ begin
 					else 
 						begin 
 							t_ctr <= t_ctr + 1;
-							runstate <= `READ_START;
+							runstate <= `INSTR_START;
 						end
 				end
 			`RUN_EXEC:
@@ -1100,15 +1148,15 @@ begin
 
 	if ((decstate == DECODE_A)|(decstate == DECODE_A_FS))
 		case (runstate)
-			`RUN_DECODE: runstate <= `READ_START;
-			`READ_START, `READ_STROBE, `READ_DONE: begin end
-			`READ_VALUE:
+			`RUN_DECODE: runstate <= `INSTR_START;
+			`INSTR_START, `INSTR_STROBE: begin end
+			`INSTR_READY:
 				case (decstate)
 					DECODE_A: 
 						begin
 							t_field <= nibble;
 							decstate <= DECODE_A_FS;
-							runstate <= `READ_START;
+							runstate <= `INSTR_START;
 						end
 					DECODE_A_FS: 
 						begin				
