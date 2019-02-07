@@ -2,7 +2,7 @@
 #
 # licence: GPLv3 or later
 # 
-verilator -Wall -cc saturn_core.v
+verilator -Wall -I. --top-module saturn_core -cc saturn_core.v hp48_bus.v hp48_io_ram.v hp48_rom.v bus_commands.v
 VERILATOR_STATUS=$?
 if [ "VERILATOR_STATUS" != "0" ]
 then

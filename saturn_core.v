@@ -4,304 +4,8 @@
 
 `default_nettype none //
 
-/**************************************************************************************************
- *
- * Bus commands
- * 
- *
- *
- */
-
-`define BUSCMD_NOP			0
-`define BUSCMD_ID			1
-`define BUSCMD_PC_READ		2
-`define BUSCMD_DP_READ		3
-`define BUSCMD_PC_WRITE		4	
-`define BUSCMD_DP_WRITE		5
-`define BUSCMD_LOAD_PC		6
-`define BUSCMD_LOAD_DP		7
-`define BUSCMD_CONFIGURE	8
-`define BUSCMD_UNCONFIGURE	9
-`define BUSCMD_RESET		15
-
-
-/**************************************************************************************************
- *
- * Rom module
- * accesses the calculators firmware
- *
- *
- */
-
-module hp48_rom (
-	input 				clk,
-	input 		[19:0]	address,
-	input		[3:0]	command,
-	output	reg	[3:0]	nibble_out	
-);
-localparam 	ROM_FILENAME = "rom-gx-r.hex";
-
-//
-// This is only for debug, the rom should be stored elsewhere
-//
-
-`ifdef SIM
-reg [3:0]	rom	[0:(2**20)-1];
-`else
-reg[3:0]	rom	[0:(2**16)-1];
-`endif
-
-reg [19:0]	pc_ptr;
-reg [19:0]	data_ptr;
-
-initial
-begin
-	$readmemh( ROM_FILENAME, rom);
-end
-
-always @(negedge clk)
-		case (command)
-			`BUSCMD_NOP: begin end				// do nothing	
-			`BUSCMD_PC_READ:	
-				begin
-`ifdef SIM
-					//$display("rom: PC_READ %5h => %h", address, rom[pc_ptr]);
-`endif
-					nibble_out <= rom[pc_ptr];
-					pc_ptr <= pc_ptr + 1;
-				end
-			`BUSCMD_LOAD_PC:
-				begin
-`ifdef SIM
-					//$display("rom: LOAD_PC %5h", address);
-`endif
-					pc_ptr <= address;
-				end
-			`BUSCMD_LOAD_DP:
-				begin
-`ifdef SIM
-					//$display("rom: LOAD_DP %5h", address);
-`endif
-					data_ptr <= address;
-				end
-		endcase
-endmodule
-
-/**************************************************************************************************
- *
- * I/O ram 
- * length: 64 nibbles
- *
- *
- */
-
-
-module hp48_io_ram (
-	input				clk,
-	input				reset,
-	input		[19:0]	address,
-	input		[3:0]	command,
-	input		[3:0]	nibble_in,
-	output	reg [3:0]	nibble_out,
-	output	reg			io_ram_active,
-	output	reg			io_ram_error
-);
-
-localparam IO_RAM_LEN		= 64;
-
-// localparam BUSCMD_DP_WRITE	= C_BUSCMD_DP_WRITE;
-// localparam BUSCMD_CONFIGURE = C_BUSCMD_CONFIGURE;
-
-
-reg	[0:0]	configured;
-reg [19:0]	base_addr;
-reg [19:0]	pc_ptr;
-reg [19:0]	data_ptr;
-reg [3:0]	io_ram [0:IO_RAM_LEN-1];
-
-/*
- *
- *
- */
-
-initial
-	begin
-`ifdef SIM
-		$display("io_ram: set unconfigured");
-`endif
-		configured = 0;
-`ifdef SIM
-		$display("io_ram: reset error flag");
-`endif
-		io_ram_error = 1'b0;	
-`ifdef SIM
-		$display("io_ram: setting base address to 0");
-`endif
-		base_addr = 0;
-`ifdef SIM
-		$display("io_ram: setting data pointer to 0");
-`endif
-		data_ptr = 0;
-`ifdef SIM
-		$display("io_ram: initializing to 0");
-`endif
-		for (base_addr = 0; base_addr < IO_RAM_LEN; base_addr++)
-			begin
-`ifdef SIM
-				$write(".");
-`endif
-				io_ram[base_addr] = 0; 
-			end
-`ifdef SIM	
-		$write("\n");
-		$display("io_ram: initialized");
-`endif
-	end
-
-/*
- *
- *
- */
-
-always @(*)
-	begin
-		io_ram_active = 0;
-		if ((command==`BUSCMD_PC_READ)|(command==`BUSCMD_DP_READ)|
-			(command==`BUSCMD_PC_WRITE)|(command==`BUSCMD_PC_WRITE))
-			io_ram_active = ((base_addr>=data_ptr)&(data_ptr<base_addr+IO_RAM_LEN))&(configured);
-	end
-
-always @(negedge clk)
-	if ((~reset)&(~io_ram_error))
-		case (command)
-			`BUSCMD_NOP: begin end				// do nothing	
-			`BUSCMD_PC_READ:	
-				begin
-					// test if write can be done
-					if (io_ram_active)
-						begin
-							nibble_out <= io_ram[pc_ptr - base_addr];
-`ifdef SIM
-							$display("io_ram: PC_READ %5h %h | OK", data_ptr, nibble_in); 
-`endif
-						end
-// `ifdef SIM
-// 					else
-// 						$display("io_ram: PC_READ %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
-// `endif
-					pc_ptr <= pc_ptr + 1;
-				end
-			`BUSCMD_DP_WRITE:
-				begin
-					// test if write can be done
-					if (io_ram_active)
-						begin
-							io_ram[data_ptr - base_addr] <= nibble_in;
-`ifdef SIM
-							$display("io_ram: DP_WRITE %5h %h | OK", data_ptr, nibble_in); 
-`endif
-						end
-`ifdef SIM
-					else
-							$display("io_ram: DP_WRITE %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
-`endif
-					data_ptr <= data_ptr + 1;
-				end
-			`BUSCMD_LOAD_PC:
-				begin
-`ifdef SIM
-					//$display("io_ram: LOAD_PC %5h", address);
-`endif
-					pc_ptr <= address;
-				end
-			`BUSCMD_LOAD_DP:
-				begin
-`ifdef SIM
-					//$display("io_ram: LOAD_DP %5h", address);
-`endif
-					data_ptr <= address;
-				end
-			`BUSCMD_CONFIGURE:
-				begin
-`ifdef SIM
-					$display("io_ram: configure at %5h len %d", address, IO_RAM_LEN);
-`endif
-					base_addr <= address;
-					configured <= 1;
-				end
-			default:
-				begin
-`ifdef SIM
-					$display("io_ram: unhandled command %h", command);
-`endif
-					io_ram_error <= 1;
-				end
-		endcase
-
-endmodule
-
-/**************************************************************************************************
- *
- *  Bus manager
- *
- *
- *
- */
-
-module hp48_bus (
-	input					clk,
-	input					reset,
-	input			[19:0]	address,
-	input			[3:0]	command,
-	input			[3:0]	nibble_in,
-	output	reg		[3:0]	nibble_out,
-	output	reg				bus_error
-);
-
-// io_ram
-wire [3:0]	io_ram_nibble_out;
-wire		io_ram_active;
-wire		io_ram_error;
-
-// rom
-wire [3:0]	rom_nibble_out;
-
-//
-// listed in order of priority
-//
-hp48_io_ram dev_io_ram (
-	.clk			(clk),
-	.reset			(reset),
-	.address		(address),
-	.command		(command),
-	.nibble_in		(nibble_in),
-	.nibble_out		(io_ram_nibble_out),
-	.io_ram_active	(io_ram_active),
-	.io_ram_error	(io_ram_error)
-);
-
-hp48_rom dev_rom (
-	.clk			(clk),
-	.address		(address),
-	.command		(command),
-	.nibble_out		(rom_nibble_out)
-);
-
-
-always @(*)
-	begin
-		bus_error = io_ram_error;
-		nibble_out = 0;
-		if ((command == `BUSCMD_PC_READ)|(command == `BUSCMD_DP_READ))
-			begin
-				if (io_ram_active) nibble_out = io_ram_nibble_out;	
-				if (~io_ram_active) nibble_out = rom_nibble_out;
-			end
-	end
-
-endmodule
-
-
+`include "bus_commands.v"
+`include "hp48_bus.v"
 
 /**************************************************************************************************
  *
@@ -310,6 +14,33 @@ endmodule
  *
  *
  */
+
+/****************************
+ *
+ * runstate
+ *
+ */
+
+`define RUN_INIT      0
+`define NEXT_INSTR    1
+`define READ_START    4
+`define READ_STROBE   5
+`define READ_DONE     6
+`define READ_VALUE    7
+`define WRITE_START   8
+`define WRITE_STROBE  9
+`define WRITE_DONE   11
+`define RUN_DECODE   12
+`define RUN_EXEC     13
+
+/****************************
+ *
+ * runstate
+ *
+ */
+
+
+
 `ifdef SIM
 module saturn_core (
 	input			clk,
@@ -342,19 +73,6 @@ localparam	REGDMP_HEX		= 8'h00;
 
 // localparam BUSCMD_DP_WRITE	= `C_BUSCMD_DP_WRITE;
 // localparam BUSCMD_CONFIGURE = `C_BUSCMD_CONFIGURE;
-
-// runstate
-
-localparam RUN_START	= 0;
-localparam READ_ROM_STA	= 1;
-localparam READ_ROM_CLK	= 2;
-localparam READ_ROM_STR	= 3;
-localparam READ_ROM_VAL	= 4;
-localparam WRITE_STA	= 5;
-localparam WRITE_STROBE	= 6;
-localparam WRITE_DONE	= 8;
-localparam RUN_EXEC		= 14;
-localparam RUN_DECODE	= 15;
 
 // instruction decoder states
 
@@ -437,6 +155,7 @@ reg		[3:0]	bus_command;
 reg		[3:0]	bus_nibble_in;
 wire	[3:0]	bus_nibble_out;
 wire			bus_error;
+reg				bus_load_pc;
 
 // should go away, the rom should work like any other bus module
 reg				rom_enable;
@@ -497,18 +216,17 @@ hp48_bus bus_ctrl (
  */
 
 always @(posedge clk)
-begin
-
 	if (reset)
 		begin
 			// bus
 
 			bus_command <= `BUSCMD_NOP;
+			bus_load_pc <= 0;
 			
 			// processor state machine
 			
 			halt		<= 0;
-			runstate	<= RUN_START;
+			runstate	<= `RUN_INIT;
 			decstate 	<= DECODE_START;
 			regdump		<= REGDMP_HEX;
 
@@ -544,27 +262,33 @@ begin
 			R1			<= 0;
 			R2			<= 0;
 			R3			<= 0;
-			R4			<= 0;
-						
+			R4			<= 0;		
 		end
-	else
-		if (runstate == RUN_START) 
-			runstate <= READ_ROM_STA;
 
+always @(posedge clk)
 	if (bus_error)
 		begin	
 			halt <= 1;
 		end
 
-//--------------------------------------------------------------------------------------------------
-//
-// REGISTER UTILITIES
-//
-//--------------------------------------------------------------------------------------------------
+always @(posedge clk)
+	if (runstate == `RUN_INIT)
+		begin
+			bus_command <= `BUSCMD_LOAD_PC;
+			bus_address <= PC;
+			runstate <=  `NEXT_INSTR;
+		end
+
+/*--------------------------------------------------------------------------------------------------
+ *
+ * REGISTER UTILITIES
+ *
+ *------------------------------------------------------------------------------------------------*/
 
 // display registers
 `ifdef SIM
-	if ((runstate == RUN_START) & (~reset))
+always @(posedge clk)
+	if ((runstate == `NEXT_INSTR) & (~reset))
 		begin
 			saved_PC <= PC;
 			$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
@@ -580,38 +304,48 @@ begin
 
 //--------------------------------------------------------------------------------------------------
 //
-// ROM HANDLING
+// Read from bus
 //
 //--------------------------------------------------------------------------------------------------
 
-// read from rom start
-	if (runstate == READ_ROM_STA)
+always @(negedge clk)
+	if ((runstate == `NEXT_INSTR)&(bus_load_pc))
 		begin
-			//$display("READ_ROM_STA");
+			$display("NEXT_INSTR /clk load PC %5h", PC);
 			bus_address <= PC;
 			bus_command <= `BUSCMD_LOAD_PC;
-			runstate <= READ_ROM_CLK;
+			bus_load_pc <= 0;
+		end
+
+// read from rom start
+always @(posedge clk)
+	if ((runstate == `READ_START)|(runstate == `NEXT_INSTR))
+		begin
+			//$display("READ_START");
+			bus_command <= `BUSCMD_PC_READ;
+			runstate <= `READ_STROBE;
 		end
 
 // read from rom clock in
-	if (runstate == READ_ROM_CLK)
-		begin				
-			//$display("READ_ROM_CLK");
-			bus_command <= `BUSCMD_PC_READ;
-			runstate <= READ_ROM_STR;
+always @(negedge clk)
+	if (runstate == `READ_STROBE)
+		begin
+			//$display("READ_STROBE");
+			runstate <= `READ_DONE;
 		end
 
 // read from rom store
-	if (runstate == READ_ROM_STR)
+always @(posedge clk)
+	if (runstate == `READ_DONE)
 		begin				
-			//$display("READ_ROM_STR");
+			//$display("READ_DONE");
 			bus_command <= `BUSCMD_NOP;
 			nibble <= bus_nibble_out;
 			//$display("PC: %h | read => %h", PC, bus_nibble_out);
 			PC <= PC + 1;
-			rom_enable <= 1'b0;
+//			rom_enable <= 1'b0;
 //			rom_clock <= 1'b0;
-			runstate <= READ_ROM_VAL;
+			runstate <= `READ_VALUE;
 		end
 
 //--------------------------------------------------------------------------------------------------
@@ -620,11 +354,14 @@ begin
 //
 //--------------------------------------------------------------------------------------------------
 
+always @(posedge clk)
+begin
+
 // first nibble instruction decoder
-	if ((runstate == READ_ROM_VAL) & (decstate == DECODE_START))
+	if ((runstate == `READ_VALUE) & (decstate == DECODE_START))
 		begin
-			//$display("READ_ROM_VAL -> instruction decoder");
-			runstate <= RUN_DECODE;
+			//$display("`READ_VALUE -> instruction decoder");
+			runstate <= `RUN_DECODE;
 			case (nibble)
 				4'h0 : decstate <= DECODE_0;
 				4'h1 : decstate <= DECODE_1;
@@ -652,9 +389,9 @@ begin
 
 	if (decstate == DECODE_0)
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				case (nibble)
 					4'h3: decstate <= DECODE_RTNCC;
 					4'h4: decstate <= DECODE_SETHEX;
@@ -692,7 +429,8 @@ begin
 `ifdef SIM
 			$display("%05h RTNCC", saved_PC);
 `endif
-			runstate <= RUN_START;
+			bus_load_pc <= 1;
+			runstate <= `NEXT_INSTR;
 			decstate <= DECODE_START;
 		end
 
@@ -708,7 +446,7 @@ begin
 `ifdef SIM
 			$display("%05h SETHEX", saved_PC);
 `endif
-			runstate <= RUN_START;
+			runstate <= `NEXT_INSTR;
 			decstate <= DECODE_START;
 		end
 
@@ -724,7 +462,7 @@ begin
 `ifdef SIM
 			$display("%05h SETDEC", saved_PC);
 `endif
-			runstate <= RUN_START;
+			runstate <= `NEXT_INSTR;
 			decstate <= DECODE_START;
 		end
 
@@ -736,9 +474,9 @@ begin
 
 	if (decstate == DECODE_1)
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					case (nibble)
 						//4'h4, 4'h5:	decode_14_15();
@@ -752,7 +490,7 @@ begin
 								halt <= 1;
 							end
 					endcase
-					runstate <= RUN_DECODE;
+					runstate <= `RUN_DECODE;
 				end
 			default: 
 				begin
@@ -787,9 +525,9 @@ begin
 
 	if ((decstate == DECODE_14)|(decstate == DECODE_15))
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				case (decstate)
 					DECODE_14:
 						begin
@@ -802,7 +540,7 @@ begin
 							if (~nibble[3]) t_field <= T_FIELD_A;
 							else t_field <= T_FIELD_B;
 							decstate <= DECODE_MEMACCESS;
-							runstate <= RUN_EXEC;
+							runstate <= `RUN_EXEC;
 						end
 					default:
 						begin
@@ -823,7 +561,7 @@ begin
 
 	if (decstate == DECODE_MEMACCESS)
 		case (runstate)
-			RUN_EXEC:
+			`RUN_EXEC:
 				begin
 					t_ctr <= 0;
 					case (t_field)
@@ -834,8 +572,8 @@ begin
 							end
 					endcase
 					case (t_dir)
-						T_DIR_OUT: runstate <= WRITE_STA;
-						T_DIR_IN:  runstate <= READ_ROM_STA;
+						T_DIR_OUT: runstate <= `WRITE_START;
+						T_DIR_IN:  runstate <= `READ_START;
 					endcase
 `ifdef SIM
 					$write("%5h ", saved_PC);
@@ -857,20 +595,20 @@ begin
 					endcase
 `endif
 				end
-			WRITE_STA:
+			`WRITE_START:
 				begin
 `ifdef SIM
-					$display("WRITE_STA    | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
+					$display("`WRITE_START    | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
 							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_field, t_offset, t_ctr, t_cnt);
 `endif
 					bus_command <= `BUSCMD_LOAD_DP;
 					bus_address <= (~t_ptr)?D0:D1;
-					runstate <= WRITE_STROBE;
+					runstate <= `WRITE_STROBE;
 				end
-			WRITE_STROBE:
+			`WRITE_STROBE:
 				begin
 `ifdef SIM
-					$display("WRITE_STROBE | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
+					$display("`WRITE_STROBE | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
 							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_offset, t_ctr, t_cnt);
 `endif
 					bus_command <= `BUSCMD_DP_WRITE;
@@ -879,17 +617,17 @@ begin
 					t_ctr <= t_ctr + 1;
 					if (t_ctr == t_cnt)
 						begin
-							runstate <= WRITE_DONE;
+							runstate <= `WRITE_DONE;
 						end
 				end
-			WRITE_DONE:
+			`WRITE_DONE:
 				begin
 `ifdef SIM
-					$display("WRITE_DONE   | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
+					$display("`WRITE_DONE   | ptr %s | dir %s | reg %s | field %h | off %h | ctr %h | cnt %h", 
 							 t_ptr?"D1":"D0", t_dir?"IN":"OUT", t_reg?"C":"A", t_field, t_offset, t_ctr, t_cnt);
 `endif
 					bus_command <= `BUSCMD_NOP;
-					runstate <= RUN_START;
+					runstate <= `NEXT_INSTR;
 					decstate <= DECODE_START;
 				end
 			default: 
@@ -910,17 +648,17 @@ begin
 
 	if (decstate == DECODE_D0_EQ_5N)
 		case (runstate)
-			RUN_DECODE:
+			`RUN_DECODE:
 				begin
-					runstate <= READ_ROM_STA;
+					runstate <= `READ_START;
 					t_cnt <= 4;
 					t_ctr <= 0;
 `ifdef SIM
 					$write("%5h D0=(5)\t", saved_PC);
 `endif
 				end
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					D0[t_ctr*4+:4] <= nibble;
 `ifdef SIM
@@ -931,13 +669,13 @@ begin
 `ifdef SIM
 							$display("");
 `endif
-							runstate <= RUN_START;
+							runstate <= `NEXT_INSTR;
 							decstate <= DECODE_START;
 						end
 					else 
 						begin 
 							t_ctr <= t_ctr + 1;
-							runstate <= READ_ROM_STA;
+							runstate <= `READ_START;
 						end
 				end
 			default: 
@@ -957,15 +695,15 @@ begin
  
 	if (decstate == DECODE_P_EQ)
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					P <= nibble;
 `ifdef SIM
 					$display("%05h P=\t%h", saved_PC, nibble);	
 `endif
-					runstate <= RUN_START;
+					runstate <= `NEXT_INSTR;
 					decstate <= DECODE_START;
 				end
 			default:
@@ -986,9 +724,9 @@ begin
  
 	if ((decstate == DECODE_LC_LEN) | (decstate == DECODE_LC))
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				case (decstate)
 					DECODE_LC_LEN:
 						begin
@@ -998,7 +736,7 @@ begin
 							t_cnt <= nibble;
 							t_ctr <= 0;
 							decstate <= DECODE_LC;
-							runstate <= READ_ROM_STA;
+							runstate <= `READ_START;
 						end
 					DECODE_LC:
 						begin
@@ -1011,14 +749,14 @@ begin
 `ifdef SIM
 									$display("");
 `endif
-									runstate <= RUN_START;
+									runstate <= `NEXT_INSTR;
 									decstate <= DECODE_START;
 									
 								end 
 							else 
 								begin 
 									t_ctr <= (t_ctr + 1)&4'hf;
-									runstate <= READ_ROM_STA;
+									runstate <= `READ_START;
 								end							
 						end
 					default:
@@ -1046,31 +784,37 @@ begin
 
 	if (decstate == DECODE_GOTO)
 		case (runstate)
-			RUN_DECODE:
+			`RUN_DECODE:
 				begin
-					runstate <= READ_ROM_STA;
+					runstate <= `READ_START;
 					jump_base <= PC;
 					jump_offset <= 0;
 					t_cnt <= 2;
 					t_ctr <= 0;
 				end
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					jump_offset[t_ctr*4+:4] <= nibble;
-					if (t_ctr == t_cnt) runstate <= RUN_EXEC;
+					if (t_ctr == t_cnt) 
+						begin
+							// load PC
+							runstate <= `RUN_EXEC;
+						end
 					else 
 						begin 
 							t_ctr <= t_ctr + 1;
-							runstate <= READ_ROM_STA;
+							runstate <= `READ_START;
 						end
 				end
-			RUN_EXEC:
+			`RUN_EXEC:
 				begin
 `ifdef SIM
 					$display("%5h GOTO\t%3h\t=> %05h", saved_PC, jump_offset[11:0], jump_base + jump_offset);
-`endif					PC <= jump_base + jump_offset;
-					runstate <= RUN_START;
+`endif
+					PC <= jump_base + jump_offset;
+					bus_load_pc <= 1;
+					runstate <= `NEXT_INSTR;
 					decstate <= DECODE_START;
 				end 
 			default: 
@@ -1090,9 +834,9 @@ begin
 
 	if (decstate == DECODE_8)
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					case (nibble)
 						4'h0: decstate <= DECODE_80;
@@ -1109,7 +853,7 @@ begin
 								halt <= 1;
 							end
 					endcase
-					runstate <= RUN_DECODE;
+					runstate <= `RUN_DECODE;
 				end
 			default: 
 				begin
@@ -1128,9 +872,9 @@ begin
 
 	if (decstate == DECODE_80)
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					case (nibble)
 						4'h5:   decstate <= DECODE_CONFIG;
@@ -1144,7 +888,7 @@ begin
 								halt <= 1;
 							end
 					endcase
-					runstate <= RUN_DECODE;
+					runstate <= `RUN_DECODE;
 				end
 			default: 
 				begin
@@ -1163,12 +907,12 @@ begin
  *
  */ 
 
-	if ((decstate == DECODE_CONFIG) & (runstate == RUN_DECODE))	
+	if ((decstate == DECODE_CONFIG) & (runstate == `RUN_DECODE))	
 		begin
 `ifdef SIM
 			$display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
 `endif
-			runstate <= RUN_START;
+			runstate <= `NEXT_INSTR;
 			decstate <= DECODE_START;
 		end
 
@@ -1178,12 +922,12 @@ begin
  *
  */ 
 
-	if ((decstate == DECODE_RESET) & (runstate == RUN_DECODE))	
+	if ((decstate == DECODE_RESET) & (runstate == `RUN_DECODE))	
 		begin
 `ifdef SIM
 			$display("%05h RESET\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
 `endif
-			runstate <= RUN_START;
+			runstate <= `NEXT_INSTR;
 			decstate <= DECODE_START;
 		end
 
@@ -1195,15 +939,15 @@ begin
 
 	if (decstate == DECODE_C_EQ_P_N)
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					C[nibble*4+:4] <= P;
 `ifdef SIM
 					$display("%05h C=P\t%h", saved_PC, nibble);	
 `endif
-					runstate <= RUN_START;
+					runstate <= `NEXT_INSTR;
 					decstate <= DECODE_START;
 				end
 			default: 
@@ -1225,9 +969,9 @@ begin
 
 	if (decstate == DECODE_82)
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					HST <= HST & ~nibble;
 `ifdef SIM
@@ -1240,7 +984,7 @@ begin
 						default: $display("%5h CLRHST	%f", saved_PC, nibble);
 					endcase
 `endif
-					runstate <= RUN_START;
+					runstate <= `NEXT_INSTR;
 					decstate <= DECODE_START;
 				end
 			default: 
@@ -1259,9 +1003,9 @@ begin
 
 	if ((decstate == DECODE_ST_EQ_0_N) | (decstate == DECODE_ST_EQ_1_N))
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 					case (decstate)
 						DECODE_ST_EQ_0_N: 
@@ -1279,7 +1023,7 @@ begin
 								ST[nibble] <= 1;
 							end
 					endcase
-					runstate <= RUN_START;
+					runstate <= `NEXT_INSTR;
 					decstate <= DECODE_START;
 				end
 			default:
@@ -1299,28 +1043,28 @@ begin
 
 	if ((decstate == DECODE_GOVLNG) | (decstate == DECODE_GOSBVL))
 		case (runstate)
-			RUN_DECODE:
+			`RUN_DECODE:
 				begin
 					jump_base <= 0;
 					t_cnt <= 4;
 					t_ctr <= 0;
 					if (decstate == DECODE_GOSBVL)
 						rstk_ptr <= rstk_ptr + 1;
-					runstate <= READ_ROM_STA;
+					runstate <= `READ_START;
 				end
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				begin
 				  //$display("decstate %h | nibble %h", decstate, nibble);
 				  jump_base[t_ctr*4+:4] <= nibble;
-				  if (t_ctr == t_cnt) runstate <= RUN_EXEC;
+				  if (t_ctr == t_cnt) runstate <= `RUN_EXEC;
 					else 
 						begin 
 							t_ctr <= t_ctr + 1;
-							runstate <= READ_ROM_STA;
+							runstate <= `READ_START;
 						end
 				end
-			RUN_EXEC:
+			`RUN_EXEC:
 				begin
 `ifdef SIM
 					$write("%5h GO", saved_PC);
@@ -1333,7 +1077,8 @@ begin
 					if (decstate  == DECODE_GOSBVL)
 						RSTK[rstk_ptr] <= PC;							  
 					PC <= jump_base;
-					runstate <= RUN_START;
+					bus_load_pc <= 1;
+					runstate <= `NEXT_INSTR;
 					decstate <= DECODE_START;
 				end
 			default:
@@ -1354,15 +1099,15 @@ begin
 
 	if ((decstate == DECODE_A)|(decstate == DECODE_A_FS))
 		case (runstate)
-			RUN_DECODE: runstate <= READ_ROM_STA;
-			READ_ROM_STA, READ_ROM_CLK, READ_ROM_STR: begin end
-			READ_ROM_VAL:
+			`RUN_DECODE: runstate <= `READ_START;
+			`READ_START, `READ_STROBE, `READ_DONE: begin end
+			`READ_VALUE:
 				case (decstate)
 					DECODE_A: 
 						begin
 							t_field <= nibble;
 							decstate <= DECODE_A_FS;
-							runstate <= READ_ROM_STA;
+							runstate <= `READ_START;
 						end
 					DECODE_A_FS: 
 						begin				
@@ -1392,7 +1137,7 @@ begin
 										halt <= 1;
 									end
 							endcase
-							runstate <= RUN_START;
+							runstate <= `NEXT_INSTR;
 							decstate <= DECODE_START;
 						end
 					default:
