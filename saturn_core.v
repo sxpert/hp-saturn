@@ -54,7 +54,7 @@ module saturn_core (
 	input			reset,
 	output			halt,
 	output [3:0] 	runstate,
-	output [15:0] 	decstate
+	output [4:0] 	decstate
 );
 `else
 module saturn_core (
@@ -73,58 +73,52 @@ assign reset		= btn[1];
 `endif
 
 // led display states
-localparam	REGDMP_HEX		= 8'h00;
-
-
-// bus commands
-
-// localparam BUSCMD_DP_WRITE	= `C_BUSCMD_DP_WRITE;
-// localparam BUSCMD_CONFIGURE = `C_BUSCMD_CONFIGURE;
+localparam	REGDMP_HEX		= 0;
 
 // instruction decoder states
 
-localparam DECODE_START		= 16'h0000;
+localparam DECODE_START		= 0;			//		x
 
-localparam DECODE_0			= 16'h0001;
-localparam DECODE_0X		= 16'h0002;
+localparam DECODE_0			= 1;			//		0
+localparam DECODE_0X		= 2;			//		0x
 
-localparam DECODE_RTNCC		= 16'h0300;
-localparam DECODE_SETHEX	= 16'h0400;
-localparam DECODE_SETDEC	= 16'h0500;
+localparam DECODE_RTNCC		= 3;			//		03
+localparam DECODE_SETHEX	= 4;			//		04
+localparam DECODE_SETDEC	= 5;			//		05
 
-localparam DECODE_1			= 16'h0010;
-localparam DECODE_1X		= 16'h0011;
-localparam DECODE_14		= 16'h0410;
-localparam DECODE_15		= 16'h0510;
-localparam DECODE_MEMACCESS	= 16'h0411;
-localparam DECODE_D0_EQ_5N	= 16'h0b10;
+localparam DECODE_1			= 6;			//		1
+localparam DECODE_1X		= 7;			//		1x
+localparam DECODE_14		= 8;			//		14
+localparam DECODE_15		= 9;			//		15
+localparam DECODE_MEMACCESS	= 10;			//		1[45]x[y]
+localparam DECODE_D0_EQ_5N	= 11;			//		1Bzyxwv
 
-localparam DECODE_P_EQ		= 16'h0020;
+localparam DECODE_P_EQ		= 12;			//		2n
 
-localparam DECODE_LC_LEN	= 16'h0030;
-localparam DECODE_LC		= 16'h0031;
+localparam DECODE_LC_LEN	= 13;			//		3n
+localparam DECODE_LC		= 14;			//		3n{xxxxxxxxxxxxxxxx}
 
-localparam DECODE_GOTO		= 16'h0060;
+localparam DECODE_GOTO		= 15;			//		6zyx
 
-localparam DECODE_8			= 16'h0080;
-localparam DECODE_8X		= 16'h0081;
-localparam DECODE_80		= 16'h0082;
+localparam DECODE_8			= 16;			//		8
+localparam DECODE_8X		= 17;			//		8x
+localparam DECODE_80		= 18;			//		80
 
-localparam DECODE_CONFIG	= 16'h5080;
-localparam DECODE_RESET		= 16'hA080;
+localparam DECODE_CONFIG	= 19;			//		805
+localparam DECODE_RESET		= 20;			//		80A
 
-localparam DECODE_C_EQ_P_N	= 16'hC080;
+localparam DECODE_C_EQ_P_N	= 21;			//		80Cn
 
-localparam DECODE_82		= 16'h0280;
+localparam DECODE_82		= 22;			//		82
 
-localparam DECODE_ST_EQ_0_N	= 16'h0480;
-localparam DECODE_ST_EQ_1_N	= 16'h0580;
+localparam DECODE_ST_EQ_0_N	= 23;			//		84n
+localparam DECODE_ST_EQ_1_N	= 24;			//		85n
 
-localparam DECODE_GOVLNG	= 16'h0d80;
-localparam DECODE_GOSBVL	= 16'h0f80;
+localparam DECODE_GOVLNG	= 25;			//		8Dzyxwv
+localparam DECODE_GOSBVL	= 26;			//		8Fzyxwv
 
-localparam DECODE_A			= 16'h00a0;
-localparam DECODE_A_FS		= 16'h00a1;
+localparam DECODE_A			= 27;			//		A
+localparam DECODE_A_FS		= 28;			//		A()
 
 // status registers constants
 
@@ -153,8 +147,8 @@ localparam T_FIELD_A	= 15;
 // state machine stuff
 reg				halt;
 reg		[3:0]	runstate;
-reg		[15:0]	decstate;
-reg		[7:0]	regdump;
+reg		[4:0]	decstate;
+reg		[3:0]	regdump;
 
 // bus access
 reg		[19:0]	bus_address;
@@ -427,7 +421,10 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_0)
+	case (decstate)
+
+	//if (decstate == DECODE_0)
+	DECODE_0:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -460,7 +457,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_RTNCC)
+	//if (decstate == DECODE_RTNCC)
+	DECODE_RTNCC:
 		begin
 			Carry <= 0;
 			PC <= RSTK[rstk_ptr];
@@ -480,7 +478,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_SETHEX)
+	//if (decstate == DECODE_SETHEX)
+	DECODE_SETHEX:
 		begin
 			hex_dec <= HEX;
 `ifdef SIM
@@ -496,7 +495,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_SETDEC)
+	//if (decstate == DECODE_SETDEC)
+	DECODE_SETDEC:
 		begin
 			hex_dec <= DEC;
 `ifdef SIM
@@ -512,7 +512,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_1)
+	//if (decstate == DECODE_1)
+	DECODE_1:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -563,7 +564,8 @@ begin
  *	
  */ 
 
-	if ((decstate == DECODE_14)|(decstate == DECODE_15))
+	//if ((decstate == DECODE_14)|(decstate == DECODE_15))
+	DECODE_14, DECODE_15:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -599,7 +601,8 @@ begin
 				end
 		endcase
 
-	if (decstate == DECODE_MEMACCESS)
+	//if (decstate == DECODE_MEMACCESS)
+	DECODE_MEMACCESS:
 		case (runstate)
 			`RUN_EXEC:
 				begin
@@ -686,7 +689,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_D0_EQ_5N)
+	//if (decstate == DECODE_D0_EQ_5N)
+	DECODE_D0_EQ_5N:
 		case (runstate)
 			`RUN_DECODE:
 				begin
@@ -733,7 +737,8 @@ begin
  *
  */ 
  
-	if (decstate == DECODE_P_EQ)
+	//if (decstate == DECODE_P_EQ)
+	DECODE_P_EQ:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -762,7 +767,8 @@ begin
  *
  */ 
  
-	if ((decstate == DECODE_LC_LEN) | (decstate == DECODE_LC))
+	//if ((decstate == DECODE_LC_LEN) | (decstate == DECODE_LC))
+	DECODE_LC_LEN, DECODE_LC:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -822,7 +828,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_GOTO)
+	//if (decstate == DECODE_GOTO)
+	DECODE_GOTO:
 		case (runstate)
 			`RUN_DECODE:
 				begin
@@ -872,7 +879,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_8)
+	//if (decstate == DECODE_8)
+	DECODE_8:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -910,7 +918,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_80)
+	//if (decstate == DECODE_80)
+	DECODE_80:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -947,14 +956,16 @@ begin
  *
  */ 
 
-	if ((decstate == DECODE_CONFIG) & (runstate == `RUN_DECODE))	
-		begin
+	//if ((decstate == DECODE_CONFIG) & (runstate == `RUN_DECODE))
+	DECODE_CONFIG:
+		if (runstate == `RUN_DECODE)	
+			begin
 `ifdef SIM
-			$display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
+				$display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
 `endif
-			runstate <= `NEXT_INSTR;
-			decstate <= DECODE_START;
-		end
+				runstate <= `NEXT_INSTR;
+				decstate <= DECODE_START;
+			end
 
 /******************************************************************************
  * 80A		RESET
@@ -962,14 +973,16 @@ begin
  *
  */ 
 
-	if ((decstate == DECODE_RESET) & (runstate == `RUN_DECODE))	
-		begin
+	//if ((decstate == DECODE_RESET) & (runstate == `RUN_DECODE))	
+	DECODE_RESET:
+		if (runstate == `RUN_DECODE)
+			begin
 `ifdef SIM
-			$display("%05h RESET\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
+				$display("%05h RESET\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
 `endif
-			runstate <= `NEXT_INSTR;
-			decstate <= DECODE_START;
-		end
+				runstate <= `NEXT_INSTR;
+				decstate <= DECODE_START;
+			end
 
 /******************************************************************************
  * 80Cn		C=P	n
@@ -977,7 +990,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_C_EQ_P_N)
+	//if (decstate == DECODE_C_EQ_P_N)
+	DECODE_C_EQ_P_N:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -1007,7 +1021,8 @@ begin
  *
  */ 
 
-	if (decstate == DECODE_82)
+	//if (decstate == DECODE_82)
+	DECODE_82:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -1041,7 +1056,8 @@ begin
  * 85n	ST=1   n
  */ 
 
-	if ((decstate == DECODE_ST_EQ_0_N) | (decstate == DECODE_ST_EQ_1_N))
+	//if ((decstate == DECODE_ST_EQ_0_N) | (decstate == DECODE_ST_EQ_1_N))
+	DECODE_ST_EQ_0_N, DECODE_ST_EQ_1_N:
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -1081,7 +1097,8 @@ begin
  * two for the price of one...
  */ 
 
-	if ((decstate == DECODE_GOVLNG) | (decstate == DECODE_GOSBVL))
+	//if ((decstate == DECODE_GOVLNG) | (decstate == DECODE_GOSBVL))
+	DECODE_GOVLNG, DECODE_GOSBVL:
 		case (runstate)
 			`RUN_DECODE:
 				begin
@@ -1137,7 +1154,8 @@ begin
  *
  */ 
 
-	if ((decstate == DECODE_A)|(decstate == DECODE_A_FS))
+	//if ((decstate == DECODE_A)|(decstate == DECODE_A_FS))
+	DECODE_A, DECODE_A_FS: 
 		case (runstate)
 			`RUN_DECODE: runstate <= `INSTR_START;
 			`INSTR_START, `INSTR_STROBE: begin end
@@ -1196,6 +1214,16 @@ begin
 					halt <= 1;
 				end
 		endcase
+	
+
+	default:
+		begin
+`ifdef SIM
+			$display("decstate %h not handled", decstate);
+`endif
+			//halt <= 1;
+		end
+	endcase
 
 /**************************************************************************************************
  *
@@ -1227,7 +1255,7 @@ reg			clk;
 reg			reset;
 wire		halt;
 wire [3:0]	runstate;
-wire [15:0]	decstate;
+wire [4:0]	decstate;
 
 saturn_core saturn (
 	.clk		(clk),

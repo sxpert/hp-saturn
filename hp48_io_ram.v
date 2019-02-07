@@ -141,7 +141,7 @@ always @(negedge clk)
 					// test if write can be done
 					if (io_ram_active)
 						begin
-							io_ram[data_ptr - base_addr] <= nibble_in;
+							io_ram[data_ptr[5:0] - base_addr[5:0]] <= nibble_in;
 `ifdef SIM
 							$display("io_ram: DP_WRITE %5h %h | OK", data_ptr, nibble_in); 
 `endif
