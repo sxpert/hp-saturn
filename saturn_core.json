@@ -14327,7 +14327,7 @@
         }
       },
       "cells": {
-        "$abc$2094$auto$blifparse.cc:492:parse_blif$2095": {
+        "$abc$4918$auto$blifparse.cc:492:parse_blif$4919": {
           "hide_name": 1,
           "type": "LUT4",
           "parameters": {
@@ -14352,7 +14352,7 @@
             "Z": [ 22 ]
           }
         },
-        "$auto$alumacc.cc:474:replace_alu$1931.slice[0].ccu2c_i": {
+        "$auto$alumacc.cc:474:replace_alu$4755.slice[0].ccu2c_i": {
           "hide_name": 1,
           "type": "CCU2C",
           "parameters": {
@@ -14363,7 +14363,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:324|/usr/local/bin/../share/yosys/ecp5/arith_map.v:58"
+            "src": "saturn_core.v:336|/usr/local/bin/../share/yosys/ecp5/arith_map.v:58"
           },
           "port_directions": {
             "A0": "input",
@@ -14382,8 +14382,8 @@
           "connections": {
             "A0": [ "1" ],
             "A1": [ "0" ],
-            "B0": [ 18 ],
-            "B1": [ 19 ],
+            "B0": [ 20 ],
+            "B1": [ 21 ],
             "C0": [ "0" ],
             "C1": [ "0" ],
             "CIN": [ "0" ],
@@ -14394,7 +14394,7 @@
             "S1": [ 25 ]
           }
         },
-        "$auto$alumacc.cc:474:replace_alu$1931.slice[2].ccu2c_i": {
+        "$auto$alumacc.cc:474:replace_alu$4755.slice[2].ccu2c_i": {
           "hide_name": 1,
           "type": "CCU2C",
           "parameters": {
@@ -14405,7 +14405,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:324|/usr/local/bin/../share/yosys/ecp5/arith_map.v:58"
+            "src": "saturn_core.v:336|/usr/local/bin/../share/yosys/ecp5/arith_map.v:58"
           },
           "port_directions": {
             "A0": "input",
@@ -14424,8 +14424,8 @@
           "connections": {
             "A0": [ "0" ],
             "A1": [ "0" ],
-            "B0": [ 20 ],
-            "B1": [ 21 ],
+            "B0": [ 18 ],
+            "B1": [ 19 ],
             "C0": [ "0" ],
             "C1": [ "0" ],
             "CIN": [ 23 ],
@@ -14436,7 +14436,7 @@
             "S1": [ 28 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2031": {
+        "$auto$simplemap.cc:420:simplemap_dff$4855": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14449,7 +14449,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14464,7 +14464,7 @@
             "Q": [ 10 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2032": {
+        "$auto$simplemap.cc:420:simplemap_dff$4856": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14477,7 +14477,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14492,7 +14492,7 @@
             "Q": [ 11 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2033": {
+        "$auto$simplemap.cc:420:simplemap_dff$4857": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14505,7 +14505,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14520,7 +14520,7 @@
             "Q": [ 12 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2034": {
+        "$auto$simplemap.cc:420:simplemap_dff$4858": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14533,7 +14533,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14548,7 +14548,7 @@
             "Q": [ 13 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2035": {
+        "$auto$simplemap.cc:420:simplemap_dff$4859": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14561,7 +14561,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14576,7 +14576,7 @@
             "Q": [ 14 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2036": {
+        "$auto$simplemap.cc:420:simplemap_dff$4860": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14589,7 +14589,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14604,7 +14604,7 @@
             "Q": [ 15 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2037": {
+        "$auto$simplemap.cc:420:simplemap_dff$4861": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14617,7 +14617,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14632,7 +14632,7 @@
             "Q": [ 16 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2038": {
+        "$auto$simplemap.cc:420:simplemap_dff$4862": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14645,7 +14645,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:21"
           },
           "port_directions": {
             "CLK": "input",
@@ -14660,7 +14660,7 @@
             "Q": [ 17 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2039": {
+        "$auto$simplemap.cc:420:simplemap_dff$4863": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14673,7 +14673,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
           },
           "port_directions": {
             "CLK": "input",
@@ -14685,10 +14685,10 @@
             "CLK": [ 2 ],
             "DI": [ 24 ],
             "LSR": [ 4 ],
-            "Q": [ 18 ]
+            "Q": [ 20 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2040": {
+        "$auto$simplemap.cc:420:simplemap_dff$4864": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14701,7 +14701,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
           },
           "port_directions": {
             "CLK": "input",
@@ -14713,10 +14713,10 @@
             "CLK": [ 2 ],
             "DI": [ 25 ],
             "LSR": [ 4 ],
-            "Q": [ 19 ]
+            "Q": [ 21 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2041": {
+        "$auto$simplemap.cc:420:simplemap_dff$4865": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14729,7 +14729,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
           },
           "port_directions": {
             "CLK": "input",
@@ -14741,10 +14741,10 @@
             "CLK": [ 2 ],
             "DI": [ 27 ],
             "LSR": [ 4 ],
-            "Q": [ 20 ]
+            "Q": [ 18 ]
           }
         },
-        "$auto$simplemap.cc:420:simplemap_dff$2042": {
+        "$auto$simplemap.cc:420:simplemap_dff$4866": {
           "hide_name": 1,
           "type": "TRELLIS_FF",
           "parameters": {
@@ -14757,7 +14757,7 @@
           },
           "attributes": {
             "module_not_derived": 1,
-            "src": "saturn_core.v:318|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
+            "src": "saturn_core.v:330|/usr/local/bin/../share/yosys/ecp5/cells_map.v:25"
           },
           "port_directions": {
             "CLK": "input",
@@ -14769,36 +14769,36 @@
             "CLK": [ 2 ],
             "DI": [ 28 ],
             "LSR": [ 4 ],
-            "Q": [ 21 ]
+            "Q": [ 19 ]
           }
         }
       },
       "netnames": {
-        "$abc$2094$n2": {
+        "$abc$4918$n2": {
           "hide_name": 1,
           "bits": [ 22 ],
           "attributes": {
           }
         },
-        "$add$saturn_core.v:324$398_Y": {
+        "$add$saturn_core.v:336$402_Y": {
           "hide_name": 1,
           "bits": [ 24, 25, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56 ],
           "attributes": {
-            "src": "saturn_core.v:324"
+            "src": "saturn_core.v:336"
           }
         },
-        "$auto$alumacc.cc:474:replace_alu$1931.C": {
+        "$auto$alumacc.cc:474:replace_alu$4755.C": {
           "hide_name": 1,
           "bits": [ 57, 58, 23, 59 ],
           "attributes": {
-            "src": "saturn_core.v:324|/usr/local/bin/../share/yosys/ecp5/arith_map.v:53"
+            "src": "saturn_core.v:336|/usr/local/bin/../share/yosys/ecp5/arith_map.v:53"
           }
         },
-        "$auto$alumacc.cc:474:replace_alu$1931.FCO": {
+        "$auto$alumacc.cc:474:replace_alu$4755.FCO": {
           "hide_name": 1,
           "bits": [ 60, 61, 26, 62 ],
           "attributes": {
-            "src": "saturn_core.v:324|/usr/local/bin/../share/yosys/ecp5/arith_map.v:54",
+            "src": "saturn_core.v:336|/usr/local/bin/../share/yosys/ecp5/arith_map.v:54",
             "unused_bits": "0 1 2 3"
           }
         },
@@ -14813,14 +14813,14 @@
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:145|hp48_bus.v:38|hp48_io_ram.v:17"
+            "src": "saturn_core.v:146|hp48_bus.v:38|hp48_io_ram.v:17"
           }
         },
         "bus_ctrl.reset": {
           "hide_name": 0,
           "bits": [ 4 ],
           "attributes": {
-            "src": "saturn_core.v:145|hp48_bus.v:19"
+            "src": "saturn_core.v:146|hp48_bus.v:19"
           }
         },
         "clk": {
@@ -14846,9 +14846,9 @@
         },
         "regdump": {
           "hide_name": 0,
-          "bits": [ 18, 19, 20, 21 ],
+          "bits": [ 20, 21, 18, 19 ],
           "attributes": {
-            "src": "saturn_core.v:92"
+            "src": "saturn_core.v:93"
           }
         },
         "reset": {

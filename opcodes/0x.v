@@ -4,21 +4,24 @@
  *
  */ 
 
-DECODE_0:
-	begin
-		if (runstate == `RUN_DECODE)
-			runstate <= `INSTR_START;
-		if  (runstate == `INSTR_READY)
-			case (nibble)
-				4'h3: decstate <= DECODE_RTNCC;
-				4'h4: decstate <= DECODE_SETHEX;
-				4'h5: decstate <= DECODE_SETDEC;
-				default: 
-					begin
-						decode_error <= 1;
-	`ifdef SIM
-						$display("%05h 0%h => unimplemented", saved_PC, nibble);
-	`endif
-					end
-			endcase
+`DEC_0X: begin
+	case (nibble)
+	4'h3: begin
+		execute_cycle <= 1;
+		decstate <= `DEC_RTNCC;
 	end
+	4'h4: begin 
+		execute_cycle <= 1;
+		decstate <= `DEC_SETHEX;
+	end
+	4'h5: begin
+		execute_cycle <= 1;
+		decstate <= `DEC_SETDEC;
+	end
+	default: begin
+        $display("ERROR : DEC_0X");
+        decode_error <= 1;
+    end
+    endcase
+end
+

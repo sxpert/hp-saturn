@@ -40,11 +40,6 @@ assign reset		= btn[1];
 
 `endif
 
-// status registers constants
-
-localparam HEX			= 0;
-localparam DEC			= 1;
-
 // data transfer constants
 
 localparam T_DIR_OUT	= 0;
@@ -174,9 +169,10 @@ initial
 		read_next_pc			= 1;
 		execute_cycle			= 0;
 		$display("should be initializing registers");
-		hex_dec 				= HEX;
+		hex_dec 				= `MODE_HEX;
 		PC 						= 0;
 		saved_PC				= 0;
+		rstk_ptr				= 7;
 
 		// $monitor("rst %b | CLK %b | CLK2 %b | CLK3 %b | PH0 %b | PH1 %b | PH2 %b | PH3 %b | CTR %d | EBCLK %b| STRB %b  | BLPC %b | bnbi %b | bnbo %b | nb %b ",
 		// 		 reset, clk, clk2, clk3, ph0, ph1, ph2, ph3, cycle_ctr, en_bus_clk, strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
@@ -225,7 +221,7 @@ begin
 				bus_load_pc <= 0;
 				en_bus_clk <= 1;
 			end else begin
-				if (read_next_pc) begin
+				if (read_next_pc&~execute_cycle) begin
 					//$display("sending BUSCMD_PC_READ");
 					bus_command <= `BUSCMD_PC_READ;
 					read_nibble <= 1;
@@ -260,7 +256,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 48)
+	if (cycle_ctr == 80)
 		debug_stop <= 1;
 end
 
@@ -292,6 +288,7 @@ always @(posedge dec_strobe) begin
 	`DEC_START:	begin
 		saved_PC <= PC;
 		case (nibble)
+		4'h0: decstate <= `DEC_0X;
 		4'h2: decstate <= `DEC_P_EQ_N;
 		4'h6: decstate <= `DEC_GOTO;
 		4'h8: decstate <= `DEC_8X;
@@ -301,11 +298,17 @@ always @(posedge dec_strobe) begin
 		end
 		endcase
 	end
+`include "opcodes/0x.v"
+`include "opcodes/03_RTNCC.v"
+`include "opcodes/04_SETHEX.v"
+`include "opcodes/05_SETDEC.v"
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/6xxx_GOTO.v"
 `include "opcodes/8x.v"
 `include "opcodes/80x.v"
+`include "opcodes/80A_RESET.v"
 `include "opcodes/80Cn_C_EQ_P_n.v"
+`include "opcodes/82x_CLRHST.v"
 `include "opcodes/8[45]n_ST_EQ_[01]_n.v"
 `include "opcodes/8[DF]xxxxx_GO.v"
 	default: begin

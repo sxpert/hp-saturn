@@ -21,7 +21,6 @@ end
     if (t_ctr == t_cnt) begin
         if (decstate == `DEC_GOVLNG_LOOP) decstate <= `DEC_GOVLNG_EXEC;
         else decstate <= `DEC_GOSBVL_EXEC;
-        read_next_pc <= 0;
         execute_cycle <= 1;
     end else t_ctr <= t_ctr + 1;
 end
@@ -29,7 +28,6 @@ end
     if (decstate  == `DEC_GOSBVL_EXEC) RSTK[rstk_ptr] <= PC;							  
     PC <= jump_base;
     bus_load_pc <= 1;
-    read_next_pc <= 1;
     execute_cycle <= 0;
     decstate <= `DEC_START;
 `ifdef SIM

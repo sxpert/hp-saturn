@@ -19,7 +19,6 @@ end
     //$display("jump_base %h | t_cnt %d | t_ctr %d | jump_offset %h", jump_base, t_cnt, t_ctr, jump_offset);
     jump_offset[t_ctr*4+:4] <= nibble;
     if (t_ctr == t_cnt) begin
-        read_next_pc <= 0;
         execute_cycle <= 1;
         decstate <= `DEC_GOTO_EXEC;
     end else t_ctr <= t_ctr + 1;
@@ -28,7 +27,6 @@ end
     //$display("DEC_GOTO_EXEC");
     PC <= jump_base + jump_offset;
     bus_load_pc <= 1;
-    read_next_pc <= 1;
     execute_cycle <= 0;
     decstate <= `DEC_START;
 `ifdef SIM
