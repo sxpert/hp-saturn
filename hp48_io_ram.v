@@ -87,8 +87,12 @@ always @(*)
 			io_ram_active = ((base_addr>=data_ptr)&(data_ptr<base_addr+IO_RAM_LEN))&(configured);
 	end
 
-always @(posedge clk)
+always @(negedge clk)
     case (command)
+        `BUSCMD_PC_READ:
+            begin
+            	pc_ptr <= pc_ptr + 1;
+            end
         `BUSCMD_LOAD_PC:
             begin
 `ifdef SIM
@@ -96,7 +100,26 @@ always @(posedge clk)
 `endif
                 pc_ptr <= address;
             end
+        `BUSCMD_LOAD_DP:
+            begin
+`ifdef SIM
+                $display("io_ram: LOAD_DP %5h", address);
+`endif
+                data_ptr <= address;
+            end
+		`BUSCMD_DP_WRITE:
+            begin
+				data_ptr <= data_ptr + 1;
+            end
+        
+        default: begin end
     endcase
+
+/*
+ *
+ *
+ *
+ */
 
 always @(negedge clk)
 	if ((~reset)&(~io_ram_error))
@@ -112,11 +135,6 @@ always @(negedge clk)
 							$display("io_ram: PC_READ %5h %h | OK", data_ptr, nibble_in); 
 `endif
 						end
-// `ifdef SIM
-// 					else
-// 						$display("io_ram: PC_READ %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
-// `endif
-					pc_ptr <= pc_ptr + 1;
 				end
 			`BUSCMD_DP_WRITE:
 				begin
@@ -132,16 +150,10 @@ always @(negedge clk)
 					else
 							$display("io_ram: DP_WRITE %5h %h | NOK - IO_RAM not active (conf: %b)", data_ptr, nibble_in, configured); 
 `endif
-					data_ptr <= data_ptr + 1;
+//					data_ptr <= data_ptr + 1;
 				end
 			`BUSCMD_LOAD_PC: begin end // done on posedge
-			`BUSCMD_LOAD_DP:
-				begin
-`ifdef SIM
-					//$display("io_ram: LOAD_DP %5h", address);
-`endif
-					data_ptr <= address;
-				end
+			`BUSCMD_LOAD_DP: begin end
 			`BUSCMD_CONFIGURE:
 				begin
 `ifdef SIM

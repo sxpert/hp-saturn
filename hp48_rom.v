@@ -45,14 +45,23 @@ end
  */
 
 always @(posedge clk)
-	if (command == `BUSCMD_LOAD_PC)
-		begin
+	case (command)
+		`BUSCMD_LOAD_PC:
+			begin
 `ifdef SIM
-			$display("rom: LOAD_PC %5h", address);
+				$display("rom: LOAD_PC %5h", address);
 `endif
-			pc_ptr <= address;
-		end
-
+				pc_ptr <= address;
+			end
+		`BUSCMD_PC_READ:
+			begin
+`ifdef SIM
+			$display("rom: inc PC");
+`endif
+				pc_ptr <= pc_ptr + 1;
+			end
+		default: begin end
+	endcase
 
 /**************************************
  *
@@ -69,7 +78,7 @@ always @(negedge clk)
 					//$display("rom: PC_READ %5h => %h", address, rom[pc_ptr]);
 `endif
 					nibble_out <= rom[pc_ptr];
-					pc_ptr <= pc_ptr + 1;
+//					pc_ptr <= pc_ptr + 1;
 				end
 			`BUSCMD_LOAD_PC: begin end			// do nothing here, handled on @(posedge clk)
 			`BUSCMD_LOAD_DP:
