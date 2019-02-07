@@ -81,6 +81,7 @@ wire			dec_strobe;
 wire			halt;
 reg		[31:0]	cycle_ctr;
 reg				decode_error;
+reg				debug_stop;
 reg		[3:0]	busstate;
 
 reg 			read_next_pc;
@@ -168,6 +169,7 @@ initial
 		decstate				= 0;
 		$display("initializing control bits");
 		decode_error			= 0;
+		debug_stop				= 0;
 		bus_load_pc				= 1;
 		read_next_pc			= 1;
 		execute_cycle			= 0;
@@ -258,8 +260,8 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 20)
-		decode_error <= 1;
+	if (cycle_ctr == 48)
+		debug_stop <= 1;
 end
 
 //--------------------------------------------------------------------------------------------------
@@ -292,14 +294,24 @@ always @(posedge dec_strobe) begin
 		case (nibble)
 		4'h2: decstate <= `DEC_P_EQ_N;
 		4'h6: decstate <= `DEC_GOTO;
-		4'h8: decstate <= `DEC_8;
-		default: begin end
+		4'h8: decstate <= `DEC_8X;
+		default: begin 
+		    $display("ERROR : DEC_START");
+        	decode_error <= 1;
+		end
 		endcase
 	end
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/6xxx_GOTO.v"
 `include "opcodes/8x.v"
+`include "opcodes/80x.v"
+`include "opcodes/80Cn_C_EQ_P_n.v"
+`include "opcodes/8[45]n_ST_EQ_[01]_n.v"
 `include "opcodes/8[DF]xxxxx_GO.v"
+	default: begin
+        $display("ERROR : GENERAL");
+        decode_error <= 1;
+	end
 	endcase
 end
 
@@ -327,7 +339,7 @@ begin
 end	
 `endif
 
-assign halt = bus_error | decode_error;
+assign halt = bus_error | decode_error | debug_stop;
 
 
 // Verilator lint_off UNUSED

@@ -7,11 +7,17 @@
 
 `include "decstates.v"
 
-`DEC_8: begin
+`DEC_8X: begin
     case (nibble)
+    4'h0: decstate <= `DEC_80X;
+    4'h4: decstate <= `DEC_ST_EQ_0_N;
+    4'h5: decstate <= `DEC_ST_EQ_1_N;
     4'hD: decstate <= `DEC_GOVLNG;
     4'hF: decstate <= `DEC_GOSBVL;
-    default: begin end
+    default: begin 
+        $display("ERROR : DEC_8X");
+        decode_error <= 1;    
+    end
     endcase
 end
 
