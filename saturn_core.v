@@ -223,6 +223,7 @@ hp48_bus bus_ctrl (
  */
 
 always @(posedge clk)
+begin
 	if (reset)
 		begin
 			// bus
@@ -271,13 +272,11 @@ always @(posedge clk)
 			R4			<= 0;		
 		end
 
-always @(posedge clk)
 	if (bus_error)
 		begin	
 			halt <= 1;
 		end
 
-always @(posedge clk)
 	if (runstate == `RUN_INIT)
 		begin
 `ifdef SIM
@@ -295,7 +294,6 @@ always @(posedge clk)
 
 // display registers
 `ifdef SIM
-always @(posedge clk)
 	if ((runstate == `NEXT_INSTR) & (~reset))
 		begin
 			saved_PC <= PC;
@@ -323,7 +321,6 @@ always @(posedge clk)
  *
  */
 
-always @(posedge clk)
 	if (runstate == `NEXT_INSTR)
 		if (bus_load_pc)
 			begin
@@ -345,7 +342,6 @@ always @(posedge clk)
 			end
 
 // start reading instruction
-always @(posedge clk)
 	if (runstate == `INSTR_START)
 		begin
 `ifdef SIM
@@ -355,7 +351,6 @@ always @(posedge clk)
 			runstate <= `INSTR_STROBE;
 		end
 
-always @(posedge clk)
 	if (runstate == `INSTR_STROBE)
 		begin
 `ifdef SIM
@@ -377,7 +372,6 @@ always @(posedge clk)
  */
 
 // read from rom clock in
-always @(posedge clk)
 	if (runstate == `READ_STROBE)
 		begin
 			//$display("READ_STROBE");
@@ -385,7 +379,6 @@ always @(posedge clk)
 		end
 
 // read from rom store
-always @(posedge clk)
 	if (runstate == `READ_DONE)
 		begin				
 			//$display("READ_DONE");
@@ -404,8 +397,6 @@ always @(posedge clk)
 //
 //--------------------------------------------------------------------------------------------------
 
-always @(posedge clk)
-begin
 // first nibble instruction decoder
 	if ((runstate == `INSTR_READY) & (decstate == DECODE_START))
 		begin
