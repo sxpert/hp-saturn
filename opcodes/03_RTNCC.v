@@ -6,7 +6,6 @@
 
 `include "decstates.v"
 
-// `DEC_RTNCC:
 begin
     Carry <= 0;
     new_PC <= RSTK[rstk_ptr];
