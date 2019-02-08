@@ -95,6 +95,7 @@ reg		[3:0]	bus_nibble_in;
 wire	[3:0]	bus_nibble_out;
 wire			bus_error;
 reg				bus_load_pc;
+reg				en_bus_load_pc;
 
 // should go away, the rom should work like any other bus module
 reg				rom_enable;
@@ -102,6 +103,7 @@ reg				rom_enable;
 // internal registers
 reg	[3:0]	nibble;
 reg [19:0]	new_PC;
+reg [19:0]	next_PC;
 reg	[19:0]  inst_start_PC;
 reg	[2:0]	rstk_ptr;
 reg	[19:0]  jump_base;
@@ -168,6 +170,7 @@ initial
 		decode_error			= 0;
 		debug_stop				= 0;
 		bus_load_pc				= 1;
+		en_bus_load_pc			= 1;
 		read_next_pc			= 1;
 		execute_cycle			= 0;
 		inc_pc					= 0;
@@ -175,6 +178,7 @@ initial
 		hex_dec 				= `MODE_HEX;
 		PC 						= 0;
 		new_PC					= 0;
+		next_PC					= 0;
 		inst_start_PC			= 0;
 		rstk_ptr				= 7;
 
@@ -182,6 +186,8 @@ initial
 		// 		 reset, clk, clk2, clk3, ph0, ph1, ph2, ph3, cycle_ctr, en_bus_clk, strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
 		// $monitor("CTR %d | EBCLK %b| B_STRB %b  | EDCLK %b | D_STRB %b | BLPC %b | bnbi %b | bnbo %b | nb %b ",
 		// 		 cycle_ctr, en_bus_clk, bus_strobe, en_dec_clk, dec_strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
+		// $monitor("BLPC %b | EBLPC %b",
+		// 		 bus_load_pc, en_bus_load_pc);
 	end
 
 //--------------------------------------------------------------------------------------------------
@@ -219,11 +225,13 @@ begin
 		if (clk3) begin
 			en_dec_clk <= 0;
 			cycle_ctr <= cycle_ctr + 1;
-			if (bus_load_pc) begin
+			if (bus_load_pc&en_bus_load_pc) begin
 				bus_command <= `BUSCMD_LOAD_PC;
 				bus_address <= new_PC;
-				bus_load_pc <= 0;
+				next_PC <= new_PC;
+				PC <= new_PC;
 				en_bus_clk <= 1;
+				en_bus_load_pc <= 0;
 				//$display(">>>> PC load newPC %5h", new_PC);
 			end else begin
 				if (read_next_pc&~execute_cycle) begin
@@ -231,8 +239,9 @@ begin
 					bus_command <= `BUSCMD_PC_READ;
 					read_nibble <= 1;
 					en_bus_clk <= 1;
-					PC <= new_PC;
+					PC <= next_PC;
 					inc_pc <= 1;
+					en_bus_load_pc <= 1;
 				end else begin
 					//$display(">>>> PC no change  %5h", PC);
 					$display("BUS NOT READING, STILL CLOCKING");
@@ -251,7 +260,7 @@ begin
 				en_dec_clk <= 1;	// PC does not change
 			end 
 			if (inc_pc) begin
-				new_PC <= PC + 1;
+				next_PC <= PC + 1;
 				inc_pc <= 0;
 				//$display(">>>> PC inc to     %5h", PC + 20'h1);
 			end
@@ -286,6 +295,7 @@ end
 `include "decstates.v"
 
 always @(posedge dec_strobe) begin
+	bus_load_pc <= 0;
 `ifdef SIM
 	if (decstate == `DEC_START) begin
 		// display registers
