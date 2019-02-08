@@ -21,20 +21,32 @@
  */ 
 
  `include "decstates.v"
+ `include "bus_commands.v"
  `include "fields.v"
 
 `DEC_14X: begin
     t_ptr <= nibble[0];
     t_dir <= nibble[1];
     t_reg <= nibble[2];
-    if (!nibble[3]) t_field <= `T_FIELD_A;  
-    else t_field <= `T_FIELD_B;
-    execute_cycle <= 1;
+    if (!nibble[3]) begin
+        t_field <= `T_FIELD_A;  
+        t_cnt <= 4;
+        t_ctr <= 0;
+    end else begin 
+        t_field <= `T_FIELD_B;
+        t_cnt <= 1;
+        t_ctr <= 15;
+    end
+    next_cycle <= `BUSCMD_LOAD_DP;
     decstate <= `DEC_MEMACCESS;
 end
  
 `DEC_MEMACCESS: begin
-    execute_cycle <= 0;
-    $display("ERROR : DEC_MEMACCESS             <= UNIMPLEMENTED");
-    decode_error <= 1;
+    if (t_cnt==t_ctr) begin
+        decstate <= `DEC_START;
+        next_cycle <= `BUSCMD_PC_READ;
+    end else begin
+        t_ctr <= (t_ctr + 1) & 15;
+        next_cycle <= t_dir ? `BUSCMD_DP_READ : `BUSCMD_DP_WRITE;    
+    end
 end

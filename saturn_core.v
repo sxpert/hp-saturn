@@ -205,8 +205,8 @@ assign dec_strobe = ph3 & en_dec_clk;
 //
 //--------------------------------------------------------------------------------------------------
 
-`define INSTR_LOAD_PC	0
-`define INSTR_READ_NBL 	1
+`include "fields.v"
+// `include "bus_commands.v"
 
 always @(posedge bus_ctrl_clk)
 begin
@@ -219,6 +219,23 @@ begin
 				bus_command <= `BUSCMD_NOP;
 				$display("BUS NOT READING, STILL CLOCKING");
 			end
+			`BUSCMD_PC_READ: begin
+				bus_command <= `BUSCMD_PC_READ;
+				en_bus_clk <= 1;
+				PC <= next_PC;
+				inc_pc <= 1;
+			end
+			`BUSCMD_DP_WRITE: begin
+				bus_command <= `BUSCMD_DP_WRITE;
+				case (t_reg)
+				`T_REG_A: $display("DP_WRITE A UNIMPLEMENTED");
+				`T_REG_C: begin
+					bus_nibble_in <= C[t_ctr*4+:4];
+					// $display("DP_WRITE C[%h] = %h", t_ctr, C[t_ctr*4+:4]);
+				end
+				endcase
+				en_bus_clk <= 1;
+			end
 			`BUSCMD_LOAD_PC: begin
 				bus_command <= `BUSCMD_LOAD_PC;
 				bus_address <= new_PC;
@@ -226,21 +243,24 @@ begin
 				PC <= new_PC;
 				en_bus_clk <= 1;
 			end
-			`BUSCMD_PC_READ: begin
-				bus_command <= `BUSCMD_PC_READ;
+			`BUSCMD_LOAD_DP: begin
+				bus_command <= `BUSCMD_LOAD_DP;
+				bus_address <= t_ptr ? D1 : D0;
 				en_bus_clk <= 1;
-				PC <= next_PC;
-				inc_pc <= 1;
+			end
+			`BUSCMD_CONFIGURE: begin
+				bus_command <= `BUSCMD_CONFIGURE;
+				bus_address <= C[19:0];
+				en_bus_clk <= 1;
+			end
+			default: begin
+				$display("BUS PHASE 1: %h UNIMPLEMENTED", next_cycle);
 			end
 			endcase
 		end
 		else begin
 			case (next_cycle)
 			`BUSCMD_NOP: begin
-				en_dec_clk <= 1;
-			end
-			`BUSCMD_LOAD_PC: begin
-				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %h", cycle_ctr, instr_ctr, new_PC);
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_PC_READ: begin
@@ -251,6 +271,26 @@ begin
 					inc_pc <= 0;
 				end
 				// $display("reading nibble %h", bus_nibble_out);
+			end
+			`BUSCMD_DP_WRITE: begin
+				// $display("BUS PHASE 2: DP_WRITE cnt %h | ctr %h", t_cnt, t_ctr);
+				en_dec_clk <= 1;
+			end
+			`BUSCMD_LOAD_PC: begin
+				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %5h", cycle_ctr, instr_ctr, new_PC);
+				en_dec_clk <= 1;
+			end
+			`BUSCMD_LOAD_DP: begin
+				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_DP %s %5h", 
+						 cycle_ctr, instr_ctr, t_ptr?"D1":"D0", t_ptr?D1:D0);
+				en_dec_clk <= 1;
+			end
+			`BUSCMD_CONFIGURE: begin
+				$display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, C[19:0]); 
+				en_dec_clk <= 1;
+			end
+			default: begin
+				$display("BUS PHASE 2: %h UNIMPLEMENTED", next_cycle);
 			end
 			endcase
 			en_bus_clk <= 0;
@@ -284,6 +324,7 @@ end
 
 always @(posedge dec_strobe) begin
 	if ((next_cycle == `BUSCMD_LOAD_PC)|
+		(next_cycle == `BUSCMD_CONFIGURE)|
 		((next_cycle == `BUSCMD_NOP)&(decstate == `DEC_START))) begin
 		$display("SETTING next_cycle to BUSCMD_PC_READ");
 		next_cycle <= `BUSCMD_PC_READ;
@@ -333,8 +374,6 @@ always @(posedge dec_strobe) begin
 `include "opcodes/6xxx_GOTO.v"
 `include "opcodes/8x.v"
 `include "opcodes/80x.v"
-//`include "opcodes/805_CONFIG.v"
-// `include "opcodes/80A_RESET.v"
 `include "opcodes/80Cn_C_EQ_P_n.v"
 `include "opcodes/82x_CLRHST.v"
 `include "opcodes/8[45]n_ST_EQ_[01]_n.v"

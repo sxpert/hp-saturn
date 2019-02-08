@@ -25,9 +25,12 @@ module hp48_bus (
 );
 
 // io_ram
-wire [3:0]	io_ram_nibble_out;
-wire		io_ram_active;
-wire		io_ram_error;
+wire [3:0]	mmio_nibble_in;
+wire [3:0]	mmio_nibble_out;
+wire		mmio_active;
+wire		mmio_daisy_in;
+wire		mmio_daisy_out;
+wire		mmio_error;
 
 // rom
 wire [3:0]	rom_nibble_out;
@@ -36,29 +39,34 @@ wire [3:0]	rom_nibble_out;
 // listed in order of priority
 //
 hp48_io_ram dev_io_ram (
-	.strobe		(strobe),
+	.strobe			(strobe),
 	.reset			(reset),
 	.address		(address),
 	.command		(command),
-	.nibble_in		(nibble_in),
-	.nibble_out		(io_ram_nibble_out),
-	.io_ram_active	(io_ram_active),
-	.io_ram_error	(io_ram_error)
+	.nibble_in		(mmio_nibble_in),
+	.nibble_out		(mmio_nibble_out),
+	.active			(mmio_active),
+	.daisy_in		(mmio_daisy_in),
+	.daisy_out		(mmio_daisy_out),
+	.error			(mmio_error)
 );
 
+assign mmio_daisy_in = 1;
+assign mmio_nibble_in = nibble_in;
+
 hp48_rom dev_rom (
-	.strobe 		(strobe),
-	.address		(address),
-	.command		(command),
-	.nibble_out		(rom_nibble_out)
+	.strobe 			(strobe),
+	.address			(address),
+	.command			(command),
+	.nibble_out			(rom_nibble_out)
 );
 
 
 always @(*)
 	begin
-		bus_error = io_ram_error;
-		if (io_ram_active) nibble_out = io_ram_nibble_out;	
-		if (!io_ram_active) nibble_out = rom_nibble_out;
+		bus_error = mmio_error;
+		if (mmio_active) nibble_out = mmio_nibble_out;	
+		if (!mmio_active) nibble_out = rom_nibble_out;
 	end
 
 endmodule

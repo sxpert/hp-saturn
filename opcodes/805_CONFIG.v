@@ -5,11 +5,13 @@
  */ 
 
 `include "decstates.v"
+`include "bus_commands.v"
 
 begin
+    next_cycle <= `BUSCMD_CONFIGURE;
     decstate <= `DEC_START;
 `ifdef SIM
-        $display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", inst_start_PC);
+        $display("%05h CONFIG", inst_start_PC);
 `endif
 end
 
