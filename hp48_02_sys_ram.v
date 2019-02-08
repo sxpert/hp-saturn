@@ -25,16 +25,21 @@ module hp48_sys_ram (
 	output	reg			error
 );
 
+`ifdef SIM
 localparam SYS_RAM_LEN		= 262144;
+`else
+localparam SYS_RAM_LEN		= 65536;
+`endif
 
-reg	            [0:0]	addr_conf;
-reg             [0:0]   len_conf;
-reg unsigned    [19:0]	base_addr;
-reg unsigned    [19:0]  length;
-reg unsigned    [19:0]	pc_ptr;
-reg unsigned    [19:0]	dp_ptr;
-reg             [3:0]	sys_ram [0:SYS_RAM_LEN - 1];
-wire        configured;
+reg	    [0:0]	addr_conf;
+reg     [0:0]   len_conf;
+reg     [19:0]	base_addr;
+reg     [19:0]  length;
+reg     [19:0]  last_addr;
+reg     [19:0]	pc_ptr;
+reg     [19:0]	dp_ptr;
+reg     [3:0]	sys_ram [0:SYS_RAM_LEN - 1];
+wire            configured;
 
 assign daisy_out = addr_conf & len_conf;
 assign configured = daisy_out;
@@ -55,13 +60,12 @@ initial
 `endif
 		error = 0;	
 `ifdef SIM
+        // initialize only in simulation
 		$display("sys_ram: initializing to 0");
-`endif
 		for (base_addr = 0; base_addr < SYS_RAM_LEN; base_addr++)
 			begin
 				sys_ram[base_addr] <= 0; 
 			end
-`ifdef SIM
 		$display("sys_ram: setting pc and data pointers to 0");
 `endif
         pc_ptr = 0;
@@ -85,9 +89,6 @@ initial
  *
  */
 
-wire [19:0]     last_addr;
-
-assign last_addr = base_addr + length - 1;
 
 // PC_PTR tests
 wire            cmd_bus_pc;
@@ -116,36 +117,24 @@ assign {dp_ptr_inf_l_addr, dp_ptr_minus_l_addr} = dp_ptr - last_addr - 1;
 assign active_dp_ptr = cmd_bus_dp & b_addr_infeq_dp_ptr & dp_ptr_inf_l_addr;
 
 // global
+wire            cmd_read;
+wire            cmd_write;
+
+assign cmd_read = (command == `BUSCMD_PC_READ) | (command == `BUSCMD_DP_WRITE);
+assign cmd_write = (command == `BUSCMD_DP_WRITE) | (command == `BUSCMD_PC_WRITE);
 
 assign active = (active_pc_ptr | active_dp_ptr) & configured;
 
 always @(posedge strobe) begin
+    if (configured & cmd_read)
+        nibble_out <= sys_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr];
+    if (configured & cmd_write)
+        sys_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr] <= nibble_in;
 	case (command)
-	`BUSCMD_PC_READ: begin
-		if (configured) begin
-			nibble_out <= sys_ram[pc_ptr];
-			// $display("SYSRAM (%b - %5h %5h) - PC_READ %5h -> %h", configured, base_addr, length, pc_ptr, sys_ram[pc_ptr]);
-		end else begin
-			// $display("SYSRAM (%b - %5h %5h) - PC_READ %5h UNCONFIGURED", configured, base_addr, length, pc_ptr);
-		end
+	`BUSCMD_PC_READ, `BUSCMD_PC_WRITE: begin
 		pc_ptr <= pc_ptr + 1;
 	end
-	`BUSCMD_DP_READ: begin
-		if (configured) begin
-			nibble_out <= sys_ram[dp_ptr];
-			// $display("SYSRAM (%b - %5h) - DP_READ %5h -> %h", configured, base_addr, length, dp_ptr, sys_ram[dp_ptr]);
-		end else begin
-			// $display("SYSRAM (%b - %5h %5h) - DP_READ %5h UNCONFIGURED", configured, base_addr, length, dp_ptr);
-		end
-		dp_ptr <= dp_ptr + 1;
-	end
-	`BUSCMD_DP_WRITE: begin
-		if (configured) begin
-			sys_ram[dp_ptr] <= nibble_in;
-			// $display("SYSRAM (%b - %5h %5h) - DP_WRITE %5h -> %h", configured, base_addr, length, dp_ptr, nibble_in);
-		end else begin
-			// $display("SYSRAM (%b - %5h %5h) - DP_WRITE %5h -> %h UNCONFIGURED", configured, base_addr, length, dp_ptr, nibble_in);
-		end
+	`BUSCMD_DP_READ, `BUSCMD_DP_WRITE: begin
 		dp_ptr <= dp_ptr + 1;
 	end
 	`BUSCMD_LOAD_PC: begin
@@ -167,6 +156,7 @@ always @(posedge strobe) begin
                 if (len_conf & !addr_conf) begin
                     base_addr <= address;
                     addr_conf <= 1;
+                    last_addr <= address + length - 1;
                     $display("SYSRAM (%b - %5h %5h) - CONFIGURE ADDRESS %5h", configured, address, length, address);
                 end
             end else begin

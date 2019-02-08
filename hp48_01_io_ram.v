@@ -59,16 +59,13 @@ initial
 `endif
 		dp_ptr = 0;
 `ifdef SIM
+		// initialization only for simulation
 		$display("io_ram: initializing to 0");
-`endif
 		for (base_addr = 0; base_addr < IO_RAM_LEN; base_addr++)
 			begin
-`ifdef SIM
 				$write(".");
-`endif
 				mmio_ram[base_addr] <= 0; 
 			end
-`ifdef SIM
 		$display("io_ram: setting base address to 0");
 `endif
 		base_addr = 0;
