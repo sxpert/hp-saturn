@@ -25,8 +25,10 @@ end
     end else t_ctr <= t_ctr + 1;
 end
 `DEC_GOVLNG_EXEC, `DEC_GOSBVL_EXEC: begin
-    if (decstate  == `DEC_GOSBVL_EXEC) RSTK[rstk_ptr] <= PC;							  
-    PC <= jump_base;
+    $display("GOSBVL new_PC %5h", new_PC);
+    $display("GOSBVL PC     %5h", PC);
+    if (decstate  == `DEC_GOSBVL_EXEC) RSTK[rstk_ptr] <= new_PC;							  
+    new_PC <= jump_base;
     bus_load_pc <= 1;
     execute_cycle <= 0;
     decstate <= `DEC_START;

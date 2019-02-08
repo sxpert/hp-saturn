@@ -48,12 +48,12 @@ end
 always @(posedge strobe) begin
 	case (command)
 	`BUSCMD_LOAD_PC: begin
-		//$display("ROM - LOAD_PC %5h", address);
+		// $display("ROM - LOAD_PC %5h", address);
 		pc_ptr <= address;
 		i_cmd <= `BUSCMD_PC_READ;
 	end
 	`BUSCMD_PC_READ: begin
-		//$display("ROM PC_READ %5h -> %h", pc_ptr, rom[pc_ptr]);
+		// $display("ROM PC_READ %5h -> %h", pc_ptr, rom[pc_ptr]);
 		nibble_out <= rom[pc_ptr];
 		pc_ptr <= pc_ptr + 1;
 		i_cmd <= command;

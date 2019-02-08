@@ -25,7 +25,7 @@ end
 end
 `DEC_GOTO_EXEC: begin
     //$display("DEC_GOTO_EXEC");
-    PC <= jump_base + jump_offset;
+    new_PC <= jump_base + jump_offset;
     bus_load_pc <= 1;
     execute_cycle <= 0;
     decstate <= `DEC_START;

@@ -6,13 +6,14 @@
 
 `DEC_0X: begin
 	case (nibble)
-	4'h3: begin
-		execute_cycle <= 1;
-		decstate <= `DEC_RTNCC;
-	end
+	4'h3:
+`include "opcodes/03_RTNCC.v"
+		// execute_cycle <= 1;
+		// decstate <= `DEC_RTNCC;
 	4'h4: begin 
-		execute_cycle <= 1;
-		decstate <= `DEC_SETHEX;
+`include "opcodes/04_SETHEX.v"
+		// execute_cycle <= 1;
+		// decstate <= `DEC_SETHEX;
 	end
 	4'h5: begin
 		execute_cycle <= 1;

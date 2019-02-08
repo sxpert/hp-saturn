@@ -21,7 +21,7 @@ module saturn_core (
 	input			reset,
 	output			halt,
 	output [3:0] 	busstate,
-	output [6:0] 	decstate
+	output [7:0] 	decstate
 );
 `else
 module saturn_core (
@@ -81,10 +81,11 @@ reg		[3:0]	busstate;
 
 reg 			read_next_pc;
 reg				execute_cycle;
+reg				inc_pc;
 reg 			read_nibble;
 reg				first_nibble;
 
-reg		[6:0]	decstate;
+reg		[7:0]	decstate;
 reg		[3:0]	regdump;
 
 // bus access
@@ -100,6 +101,7 @@ reg				rom_enable;
 
 // internal registers
 reg	[3:0]	nibble;
+reg [19:0]	new_PC;
 reg	[19:0]  saved_PC;
 reg	[2:0]	rstk_ptr;
 reg	[19:0]  jump_base;
@@ -168,9 +170,11 @@ initial
 		bus_load_pc				= 1;
 		read_next_pc			= 1;
 		execute_cycle			= 0;
+		inc_pc					= 0;
 		$display("should be initializing registers");
 		hex_dec 				= `MODE_HEX;
 		PC 						= 0;
+		new_PC					= 0;
 		saved_PC				= 0;
 		rstk_ptr				= 7;
 
@@ -217,16 +221,23 @@ begin
 			cycle_ctr <= cycle_ctr + 1;
 			if (bus_load_pc) begin
 				bus_command <= `BUSCMD_LOAD_PC;
-				bus_address <= PC;
+
+				bus_address <= new_PC;
 				bus_load_pc <= 0;
 				en_bus_clk <= 1;
+				//$display(">>>> PC load newPC %5h", new_PC);
 			end else begin
 				if (read_next_pc&~execute_cycle) begin
 					//$display("sending BUSCMD_PC_READ");
 					bus_command <= `BUSCMD_PC_READ;
 					read_nibble <= 1;
 					en_bus_clk <= 1;
-				end else $display("BUS NOT READING, STILL CLOCKING");
+					PC <= new_PC;
+					inc_pc <= 1;
+				end else begin
+					//$display(">>>> PC no change  %5h", PC);
+					$display("BUS NOT READING, STILL CLOCKING");
+				end
 			end
 		end
 		else begin
@@ -237,7 +248,14 @@ begin
 				en_dec_clk <= 1;
 				//$display("reading nibble %h", bus_nibble_out);
 			end
-			if (execute_cycle) en_dec_clk <= 1;
+			if (execute_cycle) begin
+				en_dec_clk <= 1;	// PC does not change
+			end 
+			if (inc_pc) begin
+				new_PC <= PC + 1;
+				inc_pc <= 0;
+				//$display(">>>> PC inc to     %5h", PC + 20'h1);
+			end
 			read_nibble <= 0;
 			en_bus_clk <= 0;
 		end
@@ -256,7 +274,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 80)
+	if (cycle_ctr == 90)
 		debug_stop <= 1;
 end
 
@@ -269,7 +287,6 @@ end
 `include "decstates.v"
 
 always @(posedge dec_strobe) begin
-	PC <= PC + 1;
 `ifdef SIM
 	if (decstate == `DEC_START) begin
 		// display registers
@@ -283,15 +300,17 @@ always @(posedge dec_strobe) begin
 		$display("                                                RSTK0: %5h", RSTK[0]);
 	end
 `endif
-	$display("CYCLE %d | DECSTATE %d | NIBBLE %h", cycle_ctr, decstate, nibble);
+	$display("CYCLE %d | PC %h | DECSTATE %d | NIBBLE %h", cycle_ctr, PC, decstate, nibble);
 	case (decstate)
 	`DEC_START:	begin
 		saved_PC <= PC;
 		case (nibble)
 		4'h0: decstate <= `DEC_0X;
 		4'h2: decstate <= `DEC_P_EQ_N;
+		4'h3: decstate <= `DEC_LC_LEN;
 		4'h6: decstate <= `DEC_GOTO;
 		4'h8: decstate <= `DEC_8X;
+		4'hB: decstate <= `DEC_BX; 
 		default: begin 
 		    $display("ERROR : DEC_START");
         	decode_error <= 1;
@@ -299,18 +318,21 @@ always @(posedge dec_strobe) begin
 		endcase
 	end
 `include "opcodes/0x.v"
-`include "opcodes/03_RTNCC.v"
-`include "opcodes/04_SETHEX.v"
+// `include "opcodes/03_RTNCC.v"
+//`include "opcodes/04_SETHEX.v"
 `include "opcodes/05_SETDEC.v"
 `include "opcodes/2n_P_EQ_n.v"
+`include "opcodes/3n[x...]_LC.v"
 `include "opcodes/6xxx_GOTO.v"
 `include "opcodes/8x.v"
 `include "opcodes/80x.v"
+`include "opcodes/805_CONFIG.v"
 `include "opcodes/80A_RESET.v"
 `include "opcodes/80Cn_C_EQ_P_n.v"
 `include "opcodes/82x_CLRHST.v"
 `include "opcodes/8[45]n_ST_EQ_[01]_n.v"
 `include "opcodes/8[DF]xxxxx_GO.v"
+`include "opcodes/Bx_math_ops_shift.v"
 	default: begin
         $display("ERROR : GENERAL");
         decode_error <= 1;
@@ -358,7 +380,7 @@ reg			clk;
 reg			reset;
 wire		halt;
 wire [3:0]	busstate;
-wire [6:0]	decstate;
+wire [7:0]	decstate;
 
 saturn_core saturn (
 	.clk		(clk),
