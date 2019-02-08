@@ -1,7 +1,8 @@
 
 `include "bus_commands.v"
-`include "hp48_rom.v"
-`include "hp48_io_ram.v"
+`include "hp48_01_io_ram.v"
+`include "hp48_02_sys_ram.v"
+`include "hp48_06_rom.v"
 
 `ifndef _HP48_BUS
 `define _HP48_BUS
@@ -24,13 +25,21 @@ module hp48_bus (
 	output	reg				bus_error
 );
 
-// io_ram
+// mmio
 wire [3:0]	mmio_nibble_in;
 wire [3:0]	mmio_nibble_out;
 wire		mmio_active;
 wire		mmio_daisy_in;
 wire		mmio_daisy_out;
 wire		mmio_error;
+
+// sysram
+wire [3:0]	sysram_nibble_in;
+wire [3:0]	sysram_nibble_out;
+wire		sysram_active;
+wire		sysram_daisy_in;
+wire		sysram_daisy_out;
+wire		sysram_error;
 
 // rom
 wire [3:0]	rom_nibble_out;
@@ -51,8 +60,25 @@ hp48_io_ram dev_io_ram (
 	.error			(mmio_error)
 );
 
-assign mmio_daisy_in = 1;
 assign mmio_nibble_in = nibble_in;
+assign mmio_daisy_in = 1;
+
+hp48_sys_ram dev_sys_ram (
+	.strobe			(strobe),
+	.reset			(reset),
+	.address		(address),
+	.command		(command),
+	.nibble_in		(sysram_nibble_in),
+	.nibble_out		(sysram_nibble_out),
+	.active			(sysram_active),
+	.daisy_in		(sysram_daisy_in),
+	.daisy_out		(sysram_daisy_out),
+	.error			(sysram_error)
+);
+
+assign sysram_nibble_in = nibble_in;
+assign sysram_daisy_in = mmio_daisy_out;
+
 
 hp48_rom dev_rom (
 	.strobe 			(strobe),
@@ -65,8 +91,9 @@ hp48_rom dev_rom (
 always @(*)
 	begin
 		bus_error = mmio_error;
-		if (mmio_active) nibble_out = mmio_nibble_out;	
-		if (!mmio_active) nibble_out = rom_nibble_out;
+		if (strobe & mmio_active) nibble_out = mmio_nibble_out;
+		if (strobe & (!mmio_active & sysram_active)) nibble_out = sysram_nibble_out;
+		if (strobe & (!mmio_active & !sysram_active)) nibble_out = rom_nibble_out;
 	end
 
 endmodule

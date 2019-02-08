@@ -134,12 +134,21 @@ always @(posedge strobe) begin
 	end
 	`BUSCMD_CONFIGURE: begin
 		if (!configured) begin
-			base_addr <= address;
-			configured <= 1;
-			// $display("MMIO (%b - %5h) - CONFIGURE %d %5h", configured, base_addr, command, address);
+			if (daisy_in) begin
+				base_addr <= address;
+				configured <= 1;
+				// $display("MMIO (%b - %5h) - CONFIGURE %5h", configured, base_addr, address);
+			end else begin
+    			$display("MMIO (%b - %5h) - CAN'T CONFIGURE - DAISY_IN NOT SET %5h", configured, base_addr, address);
+			end
 		end else begin
-			$display("MMIO (%b - %5h) - ALREADY CONFIGURED %d %5h", configured, base_addr, command, address);
+			// $display("MMIO (%b - %5h) - ALREADY CONFIGURED %5h", configured, base_addr, address);
 		end
+	end
+	`BUSCMD_RESET: begin
+		base_addr <= 0;
+		configured <= 0;
+		$display("MMIO (%b - %5h) - RESET", configured, base_addr);
 	end
 	default: begin
 		$display("MMIO (%b - %5h) - UNIMPLEMENTED COMMAND %d %5h", configured, base_addr, command, address);
