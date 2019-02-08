@@ -6,6 +6,8 @@
 
 `DEC_0X: begin
 	case (nibble)
+	4'h0:
+`include "opcodes/00_RTNSXM.v"
 	4'h3:
 `include "opcodes/03_RTNCC.v"
 	4'h4:
