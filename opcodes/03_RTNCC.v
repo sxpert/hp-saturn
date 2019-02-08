@@ -16,6 +16,6 @@ begin
     // execute_cycle <= 0;
     decstate <= `DEC_START;
 `ifdef SIM
-    $display("%05h RTNCC", saved_PC);
+    $display("%05h RTNCC", inst_start_PC);
 `endif
 end

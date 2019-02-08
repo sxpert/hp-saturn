@@ -12,6 +12,6 @@ begin
 //    execute_cycle <= 0;
     decstate <= `DEC_START;
 `ifdef SIM
-    $display("%05h SETHEX", saved_PC);
+    $display("%05h SETHEX", inst_start_PC);
 `endif
 end

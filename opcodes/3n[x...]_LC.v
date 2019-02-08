@@ -16,7 +16,7 @@ end
     if (t_ctr == t_cnt) begin
         decstate <= `DEC_START;
 `ifdef SIM
-        $write("%5h LC (%h)\t%1h", saved_PC, t_cnt, nibble);
+        $write("%5h LC (%h)\t%1h", inst_start_PC, t_cnt, nibble);
         for(t_ctr = 0; t_ctr != t_cnt; t_ctr ++)
             $write("%1h", C[(((t_cnt - t_ctr - 4'h1)+P)%16)*4+:4]);
         $write("\n");

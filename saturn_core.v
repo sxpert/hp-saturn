@@ -102,7 +102,7 @@ reg				rom_enable;
 // internal registers
 reg	[3:0]	nibble;
 reg [19:0]	new_PC;
-reg	[19:0]  saved_PC;
+reg	[19:0]  inst_start_PC;
 reg	[2:0]	rstk_ptr;
 reg	[19:0]  jump_base;
 reg	[19:0]	jump_offset;
@@ -175,7 +175,7 @@ initial
 		hex_dec 				= `MODE_HEX;
 		PC 						= 0;
 		new_PC					= 0;
-		saved_PC				= 0;
+		inst_start_PC			= 0;
 		rstk_ptr				= 7;
 
 		// $monitor("rst %b | CLK %b | CLK2 %b | CLK3 %b | PH0 %b | PH1 %b | PH2 %b | PH3 %b | CTR %d | EBCLK %b| STRB %b  | BLPC %b | bnbi %b | bnbo %b | nb %b ",
@@ -221,7 +221,6 @@ begin
 			cycle_ctr <= cycle_ctr + 1;
 			if (bus_load_pc) begin
 				bus_command <= `BUSCMD_LOAD_PC;
-
 				bus_address <= new_PC;
 				bus_load_pc <= 0;
 				en_bus_clk <= 1;
@@ -242,7 +241,7 @@ begin
 		end
 		else begin
 			if (bus_command == `BUSCMD_LOAD_PC)
-				$display("CYCLE %d -> BUSCMD_LOAD_PC %h", cycle_ctr, PC);
+				$display("CYCLE %d -> BUSCMD_LOAD_PC %h", cycle_ctr, new_PC);
 			if (read_next_pc&read_nibble) begin
 				nibble <= bus_nibble_out;
 				en_dec_clk <= 1;
@@ -303,7 +302,7 @@ always @(posedge dec_strobe) begin
 	$display("CYCLE %d | PC %h | DECSTATE %d | NIBBLE %h", cycle_ctr, PC, decstate, nibble);
 	case (decstate)
 	`DEC_START:	begin
-		saved_PC <= PC;
+		inst_start_PC <= PC;
 		case (nibble)
 		4'h0: decstate <= `DEC_0X;
 		4'h2: decstate <= `DEC_P_EQ_N;

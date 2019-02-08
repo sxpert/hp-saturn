@@ -10,7 +10,7 @@
     execute_cycle <= 0;
     decstate <= `DEC_START;
 `ifdef SIM
-        $display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", saved_PC);
+        $display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", inst_start_PC);
 `endif
 end
 

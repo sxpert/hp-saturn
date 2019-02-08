@@ -10,6 +10,6 @@
     P <= nibble;
     decstate <= `DEC_START;
 `ifdef SIM
-    $display("%05h P=\t%h", saved_PC, nibble);	
+    $display("%05h P=\t%h", inst_start_PC, nibble);	
 `endif
 end

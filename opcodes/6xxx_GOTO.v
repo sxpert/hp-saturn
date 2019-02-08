@@ -30,6 +30,6 @@ end
     execute_cycle <= 0;
     decstate <= `DEC_START;
 `ifdef SIM
-    $display("%5h GOTO\t%3h\t=> %05h", saved_PC, jump_offset[11:0], jump_base + jump_offset);
+    $display("%5h GOTO\t%3h\t=> %05h", inst_start_PC, jump_offset[11:0], jump_base + jump_offset);
 `endif
 end
