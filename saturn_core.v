@@ -75,6 +75,7 @@ wire			dec_strobe;
 // state machine stuff
 wire			halt;
 reg		[31:0]	cycle_ctr;
+reg		[31:0]	instr_ctr;
 reg				decode_error;
 reg				debug_stop;
 reg		[3:0]	busstate;
@@ -160,6 +161,7 @@ initial
 		en_bus_clk				= 0;
 		$display("initialize cycle counter");
 		cycle_ctr				= -1;
+		instr_ctr				= 0;
 		$display("initializing bus_command");
 		bus_command				= `BUSCMD_NOP;
 		$display("initializing busstate");
@@ -197,16 +199,16 @@ initial
 //--------------------------------------------------------------------------------------------------
 
 always @(posedge clk)
-	if (~reset) clk2 <= ~clk2;
+	if (!reset) clk2 <= !clk2;
 
 always @(negedge clk)
-	clk3 <= ~clk3 | reset;
+	clk3 <= !clk3 | reset;
 
-assign bus_ctrl_clk = clk & ~reset;
-assign ph0 =  clk &  clk3 & ~reset;
-assign ph1 = ~clk & ~clk2 & ~reset;
-assign ph2 =  clk & ~clk3 & ~reset;
-assign ph3 = ~clk &  clk2 & ~reset; 
+assign bus_ctrl_clk = clk & !reset;
+assign ph0 =  clk &  clk3 & !reset;
+assign ph1 = !clk & !clk2 & !reset;
+assign ph2 =  clk & !clk3 & !reset;
+assign ph3 = !clk &  clk2 & !reset; 
 assign bus_strobe = ph1 & en_bus_clk;
 assign dec_strobe = ph3 & en_dec_clk;
 
@@ -221,7 +223,7 @@ assign dec_strobe = ph3 & en_dec_clk;
 
 always @(posedge bus_ctrl_clk)
 begin
-	if (~reset) begin
+	if (!reset) begin
 		if (clk3) begin
 			en_dec_clk <= 0;
 			cycle_ctr <= cycle_ctr + 1;
@@ -234,7 +236,7 @@ begin
 				en_bus_load_pc <= 0;
 				//$display(">>>> PC load newPC %5h", new_PC);
 			end else begin
-				if (read_next_pc&~execute_cycle) begin
+				if (read_next_pc&!execute_cycle) begin
 					//$display("sending BUSCMD_PC_READ");
 					bus_command <= `BUSCMD_PC_READ;
 					read_nibble <= 1;
@@ -250,7 +252,7 @@ begin
 		end
 		else begin
 			if (bus_command == `BUSCMD_LOAD_PC)
-				$display("CYCLE %d -> BUSCMD_LOAD_PC %h", cycle_ctr, new_PC);
+				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %h", cycle_ctr, instr_ctr, new_PC);
 			if (read_next_pc&read_nibble) begin
 				nibble <= bus_nibble_out;
 				en_dec_clk <= 1;
@@ -309,9 +311,13 @@ always @(posedge dec_strobe) begin
 		$display("                                                RSTK0: %5h", RSTK[0]);
 	end
 `endif
-	$display("CYCLE %d | PC %h | DECSTATE %d | NIBBLE %h", cycle_ctr, PC, decstate, nibble);
+	$display("CYCLE %d | INSTR %d | PC %h | DECSTATE %d | NIBBLE %h", 
+			 cycle_ctr, 
+			 (decstate == `DEC_START)?instr_ctr+1:instr_ctr, 
+			 PC, decstate, nibble);
 	case (decstate)
 	`DEC_START:	begin
+		instr_ctr <= instr_ctr + 1;
 		inst_start_PC <= PC;
 		case (nibble)
 		4'h0: decstate <= `DEC_0X;

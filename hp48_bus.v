@@ -58,7 +58,7 @@ always @(*)
 	begin
 		bus_error = io_ram_error;
 		if (io_ram_active) nibble_out = io_ram_nibble_out;	
-		if (~io_ram_active) nibble_out = rom_nibble_out;
+		if (!io_ram_active) nibble_out = rom_nibble_out;
 	end
 
 endmodule
