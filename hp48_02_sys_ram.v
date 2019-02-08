@@ -126,10 +126,18 @@ assign cmd_write = (command == `BUSCMD_DP_WRITE) | (command == `BUSCMD_PC_WRITE)
 assign active = (active_pc_ptr | active_dp_ptr) & configured;
 
 always @(posedge strobe) begin
+    
+    // read from ram
+
     if (configured & cmd_read)
         nibble_out <= sys_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr];
+    
+    // write to ram
+
     if (configured & cmd_write)
         sys_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr] <= nibble_in;
+
+
 	case (command)
 	`BUSCMD_PC_READ, `BUSCMD_PC_WRITE: begin
 		pc_ptr <= pc_ptr + 1;
