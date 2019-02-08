@@ -17,8 +17,9 @@
 `define DEC_LC_LEN          21      //  3n...
 `define DEC_LC              22      //  3n[x]
 `define DEC_GOTO            30      //  6
-`define DEC_GOTO_LOOP       31      //  6[x]
-`define DEC_GOTO_EXEC       32      //  6xxx -> exec
+`define DEC_GOTO_LOOP       31      //  6[x] -> exec
+`define DEC_GOSUB           32      //  7
+`define DEC_GOSUB_LOOP      33      //  7[x] -> exec
 `define DEC_8X              40      //  8X
 `define DEC_80X             41      //  80X
 `define DEC_CONFIG          42      //  805
@@ -37,5 +38,6 @@
 `define DEC_AaX_EXEC        71      //  Aax
 `define DEC_AbX_EXEC        72      //  Abx
 `define DEC_BX              80      //  Bx
+`define DEC_DX             100      //  Dx
 
 `endif
