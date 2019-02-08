@@ -6,62 +6,73 @@
  *
  */ 
 
-DECODE_A, DECODE_A_FS:
-    case (runstate)
-        `RUN_DECODE: runstate <= `INSTR_START;
-        `INSTR_START, `INSTR_STROBE: begin end
-        `INSTR_READY:
-            case (decstate)
-                DECODE_A: 
-                    begin
-                        t_field <= nibble;
-                        decstate <= DECODE_A_FS;
-                        runstate <= `INSTR_START;
-                    end
-                DECODE_A_FS: 
-                    begin				
-                        case (nibble)
-                            4'h2:
-                                case (t_field)
-                                    4'he: 
-                                        begin
-                                            C[7:0] <= 0;
-`ifdef SIM
-                                            $display("%5h C=0\tB", saved_PC);
-`endif
-                                        end
-                                    default:
-                                        begin
-`ifdef SIM
-                                            $display("A[ab]x.1 decstate %d %h %h", decstate, t_field, nibble);
-`endif
-                                            decode_error <= 1;
-                                        end
-                                endcase
-                            default:
-                                begin
-`ifdef SIM
-                                    $display("A[ab]x.2 decstate %d %h %h", decstate, t_field, nibble);
-`endif
-                                    decode_error <= 1;
-                                end
-                        endcase
-                        runstate <= `NEXT_INSTR;
-//							decstate <= DECODE_START;
-                    end
-                default:
-                    begin
-`ifdef SIM
-                        $display("A[ab]x.3 decstate %d %h", decstate, nibble);
-`endif
-                        decode_error <= 1;
-                    end
-            endcase
-        default:
-            begin
-`ifdef SIM
-                $display("A[ab]x.4 decstate %d runstate %d", decstate, runstate);
-`endif
-                decode_error <= 1;
-            end
+
+`include "decstates.v"
+`include "fields.v"
+
+`DEC_AX: begin
+    if (!nibble[3]) begin   // table a
+        case (nibble)
+        4'h0: t_field <= `T_FIELD_P;
+        4'h1: t_field <= `T_FIELD_WP;
+        4'h2: t_field <= `T_FIELD_XS;
+        4'h3: t_field <= `T_FIELD_X;
+        4'h4: t_field <= `T_FIELD_S;
+        4'h5: t_field <= `T_FIELD_M;
+        4'h6: t_field <= `T_FIELD_B;
+        4'h7: t_field <= `T_FIELD_W;
+        endcase
+        decstate <= `DEC_AaX_EXEC;
+    end else begin          // table b
+        case (nibble)
+        4'h8: t_field <= `T_FIELD_P;
+        4'h9: t_field <= `T_FIELD_WP;
+        4'hA: t_field <= `T_FIELD_XS;
+        4'hB: t_field <= `T_FIELD_X;
+        4'hC: t_field <= `T_FIELD_S;
+        4'hD: t_field <= `T_FIELD_M;
+        4'hE: t_field <= `T_FIELD_B;
+        4'hF: t_field <= `T_FIELD_W;
+        endcase
+        decstate <= `DEC_AbX_EXEC;
+    end
+end
+`DEC_AaX_EXEC: begin
+    case (nibble)
+    default: begin
+        $display("ERROR : DEC_AaX_EXEC");
+        decode_error <= 1;
+    end
     endcase
+end
+`DEC_AbX_EXEC: begin
+    case (nibble)
+    4'h2: begin             // C=0  b
+        case (t_field)
+        `T_FIELD_B: C[7:0] <= 0;
+        default: begin
+            $display("ERROR :");
+            decode_error <= 1;
+        end
+        endcase
+`ifdef SIM
+        $write("%5h C=0\t", inst_start_PC);
+        case (t_field)
+        `T_FIELD_P:  $display("P");
+        `T_FIELD_WP: $display("WP");
+        `T_FIELD_XS: $display("XS");
+        `T_FIELD_X:  $display("X");
+        `T_FIELD_S:  $display("S");
+        `T_FIELD_M:  $display("M");
+        `T_FIELD_B:  $display("B");
+        `T_FIELD_W:  $display("W");
+        endcase
+`endif
+    end
+    default: begin
+        $display("ERROR : DEC_AbX_EXEC");
+        decode_error <= 1;
+    end
+    endcase
+    decstate <= `DEC_START;
+end

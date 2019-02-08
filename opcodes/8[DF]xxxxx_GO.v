@@ -22,6 +22,7 @@ end
         if (decstate == `DEC_GOVLNG_LOOP) decstate <= `DEC_GOVLNG_EXEC;
         else decstate <= `DEC_GOSBVL_EXEC;
         execute_cycle <= 1;
+        next_cycle <= `BUSCMD_NOP;
     end else t_ctr <= t_ctr + 1;
 end
 `DEC_GOVLNG_EXEC, `DEC_GOSBVL_EXEC: begin
@@ -31,6 +32,7 @@ end
     new_PC <= jump_base;
     bus_load_pc <= 1;
     execute_cycle <= 0;
+    next_cycle <= `BUSCMD_LOAD_PC;
     decstate <= `DEC_START;
 `ifdef SIM
     $write("%5h GO", inst_start_PC);

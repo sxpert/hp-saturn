@@ -13,6 +13,7 @@ begin
     RSTK[rstk_ptr] <= 0;		
     rstk_ptr <= rstk_ptr - 1;
     bus_load_pc <= 1;
+    next_cycle <= `BUSCMD_LOAD_PC;
     // execute_cycle <= 0;
     decstate <= `DEC_START;
 `ifdef SIM

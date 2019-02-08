@@ -4,24 +4,15 @@
  *
  */ 
 
-DECODE_1:
-    begin
-        if (runstate == `RUN_DECODE)
-            runstate <= `INSTR_START;
-        if (runstate == `INSTR_READY)
-            begin
-                case (nibble)
-                    //4'h4, 4'h5:	decode_14_15();
-                    4'h4:	decstate <= DECODE_14;
-                    4'hb:	decstate <= DECODE_D0_EQ_5N;
-                    default:
-                        begin
-                            decode_error <= 1;
-    `ifdef SIM
-                            $display("unhandled instruction prefix 1%h", nibble);
-    `endif
-                        end
-                endcase
-                runstate <= `RUN_DECODE;
-            end
+`include "decstates.v"
+
+`DEC_1X: begin
+    case (nibble)
+    4'h4: decstate <= `DEC_14X;
+    4'hb: decstate <= `DEC_D0_EQ_5N;
+    default: begin 
+        $display("ERROR : DEC_1X");
+        decode_error <= 1;    
     end
+    endcase
+end

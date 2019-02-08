@@ -42,22 +42,7 @@ assign reset		= btn[1];
 
 // data transfer constants
 
-localparam T_DIR_OUT	= 0;
-localparam T_DIR_IN		= 1;
-localparam T_PTR_0		= 0;
-localparam T_PTR_1		= 1;
-localparam T_REG_A		= 0;
-localparam T_REG_C		= 1;
-localparam T_FIELD_P	= 0;
-localparam T_FIELD_WP	= 1;
-localparam T_FIELD_XS	= 2;
-localparam T_FIELD_X	= 3;
-localparam T_FIELD_S	= 4;
-localparam T_FIELD_M	= 5;
-localparam T_FIELD_B	= 6;
-localparam T_FIELD_W	= 7;
-localparam T_FIELD_LEN	= 13;
-localparam T_FIELD_A	= 15;
+
 
 // clocks
 reg				clk2;
@@ -78,7 +63,8 @@ reg		[31:0]	cycle_ctr;
 reg		[31:0]	instr_ctr;
 reg				decode_error;
 reg				debug_stop;
-reg		[3:0]	busstate;
+reg		[3:0]	cycle_type;
+reg		[3:0]	next_cycle;
 
 reg 			read_next_pc;
 reg				execute_cycle;
@@ -165,7 +151,7 @@ initial
 		$display("initializing bus_command");
 		bus_command				= `BUSCMD_NOP;
 		$display("initializing busstate");
-		busstate				= 0;
+		next_cycle				= `BUSCMD_LOAD_PC;
 		$display("Initializing decstate");
 		decstate				= 0;
 		$display("initializing control bits");
@@ -190,6 +176,7 @@ initial
 		// 		 cycle_ctr, en_bus_clk, bus_strobe, en_dec_clk, dec_strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
 		// $monitor("BLPC %b | EBLPC %b",
 		// 		 bus_load_pc, en_bus_load_pc);
+		$monitor("NC %h", next_cycle);
 	end
 
 //--------------------------------------------------------------------------------------------------
@@ -227,46 +214,45 @@ begin
 		if (clk3) begin
 			en_dec_clk <= 0;
 			cycle_ctr <= cycle_ctr + 1;
-			if (bus_load_pc&en_bus_load_pc) begin
+			case (next_cycle)
+			`BUSCMD_NOP: begin
+				bus_command <= `BUSCMD_NOP;
+				$display("BUS NOT READING, STILL CLOCKING");
+			end
+			`BUSCMD_LOAD_PC: begin
 				bus_command <= `BUSCMD_LOAD_PC;
 				bus_address <= new_PC;
 				next_PC <= new_PC;
 				PC <= new_PC;
 				en_bus_clk <= 1;
-				en_bus_load_pc <= 0;
-				//$display(">>>> PC load newPC %5h", new_PC);
-			end else begin
-				if (read_next_pc&!execute_cycle) begin
-					//$display("sending BUSCMD_PC_READ");
-					bus_command <= `BUSCMD_PC_READ;
-					read_nibble <= 1;
-					en_bus_clk <= 1;
-					PC <= next_PC;
-					inc_pc <= 1;
-					en_bus_load_pc <= 1;
-				end else begin
-					//$display(">>>> PC no change  %5h", PC);
-					$display("BUS NOT READING, STILL CLOCKING");
-				end
 			end
+			`BUSCMD_PC_READ: begin
+				bus_command <= `BUSCMD_PC_READ;
+				en_bus_clk <= 1;
+				PC <= next_PC;
+				inc_pc <= 1;
+			end
+			endcase
 		end
 		else begin
-			if (bus_command == `BUSCMD_LOAD_PC)
+			case (next_cycle)
+			`BUSCMD_NOP: begin
+				en_dec_clk <= 1;
+			end
+			`BUSCMD_LOAD_PC: begin
 				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %h", cycle_ctr, instr_ctr, new_PC);
-			if (read_next_pc&read_nibble) begin
+				en_dec_clk <= 1;
+			end
+			`BUSCMD_PC_READ: begin
 				nibble <= bus_nibble_out;
 				en_dec_clk <= 1;
-				//$display("reading nibble %h", bus_nibble_out);
+				if (inc_pc) begin
+					next_PC <= PC + 1;
+					inc_pc <= 0;
+				end
+				// $display("reading nibble %h", bus_nibble_out);
 			end
-			if (execute_cycle) begin
-				en_dec_clk <= 1;	// PC does not change
-			end 
-			if (inc_pc) begin
-				next_PC <= PC + 1;
-				inc_pc <= 0;
-				//$display(">>>> PC inc to     %5h", PC + 20'h1);
-			end
-			read_nibble <= 0;
+			endcase
 			en_bus_clk <= 0;
 		end
 	end
@@ -284,7 +270,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 90)
+	if (cycle_ctr == 100)
 		debug_stop <= 1;
 end
 
@@ -297,59 +283,70 @@ end
 `include "decstates.v"
 
 always @(posedge dec_strobe) begin
-	bus_load_pc <= 0;
+	if ((next_cycle == `BUSCMD_LOAD_PC)|
+		((next_cycle == `BUSCMD_NOP)&(decstate == `DEC_START))) begin
+		$display("SETTING next_cycle to BUSCMD_PC_READ");
+		next_cycle <= `BUSCMD_PC_READ;
+	end else begin
 `ifdef SIM
-	if (decstate == `DEC_START) begin
-		// display registers
-		$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
-		$display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", P, HST, ST, RSTK[6]);
-		$display("A:  %h    R0:  %h   RSTK5: %5h", A, R0, RSTK[5]);
-		$display("B:  %h    R1:  %h   RSTK4: %5h", B, R1, RSTK[4]);
-		$display("C:  %h    R2:  %h   RSTK3: %5h", C, R2, RSTK[3]);
-		$display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
-		$display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", D0, D1, R4, RSTK[1]);
-		$display("                                                RSTK0: %5h", RSTK[0]);
-	end
-`endif
-	$display("CYCLE %d | INSTR %d | PC %h | DECSTATE %d | NIBBLE %h", 
-			 cycle_ctr, 
-			 (decstate == `DEC_START)?instr_ctr+1:instr_ctr, 
-			 PC, decstate, nibble);
-	case (decstate)
-	`DEC_START:	begin
-		instr_ctr <= instr_ctr + 1;
-		inst_start_PC <= PC;
-		case (nibble)
-		4'h0: decstate <= `DEC_0X;
-		4'h2: decstate <= `DEC_P_EQ_N;
-		4'h3: decstate <= `DEC_LC_LEN;
-		4'h6: decstate <= `DEC_GOTO;
-		4'h8: decstate <= `DEC_8X;
-		4'hB: decstate <= `DEC_BX; 
-		default: begin 
-		    $display("ERROR : DEC_START");
-        	decode_error <= 1;
+		if (decstate == `DEC_START) begin
+			// display registers
+			$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
+			$display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", P, HST, ST, RSTK[6]);
+			$display("A:  %h    R0:  %h   RSTK5: %5h", A, R0, RSTK[5]);
+			$display("B:  %h    R1:  %h   RSTK4: %5h", B, R1, RSTK[4]);
+			$display("C:  %h    R2:  %h   RSTK3: %5h", C, R2, RSTK[3]);
+			$display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
+			$display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", D0, D1, R4, RSTK[1]);
+			$display("                                                RSTK0: %5h", RSTK[0]);
 		end
-		endcase
-	end
+`endif
+		$display("CYCLE %d | INSTR %d | PC %h | DECSTATE %d | NIBBLE %h", 
+				cycle_ctr, 
+				(decstate == `DEC_START)?instr_ctr+1:instr_ctr, 
+				PC, decstate, nibble);
+		case (decstate)
+		`DEC_START:	begin
+			instr_ctr <= instr_ctr + 1;
+			inst_start_PC <= PC;
+			case (nibble)
+			4'h0: decstate <= `DEC_0X;
+			4'h1: decstate <= `DEC_1X;
+			4'h2: decstate <= `DEC_P_EQ_N;
+			4'h3: decstate <= `DEC_LC_LEN;
+			4'h6: decstate <= `DEC_GOTO;
+			4'h8: decstate <= `DEC_8X;
+			4'hA: decstate <= `DEC_AX;
+			4'hB: decstate <= `DEC_BX; 
+			default: begin 
+				$display("ERROR : DEC_START");
+				decode_error <= 1;
+			end
+			endcase
+		end
 `include "opcodes/0x.v"
+`include "opcodes/1x.v"
+`include "opcodes/1[45]_memaccess.v"
+`include "opcodes/1Bnnnnn_D0_EQ_5n.v"
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/3n[x...]_LC.v"
 `include "opcodes/6xxx_GOTO.v"
 `include "opcodes/8x.v"
 `include "opcodes/80x.v"
-`include "opcodes/805_CONFIG.v"
-`include "opcodes/80A_RESET.v"
+//`include "opcodes/805_CONFIG.v"
+// `include "opcodes/80A_RESET.v"
 `include "opcodes/80Cn_C_EQ_P_n.v"
 `include "opcodes/82x_CLRHST.v"
 `include "opcodes/8[45]n_ST_EQ_[01]_n.v"
 `include "opcodes/8[DF]xxxxx_GO.v"
+`include "opcodes/A[ab]x.v"
 `include "opcodes/Bx_math_ops_shift.v"
-	default: begin
-        $display("ERROR : GENERAL");
-        decode_error <= 1;
+		default: begin
+			$display("ERROR : GENERAL");
+			decode_error <= 1;
+		end
+		endcase
 	end
-	endcase
 end
 
 //--------------------------------------------------------------------------------------------------

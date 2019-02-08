@@ -6,8 +6,7 @@
 
 `include "decstates.v"
 
-`DEC_CONFIG: begin
-    execute_cycle <= 0;
+begin
     decstate <= `DEC_START;
 `ifdef SIM
         $display("%05h CONFIG\t\t\t<= NOT IMPLEMENTED YET", inst_start_PC);

@@ -4,34 +4,24 @@
  *
  */ 
 
-DECODE_D0_EQ_5N:
-    begin
-        if (runstate == `RUN_DECODE)
-            begin
-                runstate <= `INSTR_START;
-                t_cnt <= 4;
-                t_ctr <= 0;
-    `ifdef SIM
-                $write("%5h D0=(5)\t", saved_PC);
-    `endif
-            end
-        if (runstate == `INSTR_READY)
-            begin
-                D0[t_ctr*4+:4] <= nibble;
-    `ifdef SIM
-                $write("%1h", nibble);
-    `endif
-                if (t_ctr == t_cnt)
-                    begin
-    `ifdef SIM
-                        $display("");
-    `endif
-                        runstate <= `NEXT_INSTR;
-                    end
-                else 
-                    begin 
-                        t_ctr <= t_ctr + 1;
-                        runstate <= `INSTR_START;
-                    end
-            end
-    end
+`include "decstates.v"
+
+`DEC_D0_EQ_5N: begin
+    t_cnt <= 4;
+    t_ctr <= 1;
+    D0[3:0] <= nibble;    
+    decstate <= `DEC_D0_EQ_5N_LOOP;
+end
+`DEC_D0_EQ_5N_LOOP: begin
+    D0[t_ctr*4+:4] <= nibble;
+    if (t_ctr == t_cnt) begin
+        decstate <= `DEC_START;
+`ifdef SIM
+        $write("%5h D0=(5)\t%1h", inst_start_PC, nibble);
+        for(t_ctr = 0; t_ctr != t_cnt; t_ctr ++)
+            $write("%1h", D0[(t_cnt - t_ctr - 4'h1)*4+:4]);
+        $write("\n");
+`endif
+    end else 
+        t_ctr <= t_ctr + 1;
+end
