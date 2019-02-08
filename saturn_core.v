@@ -5,7 +5,7 @@
 `default_nettype none //
 
 `include "bus_commands.v"
-`include "hp48_bus.v"
+`include "hp48_00_bus.v"
 
 /**************************************************************************************************
  *
@@ -176,7 +176,7 @@ initial
 		// 		 cycle_ctr, en_bus_clk, bus_strobe, en_dec_clk, dec_strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
 		// $monitor("BLPC %b | EBLPC %b",
 		// 		 bus_load_pc, en_bus_load_pc);
-		$monitor("NC %h", next_cycle);
+		//$monitor("NC %h", next_cycle);
 	end
 
 //--------------------------------------------------------------------------------------------------
@@ -253,6 +253,10 @@ begin
 				bus_address <= C[19:0];
 				en_bus_clk <= 1;
 			end
+			`BUSCMD_RESET: begin
+				bus_command <= `BUSCMD_RESET;
+				en_bus_clk <= 1;
+			end
 			default: begin
 				$display("BUS PHASE 1: %h UNIMPLEMENTED", next_cycle);
 			end
@@ -289,6 +293,10 @@ begin
 				$display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, C[19:0]); 
 				en_dec_clk <= 1;
 			end
+			`BUSCMD_RESET: begin
+				$display("CYCLE %d | INSTR %d -> BUSCMD_RESET", cycle_ctr, instr_ctr); 
+				en_dec_clk <= 1;
+			end
 			default: begin
 				$display("BUS PHASE 2: %h UNIMPLEMENTED", next_cycle);
 			end
@@ -310,7 +318,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 100)
+	if (cycle_ctr == 145)
 		debug_stop <= 1;
 end
 
@@ -325,6 +333,7 @@ end
 always @(posedge dec_strobe) begin
 	if ((next_cycle == `BUSCMD_LOAD_PC)|
 		(next_cycle == `BUSCMD_CONFIGURE)|
+		(next_cycle == `BUSCMD_RESET)|
 		((next_cycle == `BUSCMD_NOP)&(decstate == `DEC_START))) begin
 		$display("SETTING next_cycle to BUSCMD_PC_READ");
 		next_cycle <= `BUSCMD_PC_READ;
@@ -356,9 +365,11 @@ always @(posedge dec_strobe) begin
 			4'h2: decstate <= `DEC_P_EQ_N;
 			4'h3: decstate <= `DEC_LC_LEN;
 			4'h6: decstate <= `DEC_GOTO;
+			4'h7: decstate <= `DEC_GOSUB;
 			4'h8: decstate <= `DEC_8X;
 			4'hA: decstate <= `DEC_AX;
-			4'hB: decstate <= `DEC_BX; 
+			4'hB: decstate <= `DEC_BX;
+			4'hD: decstate <= `DEC_DX;
 			default: begin 
 				$display("ERROR : DEC_START");
 				decode_error <= 1;
@@ -372,6 +383,7 @@ always @(posedge dec_strobe) begin
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/3n[x...]_LC.v"
 `include "opcodes/6xxx_GOTO.v"
+`include "opcodes/7xxx_GOSUB.v"
 `include "opcodes/8x.v"
 `include "opcodes/80x.v"
 `include "opcodes/80Cn_C_EQ_P_n.v"
@@ -380,6 +392,7 @@ always @(posedge dec_strobe) begin
 `include "opcodes/8[DF]xxxxx_GO.v"
 `include "opcodes/A[ab]x.v"
 `include "opcodes/Bx_math_ops_shift.v"
+`include "opcodes/Dx_regs_field_A.v"
 		default: begin
 			$display("ERROR : GENERAL");
 			decode_error <= 1;
