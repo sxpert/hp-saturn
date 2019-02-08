@@ -327,9 +327,6 @@ always @(posedge dec_strobe) begin
 		endcase
 	end
 `include "opcodes/0x.v"
-// `include "opcodes/03_RTNCC.v"
-//`include "opcodes/04_SETHEX.v"
-`include "opcodes/05_SETDEC.v"
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/3n[x...]_LC.v"
 `include "opcodes/6xxx_GOTO.v"
