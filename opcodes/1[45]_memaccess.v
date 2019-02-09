@@ -24,19 +24,39 @@
  `include "bus_commands.v"
  `include "fields.v"
 
-`DEC_14X: begin
+`DEC_14X, `DEC_15X: begin
     t_ptr <= nibble[0];
     t_dir <= nibble[1];
     t_reg <= nibble[2];
-    if (!nibble[3]) begin
-        t_field <= `T_FIELD_A;  
-        t_cnt <= 4;
-        t_ctr <= 0;
-    end else begin 
-        t_field <= `T_FIELD_B;
-        t_cnt <= 1;
-        t_ctr <= 15;
+    if (decstate == `DEC_14X) begin
+        if (!nibble[3]) begin
+            t_field <= `T_FIELD_A;  
+            t_cnt <= 4;
+            t_ctr <= 15;
+        end else begin 
+            t_field <= `T_FIELD_B;
+            t_cnt <= 1;
+            t_ctr <= 15;
+        end
+        next_cycle <= `BUSCMD_LOAD_DP;
+        decstate <= `DEC_MEMACCESS;
+    end else begin
+        decstate <= `DEC_15X_FIELD;
     end
+end
+
+`DEC_15X_FIELD: begin
+    case (nibble)
+    4'h0: begin
+        t_field <= `T_FIELD_P;
+        t_cnt <= P;
+        t_ctr <= (P - 1) & 4'hF;
+    end
+    default: begin
+        $display("ERROR : DEC_15X_FIELD");
+        decode_error <= 1;    
+    end
+    endcase
     next_cycle <= `BUSCMD_LOAD_DP;
     decstate <= `DEC_MEMACCESS;
 end

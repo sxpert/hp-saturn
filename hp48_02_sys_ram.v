@@ -131,9 +131,13 @@ assign write_pc = use_pc & cmd_bus_pc & cmd_write;
 assign read_dp  = use_dp & cmd_bus_dp & cmd_read;
 assign write_dp = use_dp & cmd_bus_dp & cmd_write;
 
+wire            active_pc_ptr;
+wire            active_dp_ptr;
 wire			can_read;
 wire			can_write;
 
+assign active_pc_ptr = read_pc | write_pc;
+assign active_dp_ptr = read_dp | write_dp;
 assign can_read  = configured & (read_pc | read_dp);
 assign can_write = configured & (write_pc | write_dp); 
 
@@ -144,6 +148,9 @@ always @(posedge strobe) begin
     // read from ram
     if (can_read) begin
         nibble_out = sys_ram[access_addr];
+`ifdef SIM
+        $display("SYSRAM READ %h -> %h", access_addr, nibble_out);
+`endif
 	end
 end    
 
@@ -151,6 +158,9 @@ always @(posedge strobe) begin
     // write to ram
     if (can_write) begin
         sys_ram[access_addr] <= nibble_in;
+`ifdef SIM
+        $display("SYSRAM WRITE %h <- %h", access_addr, nibble_in);
+`endif
 	end
 end
 

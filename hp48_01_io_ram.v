@@ -140,6 +140,9 @@ always @(posedge strobe) begin
     // read from ram
     if (can_read) begin
         nibble_out = mmio_ram[access_addr];
+`ifdef SIM
+        $display("MMIO READ %h -> %h", access_addr, nibble_out);
+`endif
 	end
 end    
 
@@ -147,6 +150,9 @@ always @(posedge strobe) begin
     // write to ram
     if (can_write) begin
         mmio_ram[access_addr] <= nibble_in;
+`ifdef SIM
+        $display("MMIO WRITE %h <- %h", access_addr, nibble_in);
+`endif
 	end
 end
 
@@ -154,17 +160,17 @@ always @(posedge strobe) begin
 	case (command)
 	`BUSCMD_PC_READ: begin
 		pc_ptr <= pc_ptr + 1;
-		$display("MMIO (%b - %5h) ACT %b - %s_PC %5h (%5h) -> %h", 
-			configured, base_addr, active,
-			cmd_read?"READ":"WRITE", ptr_value, access_addr,
-			cmd_read?nibble_out:nibble_in);
+		// $display("MMIO (%b - %5h) ACT %b - %s_PC %5h (%5h) -> %h", 
+		// 	configured, base_addr, active,
+		// 	cmd_read?"READ":"WRITE", ptr_value, access_addr,
+		// 	cmd_read?nibble_out:nibble_in);
 	end
 	`BUSCMD_DP_READ, `BUSCMD_DP_WRITE: begin
 		dp_ptr <= dp_ptr + 1;
-		$display("MMIO (%b - %5h) ACT %b - %s_DP %5h (%5h) -> %h", 
-			configured, base_addr, active,
-			cmd_read?"READ":"WRITE", ptr_value, access_addr,
-			cmd_read?nibble_out:nibble_in);
+		// $display("MMIO (%b - %5h) ACT %b - %s_DP %5h (%5h) -> %h", 
+		// 	configured, base_addr, active,
+		// 	cmd_read?"READ":"WRITE", ptr_value, access_addr,
+		// 	cmd_read?nibble_out:nibble_in);
 	end
 	`BUSCMD_LOAD_PC: begin
 		// $display("MMIO (%b - %5h) - LOAD_PC %5h", configured, base_addr, address);

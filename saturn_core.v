@@ -228,7 +228,10 @@ begin
 			`BUSCMD_DP_WRITE: begin
 				bus_command <= `BUSCMD_DP_WRITE;
 				case (t_reg)
-				`T_REG_A: $display("DP_WRITE A UNIMPLEMENTED");
+				`T_REG_A: begin
+					bus_nibble_in <= A[t_ctr*4+:4];
+					$display("DP_WRITE A[%h] = %h", t_ctr, A[t_ctr*4+:4]);
+				end
 				`T_REG_C: begin
 					bus_nibble_in <= C[t_ctr*4+:4];
 					// $display("DP_WRITE C[%h] = %h", t_ctr, C[t_ctr*4+:4]);
@@ -318,7 +321,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 150)
+	if (cycle_ctr == 210)
 		debug_stop <= 1;
 end
 
@@ -369,7 +372,9 @@ always @(posedge dec_strobe) begin
 			4'h8: decstate <= `DEC_8X;
 			4'hA: decstate <= `DEC_AX;
 			4'hB: decstate <= `DEC_BX;
+			4'hC: decstate <= `DEC_CX;
 			4'hD: decstate <= `DEC_DX;
+			4'hF: decstate <= `DEC_FX;
 			default: begin 
 				$display("ERROR : DEC_START");
 				decode_error <= 1;
@@ -392,7 +397,9 @@ always @(posedge dec_strobe) begin
 `include "opcodes/8[DF]xxxxx_GO.v"
 `include "opcodes/A[ab]x.v"
 `include "opcodes/Bx_math_ops_shift.v"
+`include "opcodes/Cx.v"
 `include "opcodes/Dx_regs_field_A.v"
+`include "opcodes/Fx.v"
 		default: begin
 			$display("ERROR : GENERAL");
 			decode_error <= 1;

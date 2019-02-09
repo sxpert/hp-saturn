@@ -10,11 +10,13 @@
 `define DEC_1X              10      //  1X
 `define DEC_14X             11      //  14X
 `define DEC_15X             12      //  15X
-`define DEC_MEMACCESS       13      //  1[45]x[y]
-`define DEC_D0_EQ_5N        14      //  1B
-`define DEC_D0_EQ_5N_LOOP   15      //  1Bxxxxx (exec)
-`define DEC_D1_EQ_5N        16      //  1F
-`define DEC_D1_EQ_5N_LOOP   17      //  1Fxxxxx (exec)
+`define DEC_15X_FIELD       13      //  15XX
+`define DEC_MEMACCESS       14      //  1[45]x[y]
+`define DEC_D0_EQ_5N        15      //  1B
+`define DEC_D0_EQ_LOOP      16      //  1Bxxxxx (exec)
+`define DEC_D1_EQ_4N        17      //  1E
+`define DEC_D1_EQ_5N        18      //  1F
+`define DEC_D1_EQ_LOOP      19      //  1[EF]xxxxx (exec)
 `define DEC_P_EQ_N          20      //  2n
 `define DEC_LC_LEN          21      //  3n...
 `define DEC_LC              22      //  3n[x]
@@ -40,6 +42,8 @@
 `define DEC_AaX_EXEC        71      //  Aax
 `define DEC_AbX_EXEC        72      //  Abx
 `define DEC_BX              80      //  Bx
-`define DEC_DX             100      //  Dx
+`define DEC_CX             192      //  Cx 
+`define DEC_DX             208      //  Dx
+`define DEC_FX             240      //  Fx
 
 `endif
