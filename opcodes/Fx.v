@@ -8,10 +8,10 @@
 `include "decstates.v"
 
 `DEC_FX: begin
-    case (nibble)
+    case (nb_in)
     4'h8, 4'h9, 4'hA, 4'hB: begin
         if (!hex_dec) begin
-            case (nibble)
+            case (nb_in)
             4'h8: {Carry, A[19:0]} <= - A[19:0];
             4'h9: {Carry, B[19:0]} <= - B[19:0];
             4'hA: {Carry, C[19:0]} <= - C[19:0];
@@ -21,7 +21,7 @@
         end 
 `ifdef SIM
         $write("%5h ", inst_start_PC);
-        case (nibble)
+        case (nb_in)
         4'h8: $write("A=-A");
         4'h8: $write("B=-B");
         4'h8: $write("C=-C");

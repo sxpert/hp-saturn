@@ -8,6 +8,7 @@
 `include "bus_commands.v"
 
 begin
+    add_out <= C[19:0];
     next_cycle <= `BUSCMD_CONFIGURE;
     decstate <= `DEC_START;
 `ifdef SIM

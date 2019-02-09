@@ -10,14 +10,14 @@
     jump_base <= 0;
     t_cnt <= 4;
     t_ctr <= 1;
-    jump_base[3:0] <= nibble;
+    jump_base[3:0] <= nb_in;
     if (decstate == `DEC_GOSBVL) begin
         rstk_ptr <= rstk_ptr + 1;
         decstate <= `DEC_GOSBVL_LOOP;
     end else decstate <= `DEC_GOVLNG_LOOP;
 end
 `DEC_GOVLNG_LOOP, `DEC_GOSBVL_LOOP: begin
-    jump_base[t_ctr*4+:4] <= nibble;
+    jump_base[t_ctr*4+:4] <= nb_in;
     if (t_ctr == t_cnt) begin
         if (decstate == `DEC_GOVLNG_LOOP) decstate <= `DEC_GOVLNG_EXEC;
         else decstate <= `DEC_GOSBVL_EXEC;

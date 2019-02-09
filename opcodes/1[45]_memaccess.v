@@ -25,32 +25,33 @@
  `include "fields.v"
 
 `DEC_14X, `DEC_15X: begin
-    t_ptr <= nibble[0];
-    t_dir <= nibble[1];
-    t_reg <= nibble[2];
+    t_ptr <= nb_in[0];
+    add_out <= nb_in[0] ? D1 : D0;
+    t_dir <= nb_in[1];
+    t_reg <= nb_in[2];
     if (decstate == `DEC_14X) begin
-        if (!nibble[3]) begin
+        if (!nb_in[3]) begin
             t_field <= `T_FIELD_A;  
             t_cnt <= 4;
-            t_ctr <= 15;
+            t_ctr <= 0;
         end else begin 
             t_field <= `T_FIELD_B;
             t_cnt <= 1;
-            t_ctr <= 15;
+            t_ctr <= 0;
         end
         next_cycle <= `BUSCMD_LOAD_DP;
-        decstate <= `DEC_MEMACCESS;
+        decstate <= `DEC_MEMAXX;
     end else begin
         decstate <= `DEC_15X_FIELD;
     end
 end
 
 `DEC_15X_FIELD: begin
-    case (nibble)
+    case (nb_in)
     4'h0: begin
         t_field <= `T_FIELD_P;
         t_cnt <= P;
-        t_ctr <= (P - 1) & 4'hF;
+        t_ctr <= P;
     end
     default: begin
         $display("ERROR : DEC_15X_FIELD");
@@ -58,15 +59,80 @@ end
     end
     endcase
     next_cycle <= `BUSCMD_LOAD_DP;
-    decstate <= `DEC_MEMACCESS;
+    decstate <= `DEC_MEMAXX;
 end
  
-`DEC_MEMACCESS: begin
-    if (t_cnt==t_ctr) begin
+`DEC_MEMAXX, `DEC_MEMAXX_END: begin
+    next_cycle <= t_dir ? `BUSCMD_DP_READ : `BUSCMD_DP_WRITE;  
+    case (next_cycle)
+    `BUSCMD_LOAD_DP: $write("BUSCMD_LOAD_DP");
+    `BUSCMD_DP_WRITE: $write("BUSCMD_WRITE_DP");
+    `BUSCMD_DP_READ: $write("BUSCMD_READ_DP");
+    default: $write("UNKNOWN %h", next_cycle);
+    endcase
+    $display(" | CNT %h | CTR %h", t_cnt, t_ctr);
+    if (t_dir == `T_DIR_IN) begin
+        if (next_cycle != `BUSCMD_LOAD_DP) begin
+            case (t_reg) 
+            `T_REG_A: begin
+                A[t_ctr*4+:4] <= nb_in;
+                $display("DP_READ (%h) A[%h] = %h", t_cnt, t_ctr, nb_in);
+            end
+            `T_REG_C: begin
+                C[t_ctr*4+:4] <= nb_in;
+                $display("DP_READ (%h) C[%h] = %h", t_cnt, t_ctr, nb_in);
+            end
+            endcase
+            if (t_cnt != t_ctr)
+                t_ctr <= (t_ctr + 1) & 15;
+        end
+    end else begin
+        if (decstate == `DEC_MEMAXX) begin
+            case (t_reg)
+            `T_REG_A: begin
+                nb_out <= A[t_ctr*4+:4];
+                $display("DP_WRITE (%h) A[%h] = %h", t_cnt, t_ctr, A[t_ctr*4+:4]);
+            end
+            `T_REG_C: begin
+                nb_out <= C[t_ctr*4+:4];
+                $display("DP_WRITE (%h) C[%h] = %h", t_cnt, t_ctr, C[t_ctr*4+:4]);
+            end
+            endcase
+        end
+        // needs an extra cycle
+        if (t_cnt == t_ctr) begin
+            $display("go to DEC_MEMAXX_END");
+            decstate <= `DEC_MEMAXX_END;
+        end else t_ctr <= (t_ctr + 1) & 15;
+    end
+
+
+    if ((t_cnt==t_ctr) &
+        (((t_dir == `T_DIR_IN) & (decstate == `DEC_MEMAXX)) |
+         ((t_dir == `T_DIR_OUT) & (decstate == `DEC_MEMAXX_END)))) begin
+        $display("---------------------------- DEC_MEMAXX_END -------------------------------");
         decstate <= `DEC_START;
         next_cycle <= `BUSCMD_PC_READ;
-    end else begin
-        t_ctr <= (t_ctr + 1) & 15;
-        next_cycle <= t_dir ? `BUSCMD_DP_READ : `BUSCMD_DP_WRITE;    
+
+        // display the instruction code
+
+        $write("%5h ", inst_start_PC);
+        if (t_dir == `T_DIR_IN) begin
+            $write("%s=DAT%b\t", t_reg?"C":"A", t_ptr);
+        end else begin
+            $write("DAT%b=%s\t", t_ptr, t_reg?"C":"A");
+        end
+        case (t_field)
+        `T_FIELD_P:	  $display("P");    
+        `T_FIELD_WP:  $display("WP");
+        `T_FIELD_XS:  $display("XS");
+        `T_FIELD_X:	  $display("X");
+        `T_FIELD_S:	  $display("S");
+        `T_FIELD_M:	  $display("M");
+        `T_FIELD_B:	  $display("B");
+        `T_FIELD_W:	  $display("W");   
+        `T_FIELD_LEN: $display("UNKNOWN");
+        `T_FIELD_A:   $display("A");
+        endcase
     end
 end

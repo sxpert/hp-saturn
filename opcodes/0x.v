@@ -7,7 +7,7 @@
 `DEC_0X: begin
 	
 	//generic RTN suff
-	case (nibble)
+	case (nb_in)
 	4'h0, 4'h1, 4'h2, 4'h3: begin
 		new_PC <= RSTK[rstk_ptr];
 		RSTK[rstk_ptr] <= 0;		
@@ -19,7 +19,7 @@
 	endcase
 
 	// things specific to the
-	case (nibble)
+	case (nb_in)
 	4'h0: begin
 		HST[0] <= 1;
 		`ifdef SIM

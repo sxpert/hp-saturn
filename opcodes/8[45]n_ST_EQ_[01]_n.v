@@ -6,16 +6,16 @@
 `include "decstates.v"
 
 `DEC_ST_EQ_0_N: begin
-    ST[nibble] <= 0;
+    ST[nb_in] <= 0;
     decstate <= `DEC_START;
 `ifdef SIM
-    $display("%05h ST=0\t%h", inst_start_PC, nibble);
+    $display("%05h ST=0\t%h", inst_start_PC, nb_in);
 `endif
 end
 `DEC_ST_EQ_1_N: begin
-    ST[nibble] <= 1;
+    ST[nb_in] <= 1;
     decstate <= `DEC_START;
 `ifdef SIM
-    $display("%05h ST=1\t%h", inst_start_PC, nibble);
+    $display("%05h ST=1\t%h", inst_start_PC, nb_in);
 `endif
 end

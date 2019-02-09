@@ -8,7 +8,7 @@
 `include "decstates.v"
 
 `DEC_80X: begin
-    case (nibble)
+    case (nb_in)
     4'h5:
 `include "opcodes/805_CONFIG.v"
     4'ha:   

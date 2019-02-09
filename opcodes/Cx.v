@@ -8,7 +8,7 @@
 `include "decstates.v"
 
 `DEC_CX: begin
-    case (nibble)
+    case (nb_in)
     4'hA: begin
         if (!hex_dec) begin
             {Carry, A[19:0]} = A[19:0] + C[19:0];

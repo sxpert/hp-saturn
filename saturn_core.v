@@ -21,7 +21,7 @@ module saturn_core (
 	input			reset,
 	output			halt,
 	output [3:0] 	busstate,
-	output [7:0] 	decstate
+	output [11:0] 	decstate
 );
 `else
 module saturn_core (
@@ -72,7 +72,7 @@ reg				inc_pc;
 reg 			read_nibble;
 reg				first_nibble;
 
-reg		[7:0]	decstate;
+reg		[11:0]	decstate;
 reg		[3:0]	regdump;
 
 // bus access
@@ -88,13 +88,15 @@ reg				en_bus_load_pc;
 reg				rom_enable;
 
 // internal registers
-reg	[3:0]	nibble;
 reg [19:0]	new_PC;
 reg [19:0]	next_PC;
 reg	[19:0]  inst_start_PC;
+
 reg	[2:0]	rstk_ptr;
+
 reg	[19:0]  jump_base;
 reg	[19:0]	jump_offset;
+
 reg			hex_dec;
 `define	MODE_HEX	0;
 `define MODE_DEC	1;
@@ -107,6 +109,10 @@ reg 		t_dir;
 reg			t_ptr;
 reg			t_reg;
 reg	[3:0]	t_field;
+
+reg	[3:0]	nb_in;
+reg [3:0]	nb_out;
+reg	[19:0]	add_out;
 
 // processor registers
 reg	[19:0]	PC;
@@ -225,18 +231,13 @@ begin
 				PC <= next_PC;
 				inc_pc <= 1;
 			end
+			`BUSCMD_DP_READ: begin
+				bus_command <= `BUSCMD_DP_READ;
+				en_bus_clk <= 1;
+			end
 			`BUSCMD_DP_WRITE: begin
 				bus_command <= `BUSCMD_DP_WRITE;
-				case (t_reg)
-				`T_REG_A: begin
-					bus_nibble_in <= A[t_ctr*4+:4];
-					$display("DP_WRITE A[%h] = %h", t_ctr, A[t_ctr*4+:4]);
-				end
-				`T_REG_C: begin
-					bus_nibble_in <= C[t_ctr*4+:4];
-					// $display("DP_WRITE C[%h] = %h", t_ctr, C[t_ctr*4+:4]);
-				end
-				endcase
+				bus_nibble_in <= nb_out;
 				en_bus_clk <= 1;
 			end
 			`BUSCMD_LOAD_PC: begin
@@ -248,12 +249,12 @@ begin
 			end
 			`BUSCMD_LOAD_DP: begin
 				bus_command <= `BUSCMD_LOAD_DP;
-				bus_address <= t_ptr ? D1 : D0;
+				bus_address <= add_out;
 				en_bus_clk <= 1;
 			end
 			`BUSCMD_CONFIGURE: begin
 				bus_command <= `BUSCMD_CONFIGURE;
-				bus_address <= C[19:0];
+				bus_address <= add_out;
 				en_bus_clk <= 1;
 			end
 			`BUSCMD_RESET: begin
@@ -271,13 +272,17 @@ begin
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_PC_READ: begin
-				nibble <= bus_nibble_out;
+				nb_in <= bus_nibble_out;
 				en_dec_clk <= 1;
 				if (inc_pc) begin
 					next_PC <= PC + 1;
 					inc_pc <= 0;
 				end
 				// $display("reading nibble %h", bus_nibble_out);
+			end
+			`BUSCMD_DP_READ: begin
+				nb_in <= bus_nibble_out;
+				en_dec_clk <= 1;
 			end
 			`BUSCMD_DP_WRITE: begin
 				// $display("BUS PHASE 2: DP_WRITE cnt %h | ctr %h", t_cnt, t_ctr);
@@ -289,11 +294,11 @@ begin
 			end
 			`BUSCMD_LOAD_DP: begin
 				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_DP %s %5h", 
-						 cycle_ctr, instr_ctr, t_ptr?"D1":"D0", t_ptr?D1:D0);
+						 cycle_ctr, instr_ctr, t_ptr?"D1":"D0", add_out);
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_CONFIGURE: begin
-				$display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, C[19:0]); 
+				$display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, add_out); 
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_RESET: begin
@@ -321,7 +326,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 210)
+	if (cycle_ctr == 240)
 		debug_stop <= 1;
 end
 
@@ -342,7 +347,7 @@ always @(posedge dec_strobe) begin
 		next_cycle <= `BUSCMD_PC_READ;
 	end else begin
 `ifdef SIM
-		if (decstate == `DEC_START) begin
+		if ((decstate == `DEC_START)|(decstate == `DEC_TEST_GO)) begin
 			// display registers
 			$display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", PC, Carry, hex_dec?"DEC":"HEX", rstk_ptr, RSTK[7]);
 			$display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", P, HST, ST, RSTK[6]);
@@ -354,15 +359,15 @@ always @(posedge dec_strobe) begin
 			$display("                                                RSTK0: %5h", RSTK[0]);
 		end
 `endif
-		$display("CYCLE %d | INSTR %d | PC %h | DECSTATE %d | NIBBLE %h", 
+		$display("CYCLE %d | INSTR %d | PC %h | DECSTATE %3h | NIBBLE %h", 
 				cycle_ctr, 
 				(decstate == `DEC_START)?instr_ctr+1:instr_ctr, 
-				PC, decstate, nibble);
+				PC, decstate, nb_in);
 		case (decstate)
 		`DEC_START:	begin
 			instr_ctr <= instr_ctr + 1;
 			inst_start_PC <= PC;
-			case (nibble)
+			case (nb_in)
 			4'h0: decstate <= `DEC_0X;
 			4'h1: decstate <= `DEC_1X;
 			4'h2: decstate <= `DEC_P_EQ_N;
@@ -383,6 +388,7 @@ always @(posedge dec_strobe) begin
 		end
 `include "opcodes/0x.v"
 `include "opcodes/1x.v"
+`include "opcodes/13x_ptr_and_AC.v"
 `include "opcodes/1[45]_memaccess.v"
 `include "opcodes/1[BF]nnnnn_D[01]_EQ_5n.v"
 `include "opcodes/2n_P_EQ_n.v"
@@ -394,6 +400,7 @@ always @(posedge dec_strobe) begin
 `include "opcodes/80Cn_C_EQ_P_n.v"
 `include "opcodes/82x_CLRHST.v"
 `include "opcodes/8[45]n_ST_EQ_[01]_n.v"
+`include "opcodes/8Ax_test_[n]eq_A.v"
 `include "opcodes/8[DF]xxxxx_GO.v"
 `include "opcodes/A[ab]x.v"
 `include "opcodes/Bx_math_ops_shift.v"
@@ -448,7 +455,7 @@ reg			clk;
 reg			reset;
 wire		halt;
 wire [3:0]	busstate;
-wire [7:0]	decstate;
+wire [11:0]	decstate;
 
 saturn_core saturn (
 	.clk		(clk),

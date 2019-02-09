@@ -8,7 +8,7 @@
 `include "decstates.v"
 
 `DEC_DX: begin
-    case (nibble)
+    case (nb_in)
     4'hA: begin
         A[19:0] <= C[19:0];
         $display("%5h A=C\tA", inst_start_PC);

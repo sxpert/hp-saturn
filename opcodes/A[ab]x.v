@@ -11,8 +11,8 @@
 `include "fields.v"
 
 `DEC_AX: begin
-    if (!nibble[3]) begin   // table a
-        case (nibble)
+    if (!nb_in[3]) begin   // table a
+        case (nb_in)
         4'h0: t_field <= `T_FIELD_P;
         4'h1: t_field <= `T_FIELD_WP;
         4'h2: t_field <= `T_FIELD_XS;
@@ -24,7 +24,7 @@
         endcase
         decstate <= `DEC_AaX_EXEC;
     end else begin          // table b
-        case (nibble)
+        case (nb_in)
         4'h8: t_field <= `T_FIELD_P;
         4'h9: t_field <= `T_FIELD_WP;
         4'hA: t_field <= `T_FIELD_XS;
@@ -38,7 +38,7 @@
     end
 end
 `DEC_AaX_EXEC: begin
-    case (nibble)
+    case (nb_in)
     default: begin
         $display("ERROR : DEC_AaX_EXEC");
         decode_error <= 1;
@@ -46,7 +46,7 @@ end
     endcase
 end
 `DEC_AbX_EXEC: begin
-    case (nibble)
+    case (nb_in)
     4'h2: begin             // C=0  b
         case (t_field)
         `T_FIELD_B: C[7:0] <= 0;

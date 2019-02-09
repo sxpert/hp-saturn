@@ -7,7 +7,8 @@
 `include "decstates.v"
 
 `DEC_1X: begin
-    case (nibble)
+    case (nb_in)
+    4'h3: decstate <= `DEC_13X;
     4'h4: decstate <= `DEC_14X;
     4'h5: decstate <= `DEC_15X;
     4'hB: decstate <= `DEC_D0_EQ_5N;
