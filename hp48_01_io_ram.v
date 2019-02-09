@@ -19,7 +19,7 @@ module hp48_io_ram (
 	input		[3:0]	command,
 	input		[3:0]	nibble_in,
 	output	reg [3:0]	nibble_out,
-	output	reg			active,
+	output				active,
 	input				daisy_in,
 	output  			daisy_out,
 	output	reg			error
@@ -74,6 +74,10 @@ initial
 		$write("\n");
 		$display("io_ram: initialized");
 `endif
+
+		// $monitor("MMIO MON | PC %h | DP %h | P %h | A %h | B %h | L %h | CNF %b | RD %b | WR %b | ACT %b",
+		// 	pc_ptr, dp_ptr, ptr_value, access_addr,	base_addr, last_addr,
+		// 	configured, can_read, can_write, active);
 	end
 
 /*
@@ -87,44 +91,80 @@ wire            cmd_write;
 
 assign cmd_bus_pc = (command == `BUSCMD_PC_READ) | (command == `BUSCMD_PC_WRITE);
 assign cmd_bus_dp = (command == `BUSCMD_DP_READ) | (command == `BUSCMD_DP_WRITE);
-assign cmd_read = (command == `BUSCMD_PC_READ) | (command == `BUSCMD_DP_WRITE);
-assign cmd_write = (command == `BUSCMD_DP_WRITE) | (command == `BUSCMD_PC_WRITE);
+assign cmd_read = (command == `BUSCMD_PC_READ) | (command == `BUSCMD_DP_READ);
+assign cmd_write = (command == `BUSCMD_PC_WRITE) | (command == `BUSCMD_DP_WRITE);
 
-always @(*)
-	begin
-		active = 0;
+wire [19:0]		last_addr;
 
-		if ((command==`BUSCMD_PC_READ)|(command==`BUSCMD_PC_WRITE))
-			active = ((base_addr>=pc_ptr)&(pc_ptr<base_addr+IO_RAM_LEN))&(configured);
-		
-		if ((command==`BUSCMD_DP_READ)|(command==`BUSCMD_DP_WRITE))
-			active = ((base_addr>=dp_ptr)&(dp_ptr<base_addr+IO_RAM_LEN))&(configured);
-	end
+assign last_addr = base_addr + IO_RAM_LEN - 1;
 
+wire 			pc_lower;
+wire			pc_higher;
+wire			use_pc;
+wire			dp_lower;
+wire			dp_higher;
+wire			use_dp;
+
+assign pc_lower  = pc_ptr < base_addr;
+assign pc_higher = pc_ptr > last_addr;
+assign use_pc = !(pc_lower | pc_higher);
+assign dp_lower  = dp_ptr < base_addr;
+assign dp_higher = dp_ptr > last_addr;
+assign use_dp = !(dp_lower | dp_higher);
+
+
+wire [19:0] ptr_value;
+wire [19:0] access_addr;
+assign ptr_value = (cmd_bus_dp?dp_ptr:pc_ptr);
+assign access_addr = ptr_value - base_addr;
+
+wire			read_pc;
+wire			write_pc;
+wire			read_dp;
+wire			write_dp;
+
+assign read_pc  = use_pc & cmd_bus_pc & cmd_read;
+assign write_pc = use_pc & cmd_bus_pc & cmd_write;
+assign read_dp  = use_dp & cmd_bus_dp & cmd_read;
+assign write_dp = use_dp & cmd_bus_dp & cmd_write;
+
+wire			can_read;
+wire			can_write;
+
+assign can_read  = configured & (read_pc | read_dp);
+assign can_write = configured & (write_pc | write_dp); 
+
+assign active = can_read | can_write;
 
 always @(posedge strobe) begin
-    
     // read from ram
-
-    if (configured & cmd_read)
-        nibble_out <= mmio_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr];
+    if (can_read) begin
+        nibble_out = mmio_ram[access_addr];
+	end
 end    
 
 always @(posedge strobe) begin
     // write to ram
-
-    if (configured & cmd_write)
-        mmio_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr] <= nibble_in;
+    if (can_write) begin
+        mmio_ram[access_addr] <= nibble_in;
+	end
 end
-
 
 always @(posedge strobe) begin
 	case (command)
 	`BUSCMD_PC_READ: begin
 		pc_ptr <= pc_ptr + 1;
+		$display("MMIO (%b - %5h) ACT %b - %s_PC %5h (%5h) -> %h", 
+			configured, base_addr, active,
+			cmd_read?"READ":"WRITE", ptr_value, access_addr,
+			cmd_read?nibble_out:nibble_in);
 	end
 	`BUSCMD_DP_READ, `BUSCMD_DP_WRITE: begin
 		dp_ptr <= dp_ptr + 1;
+		$display("MMIO (%b - %5h) ACT %b - %s_DP %5h (%5h) -> %h", 
+			configured, base_addr, active,
+			cmd_read?"READ":"WRITE", ptr_value, access_addr,
+			cmd_read?nibble_out:nibble_in);
 	end
 	`BUSCMD_LOAD_PC: begin
 		// $display("MMIO (%b - %5h) - LOAD_PC %5h", configured, base_addr, address);

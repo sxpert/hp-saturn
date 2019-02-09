@@ -1,8 +1,18 @@
+`define MMIO
+`define SYSRAM
 
 `include "bus_commands.v"
+
+`ifdef MMIO
 `include "hp48_01_io_ram.v"
+`endif
+
+`ifdef SYSRAM
 `include "hp48_02_sys_ram.v"
+`endif
+
 `include "hp48_06_rom.v"
+
 
 `ifndef _HP48_BUS
 `define _HP48_BUS
@@ -21,8 +31,8 @@ module hp48_bus (
 	input			[19:0]	address,
 	input			[3:0]	command,
 	input			[3:0]	nibble_in,
-	output	reg		[3:0]	nibble_out,
-	output	reg				bus_error
+	output			[3:0]	nibble_out,
+	output					bus_error
 );
 
 // mmio
@@ -44,6 +54,9 @@ wire		sysram_error;
 // rom
 wire [3:0]	rom_nibble_out;
 
+
+`ifdef MMIO
+
 //
 // listed in order of priority
 //
@@ -63,6 +76,17 @@ hp48_io_ram dev_io_ram (
 assign mmio_nibble_in = nibble_in;
 assign mmio_daisy_in = 1;
 
+`else
+
+assign mmio_error = 0;
+assign mmio_active = 0;
+assign mmio_nibble_out = 0;
+assign mmio_error = 0;
+
+`endif
+
+`ifdef SYSRAM
+
 hp48_sys_ram dev_sys_ram (
 	.strobe			(strobe),
 	.reset			(reset),
@@ -79,6 +103,13 @@ hp48_sys_ram dev_sys_ram (
 assign sysram_nibble_in = nibble_in;
 assign sysram_daisy_in = mmio_daisy_out;
 
+`else
+
+assign sysram_active = 0;
+assign sysram_nibble_out = 0;
+assign sysram_error = 0;
+
+`endif
 
 hp48_rom dev_rom (
 	.strobe 			(strobe),
@@ -88,13 +119,29 @@ hp48_rom dev_rom (
 );
 
 
-always @(*)
-	begin
-		bus_error = mmio_error;
-		if (strobe & mmio_active) nibble_out = mmio_nibble_out;
-		if (strobe & (!mmio_active & sysram_active)) nibble_out = sysram_nibble_out;
-		if (strobe & (!mmio_active & !sysram_active)) nibble_out = rom_nibble_out;
-	end
+assign bus_error = mmio_error | sysram_error;
+
+wire show_mmio;
+wire show_sysram;
+wire show_rom;
+
+assign show_mmio = mmio_active;
+assign show_sysram = !mmio_active & sysram_active;
+assign show_rom = !mmio_active & !sysram_active;
+
+assign nibble_out = {4 {strobe}} & (
+					 ({4 {show_mmio}} & mmio_nibble_out) |
+					 ({4 {show_sysram}} & sysram_nibble_out) |
+					 ({4 {show_rom}} & rom_nibble_out));
+
+// initial begin
+// 	$monitor("BUS > STRB %b | MMIO %b %h | SYSRAM %b %h | ROM %b %h | IN %h | OUT %h",
+// 			 strobe,
+// 			 show_mmio, mmio_nibble_out, 
+// 			 show_sysram, sysram_nibble_out, 
+// 			 show_rom, rom_nibble_out,
+// 			 nibble_in, nibble_out);
+// end
 
 endmodule
 

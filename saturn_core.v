@@ -318,7 +318,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 145)
+	if (cycle_ctr == 150)
 		debug_stop <= 1;
 end
 
