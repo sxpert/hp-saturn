@@ -379,7 +379,7 @@ always @(posedge dec_strobe) begin
 `include "opcodes/0x.v"
 `include "opcodes/1x.v"
 `include "opcodes/1[45]_memaccess.v"
-`include "opcodes/1Bnnnnn_D0_EQ_5n.v"
+`include "opcodes/1[BF]nnnnn_D[01]_EQ_5n.v"
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/3n[x...]_LC.v"
 `include "opcodes/6xxx_GOTO.v"

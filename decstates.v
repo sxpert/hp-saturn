@@ -13,6 +13,8 @@
 `define DEC_MEMACCESS       13      //  1[45]x[y]
 `define DEC_D0_EQ_5N        14      //  1B
 `define DEC_D0_EQ_5N_LOOP   15      //  1Bxxxxx (exec)
+`define DEC_D1_EQ_5N        16      //  1F
+`define DEC_D1_EQ_5N_LOOP   17      //  1Fxxxxx (exec)
 `define DEC_P_EQ_N          20      //  2n
 `define DEC_LC_LEN          21      //  3n...
 `define DEC_LC              22      //  3n[x]
