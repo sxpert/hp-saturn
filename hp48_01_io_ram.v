@@ -64,7 +64,7 @@ initial
 		for (base_addr = 0; base_addr < IO_RAM_LEN; base_addr++)
 			begin
 				$write(".");
-				mmio_ram[base_addr] <= 0; 
+				mmio_ram[base_addr] = 0; 
 			end
 		$display("io_ram: setting base address to 0");
 `endif
@@ -80,6 +80,15 @@ initial
  *
  *
  */
+wire            cmd_bus_pc;
+wire            cmd_bus_dp;
+wire            cmd_read;
+wire            cmd_write;
+
+assign cmd_bus_pc = (command == `BUSCMD_PC_READ) | (command == `BUSCMD_PC_WRITE);
+assign cmd_bus_dp = (command == `BUSCMD_DP_READ) | (command == `BUSCMD_DP_WRITE);
+assign cmd_read = (command == `BUSCMD_PC_READ) | (command == `BUSCMD_DP_WRITE);
+assign cmd_write = (command == `BUSCMD_DP_WRITE) | (command == `BUSCMD_PC_WRITE);
 
 always @(*)
 	begin
@@ -92,33 +101,29 @@ always @(*)
 			active = ((base_addr>=dp_ptr)&(dp_ptr<base_addr+IO_RAM_LEN))&(configured);
 	end
 
+
+always @(posedge strobe) begin
+    
+    // read from ram
+
+    if (configured & cmd_read)
+        nibble_out <= mmio_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr];
+end    
+
+always @(posedge strobe) begin
+    // write to ram
+
+    if (configured & cmd_write)
+        mmio_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr] <= nibble_in;
+end
+
+
 always @(posedge strobe) begin
 	case (command)
 	`BUSCMD_PC_READ: begin
-		if (configured) begin
-			// $display("MMIO (%b - %5h) - PC_READ %5h -> %h", configured, base_addr, pc_ptr, mmio_ram[pc_ptr]);
-			nibble_out <= mmio_ram[pc_ptr];
-		end else begin
-			// $display("MMIO (%b - %5h) - PC_READ %5h UNCONFIGURED", configured, base_addr, pc_ptr);
-		end
 		pc_ptr <= pc_ptr + 1;
 	end
-	`BUSCMD_DP_READ: begin
-		if (configured) begin
-			$display("MMIO (%b - %5h) - DP_READ %5h -> %h", configured, base_addr, dp_ptr, mmio_ram[dp_ptr]);
-			nibble_out <= mmio_ram[dp_ptr];
-		end else begin
-			// $display("MMIO (%b - %5h) - DP_READ %5h UNCONFIGURED", configured, base_addr, dp_ptr);
-		end
-		dp_ptr <= dp_ptr + 1;
-	end
-	`BUSCMD_DP_WRITE: begin
-		if (configured) begin
-			// $display("MMIO (%b - %5h) - DP_WRITE %5h -> %h", configured, base_addr, dp_ptr, nibble_in);
-			mmio_ram[dp_ptr] <= nibble_in;
-		end else begin
-			$display("MMIO (%b - %5h) - DP_WRITE %5h -> %h UNCONFIGURED", configured, base_addr, dp_ptr, nibble_in);
-		end
+	`BUSCMD_DP_READ, `BUSCMD_DP_WRITE: begin
 		dp_ptr <= dp_ptr + 1;
 	end
 	`BUSCMD_LOAD_PC: begin
