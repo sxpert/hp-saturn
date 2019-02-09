@@ -131,12 +131,16 @@ always @(posedge strobe) begin
 
     if (configured & cmd_read)
         nibble_out <= sys_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr];
-    
+end    
+
+always @(posedge strobe) begin
     // write to ram
 
     if (configured & cmd_write)
         sys_ram[(cmd_bus_dp?dp_ptr:pc_ptr) - base_addr] <= nibble_in;
+end
 
+always @(posedge strobe) begin
 
 	case (command)
 	`BUSCMD_PC_READ, `BUSCMD_PC_WRITE: begin
