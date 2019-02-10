@@ -332,7 +332,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 450)
+	if (cycle_ctr == 580)
 		debug_stop <= 1;
 end
 

@@ -68,7 +68,7 @@ end
         endcase
     else begin
         t_cnt = nb_in;
-        t_ctr = nb_in;
+        t_ctr = 0;
     end
     next_cycle <= `BUSCMD_LOAD_DP;
     decstate <= `DEC_MEMAXX;
@@ -146,6 +146,6 @@ end
             `T_FIELD_W:	  $display("W");
             `T_FIELD_A:   $display("A");
             endcase
-        else $display("%h", t_cnt);
+        else $display("%2d", t_cnt+1);
     end
 end
