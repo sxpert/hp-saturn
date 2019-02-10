@@ -10,69 +10,48 @@
 `include "decstates.v"
 `include "fields.v"
 
-`DEC_AX: begin
-    if (!nb_in[3]) begin   // table a
-        case (nb_in)
-        4'h0: t_field <= `T_FIELD_P;
-        4'h1: t_field <= `T_FIELD_WP;
-        4'h2: t_field <= `T_FIELD_XS;
-        4'h3: t_field <= `T_FIELD_X;
-        4'h4: t_field <= `T_FIELD_S;
-        4'h5: t_field <= `T_FIELD_M;
-        4'h6: t_field <= `T_FIELD_B;
-        4'h7: t_field <= `T_FIELD_W;
-        endcase
-        decstate <= `DEC_AaX_EXEC;
-    end else begin          // table b
-        case (nb_in)
-        4'h8: t_field <= `T_FIELD_P;
-        4'h9: t_field <= `T_FIELD_WP;
-        4'hA: t_field <= `T_FIELD_XS;
-        4'hB: t_field <= `T_FIELD_X;
-        4'hC: t_field <= `T_FIELD_S;
-        4'hD: t_field <= `T_FIELD_M;
-        4'hE: t_field <= `T_FIELD_B;
-        4'hF: t_field <= `T_FIELD_W;
-        endcase
-        decstate <= `DEC_AbX_EXEC;
-    end
-end
-`DEC_AaX_EXEC: begin
-    case (nb_in)
-    default: begin
-        $display("ERROR : DEC_AaX_EXEC");
+`DEC_Axx_EXEC: begin
+    if (!field_table[0]) begin
+        $display("table 'a' not handled yet");
         decode_error <= 1;
-    end
-    endcase
-end
-`DEC_AbX_EXEC: begin
-    case (nb_in)
-    4'h2: begin             // C=0  b
-        case (t_field)
-        `T_FIELD_B: C[7:0] <= 0;
-        default: begin
-            $display("ERROR :");
+    end else begin
+        if (!nb_in[3]) begin
+            alu_reg_dest <= {2'b0, nb_in[1:0]};
+            if (!nb_in[2]) alu_op <= `ALU_OP_ZERO;
+            else begin
+                alu_op <= `ALU_OP_COPY;
+                alu_reg_src1 <= {nb_in[0], (!(nb_in[0] | nb_in[1])) & nb_in[2]};
+            end;
+        end else begin
+            $display("DEC_Axx_EXEC %h", nb_in);
             decode_error <= 1;
         end
-        endcase
+    end
+    alu_debug <= 1;
+    next_cycle <= `BUSCMD_NOP;
+    decstate <= `DEC_ALU_INIT;
 `ifdef SIM
-        $write("%5h C=0\t", inst_start_PC);
-        case (t_field)
-        `T_FIELD_P:  $display("P");
-        `T_FIELD_WP: $display("WP");
-        `T_FIELD_XS: $display("XS");
-        `T_FIELD_X:  $display("X");
-        `T_FIELD_S:  $display("S");
-        `T_FIELD_M:  $display("M");
-        `T_FIELD_B:  $display("B");
-        `T_FIELD_W:  $display("W");
+    $write("%5h ", inst_start_PC);
+    if (!nb_in[3]) 
+        case (nb_in[1:0])
+        2'b00: $write("A=%s",(!nb_in[2])?"0":"B");
+        2'b01: $write("B=%s",(!nb_in[2])?"0":"C");
+        2'b10: $write("C=%s",(!nb_in[2])?"0":"A");
+        2'b11: $write("D=%s",(!nb_in[2])?"0":"C");
         endcase
-`endif
+    else begin
+        $write("NOT HANDLED");
     end
-    default: begin
-        $display("ERROR : DEC_AbX_EXEC");
-        decode_error <= 1;
-    end
+    $write("\t");
+    case (field)
+    `T_FIELD_P:  $display("P");
+    `T_FIELD_WP: $display("WP");
+    `T_FIELD_XS: $display("XS");
+    `T_FIELD_X:  $display("X");
+    `T_FIELD_S:  $display("S");
+    `T_FIELD_M:  $display("M");
+    `T_FIELD_B:  $display("B");
+    `T_FIELD_W:  $display("W");
     endcase
-    decstate <= `DEC_START;
+`endif
 end

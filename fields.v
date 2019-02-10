@@ -16,6 +16,11 @@
 `define T_FTYPE_FIELD    0
 `define T_TTYPE_LEN      1
 
+`define T_TABLE_A        0
+`define T_TABLE_B        1
+`define T_TABLE_F        2
+`define T_TABLE_Z        3 // unused
+
 `define T_FIELD_P	     0
 `define T_FIELD_WP	     1
 `define T_FIELD_XS	     2
@@ -25,5 +30,18 @@
 `define T_FIELD_B	     6
 `define T_FIELD_W	     7
 `define T_FIELD_A	    15
+
+`define ALU_OP_ZERO      0
+`define ALU_OP_COPY      1
+`define ALU_OP_EXCH      2
+`define ALU_OP_SHL       3
+`define ALU_OP_SHR       4
+`define ALU_OP_INC       8
+
+
+`define ALU_REG_A        0
+`define ALU_REG_B        1
+`define ALU_REG_C        2
+`define ALU_REG_D        3
 
 `endif

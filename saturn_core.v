@@ -73,6 +73,7 @@ reg 			read_nibble;
 reg				first_nibble;
 
 reg		[11:0]	decstate;
+reg		[11:0]	fields_return;
 reg		[3:0]	regdump;
 
 // bus access
@@ -85,7 +86,7 @@ reg				bus_load_pc;
 reg				en_bus_load_pc;
 
 // should go away, the rom should work like any other bus module
-reg				rom_enable;
+reg		[7:0]   display_counter;
 
 // internal registers
 reg [19:0]	new_PC;
@@ -119,6 +120,28 @@ reg	[19:0]	add_out;
 reg			t_set_test;
 reg			t_set_test_val;
 reg			t_add_sub;
+reg	[3:0]	t_first;
+reg [3:0]	t_last;
+
+// alu control
+
+reg	[3:0]	field;
+reg [1:0]	field_table;
+
+reg [3:0]	alu_op;
+reg [3:0]	alu_first;
+reg [3:0]	alu_last;
+reg [3:0]	alu_reg_src1;
+reg [3:0]	alu_reg_src2;
+reg [3:0]	alu_reg_dest;
+
+reg [3:0]	alu_src1;
+reg [3:0]	alu_src2;
+reg [3:0]	alu_tmp;
+reg			alu_carry;
+reg			alu_debug;
+reg			alu_halt;
+reg			alu_requested_halt;
 
 // processor registers
 reg	[19:0]	PC;
@@ -174,6 +197,8 @@ initial
 		read_next_pc			= 1;
 		execute_cycle			= 0;
 		inc_pc					= 0;
+		alu_halt				= 0;
+		alu_requested_halt		= 0;
 		$display("should be initializing registers");
 		hex_dec 				= `MODE_HEX;
 		PC 						= 0;
@@ -327,12 +352,13 @@ always @(posedge ph1)
 	begin
 	end
 
-always @(posedge ph2)
-	begin
-	end
+always @(posedge ph2) begin
+`include "decstates.v"
+`include "opcodes/z_alu_phase_2.v"
+end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 580)
+	if (cycle_ctr == 630)
 		debug_stop <= 1;
 end
 
@@ -345,6 +371,7 @@ end
 `include "decstates.v"
 
 always @(posedge dec_strobe) begin
+	if (alu_requested_halt) decode_error <= 1;
 	if ((next_cycle == `BUSCMD_LOAD_PC)|
 		(next_cycle == `BUSCMD_CONFIGURE)|
 		(next_cycle == `BUSCMD_RESET)|
@@ -381,8 +408,14 @@ always @(posedge dec_strobe) begin
 			4'h6: decstate <= `DEC_GOTO;
 			4'h7: decstate <= `DEC_GOSUB;
 			4'h8: decstate <= `DEC_8X;
-			4'hA: decstate <= `DEC_AX;
-			4'hB: decstate <= `DEC_BX;
+			4'hA: begin
+				fields_return <= `DEC_Axx_EXEC;
+				decstate <= `DEC_ab_FIELDS;
+			end
+			4'hB: begin
+				fields_return <= `DEC_Bxx_EXEC;
+				decstate <= `DEC_ab_FIELDS;
+			end
 			4'hC: decstate <= `DEC_CX;
 			4'hD: decstate <= `DEC_DX;
 			4'hF: decstate <= `DEC_FX;
@@ -413,11 +446,14 @@ always @(posedge dec_strobe) begin
 `include "opcodes/8Ax_test_[n]eq_A.v"
 `include "opcodes/8[DF]xxxxx_GO.v"
 `include "opcodes/A[ab]x.v"
-`include "opcodes/Bx_math_ops_shift.v"
+`include "opcodes/B[ab]x.v"
 `include "opcodes/Cx.v"
 `include "opcodes/Dx_regs_field_A.v"
 `include "opcodes/Fx.v"
 `include "opcodes/xx_RTNYES_GOYES.v"
+
+`include "opcodes/z_alu_phase_3.v"
+`include "opcodes/z_fields.v"
 		default: begin
 			$display("ERROR : GENERAL");
 			decode_error <= 1;
