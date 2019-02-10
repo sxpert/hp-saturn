@@ -36,12 +36,17 @@
 `define ALU_OP_EXCH      2
 `define ALU_OP_SHL       3
 `define ALU_OP_SHR       4
+`define ALU_OP_2CMPL     5
+`define ALU_OP_1CMPL     6
 `define ALU_OP_INC       8
+`define ALU_OP_TEST_EQ  12
+`define ALU_OP_TEST_NEQ 13
 
 
 `define ALU_REG_A        0
 `define ALU_REG_B        1
 `define ALU_REG_C        2
 `define ALU_REG_D        3
+`define ALU_REG_0       15
 
 `endif

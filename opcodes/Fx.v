@@ -8,54 +8,45 @@
 `include "decstates.v"
 
 `DEC_FX: begin
-    case (nb_in)
-    4'h8, 4'h9, 4'hA, 4'hB: begin
-        if (!hex_dec) begin
-            case (nb_in)
-            4'h8: {Carry, A[19:0]} <= - A[19:0];
-            4'h9: {Carry, B[19:0]} <= - B[19:0];
-            4'hA: {Carry, C[19:0]} <= - C[19:0];
-            4'hB: {Carry, D[19:0]} <= - D[19:0];
-            endcase
-            decstate <= `DEC_START;
-        end 
+    field <= `T_FIELD_A;
+    alu_first <= 0;
+    alu_last  <= 4;
+    alu_reg_dest <= {2'b00, nb_in[1:0]};
+
+    if (!nb_in[3]) begin
+        $display("F%h shifts not implemented");
+        decode_error <= 1;
+    end else begin
+        alu_reg_src1 <= {2'b00, nb_in[1:0]};
+        alu_op <= nb_in[2]?`ALU_OP_1CMPL:`ALU_OP_2CMPL;
+    end
+    alu_debug <= 1;
+    next_cycle <= `BUSCMD_NOP;
+    decstate <= `DEC_ALU_INIT;
+    alu_return <= `DEC_START;
+
 `ifdef SIM
-        $write("%5h ", inst_start_PC);
-        case (nb_in)
-        4'h8: $write("A=-A");
-        4'h8: $write("B=-B");
-        4'h8: $write("C=-C");
-        4'h8: $write("D=-D");
-        endcase
-        if (!hex_dec) $display("\tA");
-        else $display("\tA\t\t\t <=== DEC MODE NOT IMPLEMENTED");
-`endif
-    end
-    4'hC, 4'hD, 4'hE, 4'hF: begin
-        if (!hex_dec) begin
-            case (nb_in)
-            4'hC: {Carry, A[19:0]} <= - A[19:0] - 1;
-            4'hD: {Carry, B[19:0]} <= - B[19:0] - 1;
-            4'hE: {Carry, C[19:0]} <= - C[19:0] - 1;
-            4'hF: {Carry, D[19:0]} <= - D[19:0] - 1;
-            endcase
-            decstate <= `DEC_START;
-        end 
-`ifdef SIM
-        $write("%5h ", inst_start_PC);
-        case (nb_in)
-        4'h8: $write("A=-A-1");
-        4'h8: $write("B=-B-1");
-        4'h8: $write("C=-C-1");
-        4'h8: $write("D=-D-1");
-        endcase
-        if (!hex_dec) $display("\tA");
-        else $display("\tA\t\t\t <=== DEC MODE NOT IMPLEMENTED");
-`endif
-    end
-    default: begin 
-        $display("ERROR : DEC_FX");
-        decode_error <= 1;    
-    end
+    $write("%5h ", inst_start_PC);
+    case ({2'b00, nb_in[1:0]})
+    `ALU_REG_A: $write("A");
+    `ALU_REG_B: $write("B");
+    `ALU_REG_C: $write("C");
+    `ALU_REG_D: $write("D");
     endcase
+    if (!nb_in[3]) begin
+        $write("S");
+        if (!nb_in[2]) $write("L");
+        else $write("R");
+    end else begin
+       $write("=-");
+        case ({2'b00, nb_in[1:0]})
+        `ALU_REG_A: $write("A");
+        `ALU_REG_B: $write("B");
+        `ALU_REG_C: $write("C");
+        `ALU_REG_D: $write("D");
+        endcase
+        if (nb_in[2]) $write("-1"); 
+    end
+    $display("\tA");
+`endif
 end

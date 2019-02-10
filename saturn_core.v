@@ -142,6 +142,8 @@ reg			alu_carry;
 reg			alu_debug;
 reg			alu_halt;
 reg			alu_requested_halt;
+reg	[11:0]	alu_return;
+reg	[3:0]	alu_next_cycle;
 
 // processor registers
 reg	[19:0]	PC;
@@ -358,7 +360,7 @@ always @(posedge ph2) begin
 end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 630)
+	if (cycle_ctr == 260)
 		debug_stop <= 1;
 end
 
@@ -375,7 +377,8 @@ always @(posedge dec_strobe) begin
 	if ((next_cycle == `BUSCMD_LOAD_PC)|
 		(next_cycle == `BUSCMD_CONFIGURE)|
 		(next_cycle == `BUSCMD_RESET)|
-		((next_cycle == `BUSCMD_NOP)&(decstate == `DEC_START))) begin
+		((next_cycle == `BUSCMD_NOP)&
+		 (decstate == `DEC_START))) begin
 		$display("SETTING next_cycle to BUSCMD_PC_READ");
 		next_cycle <= `BUSCMD_PC_READ;
 	end else begin
@@ -392,8 +395,8 @@ always @(posedge dec_strobe) begin
 			$display("                                                RSTK0: %5h", RSTK[0]);
 		end
 `endif
-		$display("CYCLE %d | INSTR %d | PC %h | DECSTATE %3h | NIBBLE %h", 
-				cycle_ctr, 
+		$display("CYCLE %d | NEXTC %h | INSTR %d | PC %h | DECSTATE %3h | NIBBLE %h", 
+				cycle_ctr, next_cycle,
 				(decstate == `DEC_START)?instr_ctr+1:instr_ctr, 
 				PC, decstate, nb_in);
 		case (decstate)

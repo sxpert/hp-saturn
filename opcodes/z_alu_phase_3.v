@@ -26,20 +26,39 @@
         endcase
         alu_first <= (alu_first + 1) & 4'hF;
     end
-    `ALU_OP_SHR: begin
-
+    `ALU_OP_2CMPL: begin
+        case (alu_reg_dest)
+        `ALU_REG_A: {Carry, A[alu_first*4+:4]} <= !alu_src1 + alu_carry;
+        default: $display("ALU_OP_2CMPL register not handled");
+        endcase
+        alu_first <= (alu_first + 1) & 4'hF;
+    end
+    `ALU_OP_1CMPL: begin
+        case (alu_reg_dest)
+        `ALU_REG_A: A[alu_first*4+:4] <= ~alu_src1;
+        default: $display("ALU_OP_1CMPL register not handled");
+        endcase
+        alu_first <= (alu_first + 1) & 4'hF;
     end
     `ALU_OP_INC: begin
-        $display("ALU_OP_INC");
         case (alu_reg_dest)
         `ALU_REG_D: {Carry, D[alu_first*4+:4]} <= alu_src1 + alu_carry;
         default: $display("ALU_OP_INC register not handled");
         endcase
         alu_first <= (alu_first + 1) & 4'hF;
     end
+    `ALU_OP_TEST_EQ: begin
+        Carry <= (alu_src1 == alu_src2) & alu_carry;
+        alu_first <= (alu_first + 1) & 4'hF;
+    end
+    `ALU_OP_TEST_NEQ: begin
+        Carry <= (alu_src1 != alu_src2) & alu_carry;
+        alu_first <= (alu_first + 1) & 4'hF;
+    end
     default: begin
 `ifdef SIM
-
+        $display("ALU: operation not implemented");
+        decode_error <= 1;
 `endif
     end
     endcase
@@ -47,7 +66,8 @@
 
     if (alu_last == alu_first) begin
         // the alu is done
-        decstate <= `DEC_START;
+        next_cycle <= alu_next_cycle;
+        decstate <= alu_return;
         alu_requested_halt <= alu_halt;
     end else decstate <= `DEC_ALU_CONT;
 
