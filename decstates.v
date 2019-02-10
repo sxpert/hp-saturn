@@ -11,6 +11,7 @@
 `define DEC_15X_FIELD       12'h151      //  15XX
 `define DEC_MEMAXX          12'h152      //  1[45]x[y]
 `define DEC_MEMAXX_END      12'h153      
+`define DEC_D0_EQ_4N        12'h1A0      //  1B
 `define DEC_D0_EQ_5N        12'h1B0      //  1B
 `define DEC_D0_EQ_LOOP      12'h1B1      //  1Bxxxxx (exec)
 `define DEC_D1_EQ_4N        12'h1E0      //  1E

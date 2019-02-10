@@ -331,7 +331,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 390)
+	if (cycle_ctr == 450)
 		debug_stop <= 1;
 end
 
@@ -395,7 +395,7 @@ always @(posedge dec_strobe) begin
 `include "opcodes/1x.v"
 `include "opcodes/13x_ptr_and_AC.v"
 `include "opcodes/1[45]_memaccess.v"
-`include "opcodes/1[BF]nnnnn_D[01]_EQ_5n.v"
+`include "opcodes/1[ABEF]nnnnn_D[01]_EQ_5n.v"
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/3n[x...]_LC.v"
 `include "opcodes/6xxx_GOTO.v"

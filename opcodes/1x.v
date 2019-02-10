@@ -11,6 +11,7 @@
     4'h3: decstate <= `DEC_13X;
     4'h4: decstate <= `DEC_14X;
     4'h5: decstate <= `DEC_15X;
+    4'hA: decstate <= `DEC_D0_EQ_4N;
     4'hB: decstate <= `DEC_D0_EQ_5N;
     4'hE: decstate <= `DEC_D1_EQ_4N;
     4'hF: decstate <= `DEC_D1_EQ_5N;

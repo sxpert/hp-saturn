@@ -56,8 +56,13 @@ end
             t_cnt <= P;
             t_ctr <= P;
         end
+        4'h7: begin
+            t_field <= `T_FIELD_W;
+            t_cnt <= 15;
+            t_ctr <= 0;
+        end
         default: begin
-            $display("ERROR : DEC_15X_FIELD");
+            $display("ERROR : DEC_15X_FIELD %h", nb_in);
             decode_error <= 1;    
         end
         endcase
