@@ -13,6 +13,10 @@
     4'h2: decstate <= `DEC_82X_CLRHST;
     4'h4: decstate <= `DEC_ST_EQ_0_N;
     4'h5: decstate <= `DEC_ST_EQ_1_N;
+    4'h6: decstate <= `DEC_TEST_ST_EQ_0_N;
+    4'h7: decstate <= `DEC_TEST_ST_EQ_1_N;
+    4'h8: decstate <= `DEC_TEST_P_NEQ_N; 
+    4'h9: decstate <= `DEC_TEST_P_EQ_N;
     4'hA: decstate <= `DEC_8AX;
     4'hD: decstate <= `DEC_GOVLNG;
     4'hF: decstate <= `DEC_GOSBVL;

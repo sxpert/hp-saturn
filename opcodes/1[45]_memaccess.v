@@ -108,7 +108,7 @@ end
 
 
     if ((t_cnt==t_ctr) &
-        (((t_dir == `T_DIR_IN) & (decstate == `DEC_MEMAXX)) |
+        (((t_dir == `T_DIR_IN) & (decstate == `DEC_MEMAXX)&(next_cycle!=`BUSCMD_LOAD_DP)) |
          ((t_dir == `T_DIR_OUT) & (decstate == `DEC_MEMAXX_END)))) begin
         $display("---------------------------- DEC_MEMAXX_END -------------------------------");
         decstate <= `DEC_START;

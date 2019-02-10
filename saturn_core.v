@@ -326,7 +326,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 240)
+	if (cycle_ctr == 333)
 		debug_stop <= 1;
 end
 
@@ -397,9 +397,10 @@ always @(posedge dec_strobe) begin
 `include "opcodes/7xxx_GOSUB.v"
 `include "opcodes/8x.v"
 `include "opcodes/80x.v"
-`include "opcodes/80Cn_C_EQ_P_n.v"
+`include "opcodes/80[CD]n_C_and_P_n.v"
 `include "opcodes/82x_CLRHST.v"
-`include "opcodes/8[45]n_ST_EQ_[01]_n.v"
+`include "opcodes/8[4567]n_work_test_ST.v"
+`include "opcodes/8[89]n_test_P.v"
 `include "opcodes/8Ax_test_[n]eq_A.v"
 `include "opcodes/8[DF]xxxxx_GO.v"
 `include "opcodes/A[ab]x.v"
@@ -407,6 +408,7 @@ always @(posedge dec_strobe) begin
 `include "opcodes/Cx.v"
 `include "opcodes/Dx_regs_field_A.v"
 `include "opcodes/Fx.v"
+`include "opcodes/xx_RTNYES_GOYES.v"
 		default: begin
 			$display("ERROR : GENERAL");
 			decode_error <= 1;

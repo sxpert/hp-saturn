@@ -19,3 +19,17 @@ end
     $display("%05h ST=1\t%h", inst_start_PC, nb_in);
 `endif
 end
+`DEC_TEST_ST_EQ_0_N: begin
+    Carry <= (!ST[nb_in]);
+    decstate <= `DEC_TEST_GO;
+`ifdef SIM
+    $display("%05h ?ST=0\t%h", inst_start_PC, nb_in);
+`endif    
+end
+`DEC_TEST_ST_EQ_1_N: begin
+    Carry <= (ST[nb_in]);
+    decstate <= `DEC_TEST_GO;
+`ifdef SIM
+    $display("%05h ?ST=1\t%h", inst_start_PC, nb_in);
+`endif    
+end
