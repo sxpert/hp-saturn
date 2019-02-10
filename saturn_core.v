@@ -26,15 +26,15 @@ module saturn_core (
 `else
 module saturn_core (
 	input			clk_25mhz,
-	input [6:0] 	btn,
-	output 			wifi_gpio0,
+	input [	6:0] 	btn,
+	// output 			wifi_gpio0,
 	output [7:0]	led
 );
 wire 		clk;
 wire 		reset;
 reg			clk2;
 
-assign wifi_gpio0	= 1'b1;
+// assign wifi_gpio0	= 1'b1;
 assign clk			= clk_25mhz;
 assign reset		= btn[1];
 
@@ -108,11 +108,16 @@ reg	[3:0]	t_ctr;
 reg 		t_dir;
 reg			t_ptr;
 reg			t_reg;
+reg			t_ftype;
 reg	[3:0]	t_field;
 
 reg	[3:0]	nb_in;
 reg [3:0]	nb_out;
 reg	[19:0]	add_out;
+
+// temporary stuff
+reg			t_set_test;
+reg			t_set_test_val;
 
 // processor registers
 reg	[19:0]	PC;
@@ -326,7 +331,7 @@ always @(posedge ph2)
 	end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 333)
+	if (cycle_ctr == 390)
 		debug_stop <= 1;
 end
 
@@ -397,6 +402,8 @@ always @(posedge dec_strobe) begin
 `include "opcodes/7xxx_GOSUB.v"
 `include "opcodes/8x.v"
 `include "opcodes/80x.v"
+`include "opcodes/808x.v"
+`include "opcodes/808[4-B]_[AC]BIT_set_test.v"
 `include "opcodes/80[CD]n_C_and_P_n.v"
 `include "opcodes/82x_CLRHST.v"
 `include "opcodes/8[4567]n_work_test_ST.v"

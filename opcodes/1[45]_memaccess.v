@@ -39,25 +39,32 @@
             t_cnt <= 1;
             t_ctr <= 0;
         end
+        t_ftype <= `T_FTYPE_FIELD;
         next_cycle <= `BUSCMD_LOAD_DP;
         decstate <= `DEC_MEMAXX;
     end else begin
+        t_ftype <= nb_in[3];
         decstate <= `DEC_15X_FIELD;
     end
 end
 
 `DEC_15X_FIELD: begin
-    case (nb_in)
-    4'h0: begin
-        t_field <= `T_FIELD_P;
-        t_cnt <= P;
-        t_ctr <= P;
+    if (!t_ftype) // fields
+        case (nb_in)
+        4'h0: begin
+            t_field <= `T_FIELD_P;
+            t_cnt <= P;
+            t_ctr <= P;
+        end
+        default: begin
+            $display("ERROR : DEC_15X_FIELD");
+            decode_error <= 1;    
+        end
+        endcase
+    else begin
+        t_cnt = nb_in;
+        t_ctr = nb_in;
     end
-    default: begin
-        $display("ERROR : DEC_15X_FIELD");
-        decode_error <= 1;    
-    end
-    endcase
     next_cycle <= `BUSCMD_LOAD_DP;
     decstate <= `DEC_MEMAXX;
 end
@@ -122,17 +129,18 @@ end
         end else begin
             $write("DAT%b=%s\t", t_ptr, t_reg?"C":"A");
         end
-        case (t_field)
-        `T_FIELD_P:	  $display("P");    
-        `T_FIELD_WP:  $display("WP");
-        `T_FIELD_XS:  $display("XS");
-        `T_FIELD_X:	  $display("X");
-        `T_FIELD_S:	  $display("S");
-        `T_FIELD_M:	  $display("M");
-        `T_FIELD_B:	  $display("B");
-        `T_FIELD_W:	  $display("W");   
-        `T_FIELD_LEN: $display("UNKNOWN");
-        `T_FIELD_A:   $display("A");
-        endcase
+        if (!t_ftype)
+            case (t_field)
+            `T_FIELD_P:	  $display("P");    
+            `T_FIELD_WP:  $display("WP");
+            `T_FIELD_XS:  $display("XS");
+            `T_FIELD_X:	  $display("X");
+            `T_FIELD_S:	  $display("S");
+            `T_FIELD_M:	  $display("M");
+            `T_FIELD_B:	  $display("B");
+            `T_FIELD_W:	  $display("W");
+            `T_FIELD_A:   $display("A");
+            endcase
+        else $display("%h", t_cnt);
     end
 end

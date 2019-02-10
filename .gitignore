@@ -6,3 +6,6 @@ obj_dir/Vsaturn_core.mk
 obj_dir/Vsaturn_core__Syms.cpp
 obj_dir/Vsaturn_core__Syms.h
 obj_dir/Vsaturn_core_classes.mk
+saturn_core.ICE40.json
+blinky.pcf
+demo.blif

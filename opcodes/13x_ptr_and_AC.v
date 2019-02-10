@@ -8,7 +8,8 @@
 
 `DEC_13X: begin
     case (nb_in)
-    4'h5: D1[19:0] = C[19:0];
+    4'h4: D0[19:0] <= C[19:0];
+    4'h5: D1[19:0] <= C[19:0];
     default: begin 
         $display("ERROR : DEC_13X");
         decode_error <= 1;    

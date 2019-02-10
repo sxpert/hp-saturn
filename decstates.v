@@ -25,8 +25,8 @@
 `define DEC_GOSUB_LOOP      12'h701      //  7[x] -> exec
 `define DEC_8X              12'h800      //  8X
 `define DEC_80X             12'h801      //  80X
-`define DEC_CONFIG          12'h805      //  805
-`define DEC_RESET           12'h80A      //  80A
+`define DEC_808X            12'h808      //  808X
+`define DEC_AC_BIT_SET_TEST 12'h809      //  808[4-B]x
 `define DEC_C_EQ_P_N        12'h80C      //  80Cn       C=P n
 `define DEC_P_EQ_C_N        12'h80D      //  80Dn       P=C n
 `define DEC_82X_CLRHST      12'h820      //  82X

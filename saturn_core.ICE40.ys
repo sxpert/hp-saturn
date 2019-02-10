@@ -1,2 +1,2 @@
 read_verilog -I. saturn_core.v
-synth_ice40 -blif demo.blif
+synth_ice40 -top saturn_core -json saturn_core.ICE40.json

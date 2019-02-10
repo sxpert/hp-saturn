@@ -18,6 +18,7 @@
             $display("%05h CONFIG", inst_start_PC);
     `endif
     end
+    4'h8: decstate <= `DEC_808X;
     4'hA: begin
         next_cycle <= `BUSCMD_RESET;
         decstate <= `DEC_START;

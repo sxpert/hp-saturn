@@ -28,7 +28,8 @@ module hp48_sys_ram (
 `ifdef SIM
 localparam SYS_RAM_LEN		= 262144;
 `else
-localparam SYS_RAM_LEN		= 65536;
+//localparam SYS_RAM_LEN		= 65536;
+localparam SYS_RAM_LEN		= 2**12;
 `endif
 
 reg	    [0:0]	addr_conf;

@@ -27,7 +27,8 @@ localparam 	ROM_FILENAME = "rom-gx-r.hex";
 `ifdef SIM
 reg [3:0]	rom	[0:(2**20)-1];
 `else
-reg[3:0]	rom	[0:(2**16)-1];
+//reg[3:0]	rom	[0:(2**16)-1];
+reg[3:0]	rom	[0:(2**12)-1];
 `endif
 
 reg [3:0]	i_cmd;
