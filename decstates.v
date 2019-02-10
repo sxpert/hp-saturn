@@ -12,9 +12,11 @@
 `define DEC_MEMAXX          12'h152         //  1[45]x[y]
 `define DEC_MEMAXX_END      12'h153      
 `define DEC_PTR_MATH        12'h160         //  1[678C]n   D[01]=D[01][+-] (n+1)
-`define DEC_D0_EQ_4N        12'h1A0         //  1B
+`define DEC_D0_EQ_2N        12'h190         //  19
+`define DEC_D0_EQ_4N        12'h1A0         //  1A
 `define DEC_D0_EQ_5N        12'h1B0         //  1B
 `define DEC_D0_EQ_LOOP      12'h1B1         //  1Bxxxxx (exec)
+`define DEC_D1_EQ_2N        12'h1D0         //  1D
 `define DEC_D1_EQ_4N        12'h1E0         //  1E
 `define DEC_D1_EQ_5N        12'h1F0         //  1F
 `define DEC_D1_EQ_LOOP      12'h1F1         //  1[EF]xxxxx (exec)

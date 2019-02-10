@@ -6,19 +6,21 @@
 
 `include "decstates.v"
 
+`DEC_D0_EQ_2N, `DEC_D1_EQ_2N,
 `DEC_D0_EQ_4N, `DEC_D1_EQ_4N,
 `DEC_D0_EQ_5N, `DEC_D1_EQ_5N: begin
     case (decstate)
+    `DEC_D0_EQ_2N, `DEC_D1_EQ_2N: t_cnt <= 1;
     `DEC_D0_EQ_4N, `DEC_D1_EQ_4N: t_cnt <= 3;
     `DEC_D0_EQ_5N, `DEC_D1_EQ_5N: t_cnt <= 4;
     endcase
     t_ctr <= 1;
     case (decstate)
-    `DEC_D0_EQ_4N, `DEC_D0_EQ_5N: begin
+    `DEC_D0_EQ_2N, `DEC_D0_EQ_4N, `DEC_D0_EQ_5N: begin
         D0[3:0] <= nb_in;    
         decstate <= `DEC_D0_EQ_LOOP;
     end
-    `DEC_D1_EQ_4N, `DEC_D1_EQ_5N: begin
+    `DEC_D1_EQ_2N, `DEC_D1_EQ_4N, `DEC_D1_EQ_5N: begin
         D1[3:0] <= nb_in;    
         decstate <= `DEC_D1_EQ_LOOP;
     end

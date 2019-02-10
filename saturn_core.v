@@ -360,7 +360,7 @@ always @(posedge ph2) begin
 end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 260)
+	if (cycle_ctr == 750)
 		debug_stop <= 1;
 end
 
@@ -433,7 +433,7 @@ always @(posedge dec_strobe) begin
 `include "opcodes/13x_ptr_and_AC.v"
 `include "opcodes/1[45]_memaccess.v"
 `include "opcodes/1[678C]n_D[01]_math_n.v"
-`include "opcodes/1[ABEF]nnnnn_D[01]_EQ_5n.v"
+`include "opcodes/1[9ABDEF]nnnnn_D[01]_EQ_[245]n.v"
 `include "opcodes/2n_P_EQ_n.v"
 `include "opcodes/3n[x...]_LC.v"
 `include "opcodes/6xxx_GOTO.v"
