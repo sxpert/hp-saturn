@@ -57,6 +57,14 @@
 		$display("%05h SETDEC", inst_start_PC);
 		`endif
 	end
+	4'h6: begin
+		rstk_ptr <= rstk_ptr + 1;
+		RSTK[rstk_ptr + 1] <= C[19:0];
+		decstate <= `DEC_START;
+		`ifdef SIM
+		$display("%05h RSTK=C", inst_start_PC);
+		`endif
+	end
 	default: begin
         $display("ERROR : DEC_0X");
         decode_error <= 1;
