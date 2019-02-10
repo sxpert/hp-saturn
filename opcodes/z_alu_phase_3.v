@@ -22,28 +22,41 @@
         `ALU_REG_B: B[alu_first*4+:4] <= 0;
         `ALU_REG_C: C[alu_first*4+:4] <= 0;
         `ALU_REG_D: D[alu_first*4+:4] <= 0;
-        default: $display("ALU_OP_ZERO register not handled");
+        default: begin
+            $display("ALU_OP_ZERO register not handled");
+            alu_requested_halt <= 1;
+        end
         endcase
         alu_first <= (alu_first + 1) & 4'hF;
     end
     `ALU_OP_2CMPL: begin
         case (alu_reg_dest)
         `ALU_REG_A: {Carry, A[alu_first*4+:4]} <= !alu_src1 + alu_carry;
-        default: $display("ALU_OP_2CMPL register not handled");
+        default: begin
+            $display("ALU_OP_2CMPL register not handled");
+            alu_requested_halt <= 1;
+        end
         endcase
         alu_first <= (alu_first + 1) & 4'hF;
     end
     `ALU_OP_1CMPL: begin
         case (alu_reg_dest)
         `ALU_REG_A: A[alu_first*4+:4] <= ~alu_src1;
-        default: $display("ALU_OP_1CMPL register not handled");
+        `ALU_REG_C: C[alu_first*4+:4] <= ~alu_src1;
+        default: begin
+            $display("ALU_OP_1CMPL register not handled");
+            alu_requested_halt <= 1;
+        end
         endcase
         alu_first <= (alu_first + 1) & 4'hF;
     end
     `ALU_OP_INC: begin
         case (alu_reg_dest)
         `ALU_REG_D: {Carry, D[alu_first*4+:4]} <= alu_src1 + alu_carry;
-        default: $display("ALU_OP_INC register not handled");
+        default: begin
+            $display("ALU_OP_INC register not handled");
+            alu_requested_halt <= 1;
+        end
         endcase
         alu_first <= (alu_first + 1) & 4'hF;
     end

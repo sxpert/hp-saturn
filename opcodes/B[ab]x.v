@@ -30,4 +30,8 @@
     next_cycle <= `BUSCMD_NOP;
     decstate <= `DEC_ALU_INIT;
     alu_return <= `DEC_START;
+
+`ifdef SIM
+
+`endif
 end
