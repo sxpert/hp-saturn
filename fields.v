@@ -39,6 +39,9 @@
 `define ALU_OP_2CMPL     5
 `define ALU_OP_1CMPL     6
 `define ALU_OP_INC       8
+`define ALU_OP_DEC       9
+`define ALU_OP_ADD      10
+`define ALU_OP_SUB      11
 `define ALU_OP_TEST_EQ  12
 `define ALU_OP_TEST_NEQ 13
 

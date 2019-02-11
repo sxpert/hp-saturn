@@ -11,13 +11,13 @@
     field <= `T_FIELD_A;
     alu_first <= 0;
     alu_last  <= 4;
-    alu_reg_dest <= {2'b00, nb_in[1:0]};
+    alu_reg_dest <= reg_ABCD;
 
     if (!nb_in[3]) begin
         $display("F%h shifts not implemented");
         decode_error <= 1;
     end else begin
-        alu_reg_src1 <= {2'b00, nb_in[1:0]};
+        alu_reg_src1 <= reg_ABCD;
         alu_op <= nb_in[2]?`ALU_OP_1CMPL:`ALU_OP_2CMPL;
     end
     alu_debug <= 1;

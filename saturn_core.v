@@ -410,6 +410,19 @@ end
 
 `include "decstates.v"
 
+/*
+ * order of register in 4 op blocs has several common combinations
+ */
+wire [3:0]		reg_ABCD;
+wire [3:0]		reg_BCAC;
+wire [3:0]		reg_ABAC;
+wire [3:0]		reg_BCCD;
+
+assign reg_ABCD = {2'b00, nb_in[1:0]};
+assign reg_BCAC = {2'b00, nb_in[0], !(nb_in[1] || nb_in[0])};
+assign reg_ABAC = {2'b00, nb_in[1] && nb_in[0], (!nb_in[1]) && nb_in[0]};
+assign reg_BCCD = {2'b00, nb_in[1] || nb_in[0], (!nb_in[1]) ^  nb_in[0]};
+
 always @(posedge dec_strobe) begin
 	if (alu_requested_halt) decode_error <= 1;
 	if ((next_cycle == `BUSCMD_LOAD_PC)|
