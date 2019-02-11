@@ -21,8 +21,7 @@
 `define DEC_D1_EQ_5N        12'h1F0         //  1F
 `define DEC_D1_EQ_LOOP      12'h1F1         //  1[EF]xxxxx (exec)
 `define DEC_P_EQ_N          12'h200         //  2n
-`define DEC_LC_LEN          12'h300         //  3n...
-`define DEC_LC              12'h301         //  3n[x]
+`define DEC_LC              12'h300         //  3n[x]
 `define DEC_GOTO            12'h600         //  6
 `define DEC_GOTO_LOOP       12'h601         //  6[x] -> exec
 `define DEC_GOSUB           12'h700         //  7
