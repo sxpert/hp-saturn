@@ -34,10 +34,12 @@ reg [31:0]  instr_ctr;
 
 initial begin
   continue = 0;
+`ifdef SIM
   $monitor({"i_clk %b | i_reset %b | i_cycles %d | i_en_dec %b | i_en_exec %b |",
            " continue %b | instr_start %b | i_nibble %h | block_0x %b | ins_rtnsxm %b"}, 
            i_clk, i_reset, i_cycles, i_en_dec, i_en_exec, continue, 
            instr_start, i_nibble, block_0x, ins_rtnsxm);
+`endif
 end
 
 /*
@@ -73,13 +75,23 @@ always @(posedge i_clk) begin
   end else begin
     if (continue && i_en_dec && block_0x) begin
       ins_rtnsxm <= (i_nibble == 4'h0);
+      continue <= (i_nibble == 4'hE);
     end
   end
 end
 
+reg set_xm;
+
 always @(posedge i_clk) begin
-  if (i_en_exec && ins_rtnsxm)
-    $display("do something");
+  if (i_reset) 
+    set_xm <= 0;
+  else
+    if (i_en_exec && ins_rtnsxm) begin
+`ifdef SIM
+      $display("do something");
+`endif
+      set_xm <= 1;
+    end
 end
 
 
