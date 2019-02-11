@@ -57,6 +57,7 @@ reg	    [31:0]	max_cycle;
 
 // state machine stuff
 wire			halt;
+wire			dec_error;
 
 // hp48_bus bus_ctrl (
 // 	.strobe			(bus_strobe),
@@ -69,13 +70,15 @@ wire			halt;
 // );
 
 saturn_decoder i_decoder (
-	.i_clk		(clk),
-	.i_reset	(reset),
-	.i_cycles	(cycle_ctr),
-	.i_en_dec	(en_inst_dec),
-	.i_en_exec  (en_inst_exec),
+	.i_clk			(clk),
+	.i_reset		(reset),
+	.i_cycles		(cycle_ctr),
+	.i_en_dbg   	(en_debugger),
+	.i_en_dec		(en_inst_dec),
+	.i_en_exec  	(en_inst_exec),
 	// .i_stalled	(stalled),
-	.i_nibble	(nibble_in)
+	.i_nibble		(nibble_in),
+	.o_dec_error	(dec_error)
 );
 
 initial
@@ -161,11 +164,14 @@ always @(posedge clk)
 		// RTNCC
 		6:  nibble_in <= 0;
 		7:  nibble_in <= 3;
+		// SETHEX
+		8:  nibble_in <= 0;
+		9:  nibble_in <= 4;
 		// END
-		8:  clock_end <= 1;
+		50:  clock_end <= 1;
 		endcase
 
-assign halt = clock_end;
+assign halt = clock_end || dec_error;
 
 
 // Verilator lint_off UNUSED
