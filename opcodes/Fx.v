@@ -15,12 +15,12 @@
 
     if (!nb_in[3]) begin
         $display("F%h shifts not implemented");
-        decode_error <= 1;
+        alu_debug <= 1;
+        alu_halt <= 1;
     end else begin
         alu_reg_src1 <= reg_ABCD;
         alu_op <= nb_in[2]?`ALU_OP_1CMPL:`ALU_OP_2CMPL;
     end
-    alu_debug <= 1;
     next_cycle <= `BUSCMD_NOP;
     decstate <= `DEC_ALU_INIT;
     alu_return <= `DEC_START;
