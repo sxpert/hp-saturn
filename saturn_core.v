@@ -130,9 +130,10 @@ reg [3:0]	t_last;
 reg	[3:0]	field;
 reg [1:0]	field_table;
 
-reg [3:0]	alu_op;
+reg [4:0]	alu_op;
 reg [3:0]	alu_first;
 reg [3:0]	alu_last;
+reg [3:0]	alu_const;
 reg [3:0]	alu_reg_src1;
 reg [3:0]	alu_reg_src2;
 reg [3:0]	alu_reg_dest;
@@ -281,7 +282,7 @@ begin
 			case (next_cycle)
 			`BUSCMD_NOP: begin
 				bus_command <= `BUSCMD_NOP;
-				$display("BUS NOT READING, STILL CLOCKING");
+				// $display("BUS NOT READING, STILL CLOCKING");
 			end
 			`BUSCMD_PC_READ: begin
 				bus_command <= `BUSCMD_PC_READ;
@@ -347,20 +348,20 @@ begin
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_LOAD_PC: begin
-				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %5h", cycle_ctr, instr_ctr, new_PC);
+				// $display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %5h", cycle_ctr, instr_ctr, new_PC);
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_LOAD_DP: begin
-				$display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_DP %s %5h", 
-						 cycle_ctr, instr_ctr, t_ptr?"D1":"D0", add_out);
+				// $display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_DP %s %5h", 
+				// 		 cycle_ctr, instr_ctr, t_ptr?"D1":"D0", add_out);
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_CONFIGURE: begin
-				$display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, add_out); 
+				// $display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, add_out); 
 				en_dec_clk <= 1;
 			end
 			`BUSCMD_RESET: begin
-				$display("CYCLE %d | INSTR %d -> BUSCMD_RESET", cycle_ctr, instr_ctr); 
+				// $display("CYCLE %d | INSTR %d -> BUSCMD_RESET", cycle_ctr, instr_ctr); 
 				en_dec_clk <= 1;
 			end
 			default: begin
@@ -398,7 +399,7 @@ always @(posedge ph2) begin
 end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 850)
+	if (cycle_ctr == 890)
 		debug_stop <= 1;
 end
 
@@ -417,11 +418,13 @@ wire [3:0]		reg_ABCD;
 wire [3:0]		reg_BCAC;
 wire [3:0]		reg_ABAC;
 wire [3:0]		reg_BCCD;
+wire [3:0]		reg_D0D1;
 
 assign reg_ABCD = {2'b00, nb_in[1:0]};
 assign reg_BCAC = {2'b00, nb_in[0], !(nb_in[1] || nb_in[0])};
 assign reg_ABAC = {2'b00, nb_in[1] && nb_in[0], (!nb_in[1]) && nb_in[0]};
 assign reg_BCCD = {2'b00, nb_in[1] || nb_in[0], (!nb_in[1]) ^  nb_in[0]};
+assign reg_D0D1 = {3'b010, (nb_in[0] && nb_in[1]) || (nb_in[2] && nb_in[3])};
 
 always @(posedge dec_strobe) begin
 	if (alu_requested_halt) decode_error <= 1;

@@ -9,8 +9,8 @@
 `ifdef SIM
     if (alu_debug) begin
         $display("------------------------ z_alu_phase_3 - Store results -------------------------");
-        $display("SRC1 %h | SRC2 %h | RES1 %h | RES2 %h | RC %b | DEST %h | TMP %h | CARRY %b", 
-                 alu_src1, alu_src2, alu_res1, alu_res2, alu_res_carry,
+        $display("SRC1 %h | SRC2 %h | RES1 %h | RES2 %h | AC %b | RC %b | DEST %h | TMP %h | CARRY %b", 
+                 alu_src1, alu_src2, alu_res1, alu_res2, alu_carry, alu_res_carry,
                  alu_reg_dest, alu_tmp, alu_carry);
     end
 `endif
@@ -25,7 +25,9 @@
     `ALU_OP_EXCH,
     `ALU_OP_2CMPL,
     `ALU_OP_1CMPL,
-    `ALU_OP_INC: begin
+    `ALU_OP_INC,
+    `ALU_OP_ADD_CST,
+    `ALU_OP_SUB_CST: begin
         case ((alu_op==`ALU_OP_EXCH)?alu_reg_src1:alu_reg_dest)
         `ALU_REG_A:  A[alu_first*4+:4]  <= alu_res1;
         `ALU_REG_B:  B[alu_first*4+:4]  <= alu_res1;
@@ -61,6 +63,8 @@
     `ALU_OP_2CMPL,
     `ALU_OP_1CMPL,
     `ALU_OP_INC,
+    `ALU_OP_ADD_CST,
+    `ALU_OP_SUB_CST,
     `ALU_OP_TEST_EQ,
     `ALU_OP_TEST_NEQ: begin end // nothing do to with alu_res2
     // exchange requires res2
@@ -96,6 +100,8 @@
     `ALU_OP_2CMPL,
     `ALU_OP_1CMPL,
     `ALU_OP_INC,
+    `ALU_OP_ADD_CST,
+    `ALU_OP_SUB_CST,
     `ALU_OP_TEST_EQ,
     `ALU_OP_TEST_NEQ: begin
         Carry <= alu_res_carry;

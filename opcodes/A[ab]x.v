@@ -12,25 +12,60 @@
 
 `DEC_Axx_EXEC: begin
     if (!field_table[0]) begin
-        $display("table 'a' not handled yet");
-        decode_error <= 1;
-    end else begin
-        if (!nb_in[3]) begin
-            alu_reg_dest <= {2'b0, nb_in[1:0]};
-            if (!nb_in[2]) alu_op <= `ALU_OP_ZERO;
-            else begin
-                alu_op <= `ALU_OP_COPY;
-                alu_reg_src1 <= {2'b00, nb_in[0], (!(nb_in[0] || nb_in[1])) && nb_in[2]};
-            end;
-        end else begin
-            $display("DEC_Axx_EXEC %h", nb_in);
-            decode_error <= 1;
+        // math ops
+        if (nb_in[3:2] != 2'b11) 
+            alu_op <= `ALU_OP_ADD;
+        else alu_op <= `ALU_OP_DEC;
+        case (nb_in[3:2])
+        2'b00: begin
+            alu_reg_dest <= reg_ABCD;
+            alu_reg_src1 <= reg_ABCD;
+            alu_reg_src2 <= reg_BCAC;
         end
+        2'b01: begin
+            alu_reg_dest <= reg_ABCD;
+            alu_reg_src1 <= reg_ABCD;
+            alu_reg_src2 <= reg_ABCD;
+        end
+        2'b10: begin
+            alu_reg_dest <= reg_BCAC;
+            alu_reg_src1 <= reg_BCAC;
+            alu_reg_src2 <= reg_ABCD;
+        end
+        2'b11: begin
+            alu_reg_dest <= reg_ABCD;
+            alu_reg_src1 <= reg_ABCD;
+        end
+        endcase
+    end else begin
+        // copy and exchange ops
+        case (nb_in[3:2])
+        2'b00: begin
+            alu_reg_dest <= reg_ABCD;
+            alu_op <= `ALU_OP_ZERO;
+        end
+        2'b01: begin
+            alu_reg_dest <= reg_ABCD;
+            alu_reg_src1 <= reg_BCAC;
+            alu_op <= `ALU_OP_COPY;
+        end
+        2'b10: begin
+            alu_reg_dest <= reg_BCAC;
+            alu_reg_src1 <= reg_ABCD;
+            alu_op <= `ALU_OP_COPY;
+        end
+        2'b11: begin
+            alu_reg_dest <= reg_ABAC;
+            alu_reg_src1 <= reg_BCCD;
+            alu_op <= `ALU_OP_EXCH;
+        end
+        endcase
     end
-    alu_debug <= 1;
+    // alu_debug <= 1;
     next_cycle <= `BUSCMD_NOP;
     decstate <= `DEC_ALU_INIT;
     alu_return <= `DEC_START;
+
 `ifdef SIM
     $write("%5h ", inst_start_PC);
     if (!nb_in[3]) 

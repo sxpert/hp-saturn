@@ -42,8 +42,10 @@
 `define ALU_OP_DEC       9
 `define ALU_OP_ADD      10
 `define ALU_OP_SUB      11
-`define ALU_OP_TEST_EQ  12
-`define ALU_OP_TEST_NEQ 13
+`define ALU_OP_ADD_CST  12
+`define ALU_OP_SUB_CST  13
+`define ALU_OP_TEST_EQ  14
+`define ALU_OP_TEST_NEQ 15
 
 
 `define ALU_REG_A        0
@@ -59,7 +61,7 @@
 `define ALU_REG_R2      10
 `define ALU_REG_R3      11
 `define ALU_REG_R4      12
-// 13
+`define ALU_REG_CST     13
 `define ALU_REG_M       14
 `define ALU_REG_0       15
 

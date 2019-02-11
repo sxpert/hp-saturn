@@ -12,8 +12,10 @@
     4'h4: decstate <= `DEC_14X;
     4'h5: decstate <= `DEC_15X;
     4'h6, 4'h7, 4'h8, 4'hC: begin
-        t_ptr <= (nb_in[0] && nb_in[1]) || (nb_in[2] && nb_in[3]);
-        t_add_sub <= nb_in[3];
+        alu_reg_dest <= reg_D0D1;
+        alu_reg_src1 <= reg_D0D1;
+        alu_reg_src2 <= `ALU_REG_CST;
+        alu_op <= nb_in[3]?`ALU_OP_SUB_CST:`ALU_OP_ADD_CST;
         decstate <= `DEC_PTR_MATH;
     end
     4'h9: decstate <= `DEC_D0_EQ_2N;

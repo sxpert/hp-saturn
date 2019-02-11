@@ -14,6 +14,8 @@
             {Carry, A[19:0]} = A[19:0] + C[19:0];
             decstate <= `DEC_START;
         end 
+
+
 `ifdef SIM
         $display("%5h A=A+C\tA%s", inst_start_PC, hex_dec?"\t\t\t <=== DEC MODE NOT IMPLEMENTED":"");
 `endif

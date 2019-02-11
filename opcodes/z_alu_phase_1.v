@@ -15,12 +15,14 @@ case (decstate)
         `ALU_OP_2CMPL:    $write("2CMPL   ");
         `ALU_OP_1CMPL:    $write("1CMPL   ");
         `ALU_OP_INC:      $write("INC     ");
+        `ALU_OP_ADD_CST:  $write("ADD_CST ");
+        `ALU_OP_SUB_CST:  $write("SUB_CST ");
         `ALU_OP_TEST_EQ:  $write("TEST_EQ ");
         `ALU_OP_TEST_NEQ: $write("TEST_NEQ");
         endcase
         $display(" | FRST %h | LAST %h | SRC1 %h | SRC2 %h | DEST %h",
-                alu_first, alu_last, alu_reg_src1, alu_reg_src2,alu_reg_dest);
-        $display("CARRY %b | STICKY-BIT %b", Carry, HST[1]);
+                alu_first, alu_last, alu_reg_src1, alu_reg_src2, alu_reg_dest);
+        $display("AC %b | CARRY %b | STICKY-BIT %b", alu_carry, Carry, HST[1]);
 
         case (alu_op)
         `ALU_OP_COPY,
@@ -28,6 +30,8 @@ case (decstate)
         `ALU_OP_2CMPL,
         `ALU_OP_1CMPL,
         `ALU_OP_INC,
+        `ALU_OP_ADD_CST,
+        `ALU_OP_SUB_CST,
         `ALU_OP_TEST_EQ,
         `ALU_OP_TEST_NEQ: begin
             $write("SRC1 ");
@@ -90,13 +94,17 @@ case (decstate)
     `ALU_OP_2CMPL,
     `ALU_OP_1CMPL,
     `ALU_OP_INC,
+    `ALU_OP_ADD_CST,
+    `ALU_OP_SUB_CST,
     `ALU_OP_TEST_EQ, 
     `ALU_OP_TEST_NEQ: begin
         case (alu_reg_src1)
-        `ALU_REG_A: alu_src1 <= A[alu_first*4+:4];
-        `ALU_REG_B: alu_src1 <= B[alu_first*4+:4];
-        `ALU_REG_C: alu_src1 <= C[alu_first*4+:4];
-        `ALU_REG_D: alu_src1 <= D[alu_first*4+:4];
+        `ALU_REG_A:  alu_src1 <= A[alu_first*4+:4];
+        `ALU_REG_B:  alu_src1 <= B[alu_first*4+:4];
+        `ALU_REG_C:  alu_src1 <= C[alu_first*4+:4];
+        `ALU_REG_D:  alu_src1 <= D[alu_first*4+:4];
+        `ALU_REG_D0: alu_src1 <= D0[alu_first*4+:4];
+        `ALU_REG_D1: alu_src1 <= D1[alu_first*4+:4];
         `ALU_REG_M: begin end // handled in phase 2
         default: begin
 `ifdef SIM
@@ -121,6 +129,8 @@ case (decstate)
 
     case (alu_op)
     `ALU_OP_EXCH,
+    `ALU_OP_ADD_CST,
+    `ALU_OP_SUB_CST,
     `ALU_OP_TEST_EQ, 
     `ALU_OP_TEST_NEQ: begin
         case ((alu_op==`ALU_OP_EXCH)?alu_reg_dest:alu_reg_src2)
@@ -128,6 +138,7 @@ case (decstate)
         `ALU_REG_B: alu_src2 <= B[alu_first*4+:4];
         `ALU_REG_C: alu_src2 <= C[alu_first*4+:4];
         `ALU_REG_D: alu_src2 <= D[alu_first*4+:4];
+        `ALU_REG_CST: alu_src2 <= alu_const;
         `ALU_REG_0: alu_src2 <= 0;
         default: begin
 `ifdef SIM
@@ -161,9 +172,13 @@ case (decstate)
     `ALU_OP_2CMPL,
     `ALU_OP_1CMPL,
     `ALU_OP_INC,
+    `ALU_OP_ADD_CST,
+    `ALU_OP_SUB_CST,
     `ALU_OP_TEST_EQ, 
-    `ALU_OP_TEST_NEQ: 
+    `ALU_OP_TEST_NEQ: begin
+        // $display("SETTING alu_carry to %h %1b", decstate, ((decstate == `DEC_ALU_INIT)?1:Carry));
         alu_carry <= (decstate == `DEC_ALU_INIT)?1:Carry;
+    end
     /*
      * option 3: carry is always cleared
      */

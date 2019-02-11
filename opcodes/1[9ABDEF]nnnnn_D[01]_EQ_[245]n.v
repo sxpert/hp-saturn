@@ -35,6 +35,9 @@ end
     
     if (t_ctr == t_cnt) begin
         decstate <= `DEC_START;
+
+
+        
 `ifdef SIM
         $write("%5h D%b=(%1d)\t%1h", inst_start_PC, 
             (decstate == `DEC_D0_EQ_LOOP)?1'b0:1'b1,
