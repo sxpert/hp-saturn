@@ -31,9 +31,9 @@
         alu_op <= `ALU_OP_EXCH;
         alu_reg_dest <= {2'b00, nb_in[1] & nb_in[0], (!nb_in[1]) & nb_in[0]};
         alu_reg_src1 <= {2'b00, nb_in[1] | nb_in[0], (!nb_in[1]) ^ nb_in[0]};
+        alu_halt <= 1;
     end
     endcase
-    alu_debug <= 1;
     next_cycle <= `BUSCMD_NOP;
     decstate <= `DEC_ALU_INIT;
     alu_return <= `DEC_START;

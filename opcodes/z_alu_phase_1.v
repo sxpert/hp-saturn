@@ -106,9 +106,10 @@ case (decstate)
  */
 
     case (alu_op)
+    `ALU_OP_EXCH,
     `ALU_OP_TEST_EQ, 
     `ALU_OP_TEST_NEQ: begin
-        case (alu_reg_src2)
+        case ((alu_op==`ALU_OP_EXCH)?alu_reg_dest:alu_reg_src2)
         `ALU_REG_A: alu_src2 <= A[alu_first*4+:4];
         `ALU_REG_B: alu_src2 <= B[alu_first*4+:4];
         `ALU_REG_C: alu_src2 <= C[alu_first*4+:4];

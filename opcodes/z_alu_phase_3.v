@@ -22,10 +22,11 @@
     // cases where the result is useful
     `ALU_OP_ZERO,
     `ALU_OP_COPY,
+    `ALU_OP_EXCH,
     `ALU_OP_2CMPL,
     `ALU_OP_1CMPL,
     `ALU_OP_INC: begin
-        case (alu_reg_dest)
+        case ((alu_op==`ALU_OP_EXCH)?alu_reg_src1:alu_reg_dest)
         `ALU_REG_A: A[alu_first*4+:4] <= alu_res1;
         `ALU_REG_B: B[alu_first*4+:4] <= alu_res1;
         `ALU_REG_C: C[alu_first*4+:4] <= alu_res1;
@@ -40,11 +41,37 @@
     end
     default: begin
 `ifdef SIM
-        $display("ALU: operation not implemented");
+        $display("ALU alu_res1: operation not implemented");
         decode_error <= 1;
 `endif
     end
     endcase
+
+    case (alu_op)
+    `ALU_OP_ZERO,
+    `ALU_OP_COPY,
+    `ALU_OP_2CMPL,
+    `ALU_OP_1CMPL,
+    `ALU_OP_INC,
+    `ALU_OP_TEST_EQ,
+    `ALU_OP_TEST_NEQ: begin end // nothing do to with alu_res2
+    // exchange requires res2
+    `ALU_OP_EXCH: begin
+        case (alu_reg_dest)
+        `ALU_REG_A: A[alu_first*4+:4] <= alu_res2;
+        `ALU_REG_B: B[alu_first*4+:4] <= alu_res2;
+        `ALU_REG_C: C[alu_first*4+:4] <= alu_res2;
+        `ALU_REG_D: D[alu_first*4+:4] <= alu_res2;
+        endcase  
+    end
+    default: begin
+`ifdef SIM
+        $display("ALU alu_res2: operation not implemented");
+        decode_error <= 1;
+`endif
+    end
+    endcase 
+
     /*
      * handle carry TODO: check if there are operations that don't touch carry
      */

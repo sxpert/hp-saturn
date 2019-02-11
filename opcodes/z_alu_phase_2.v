@@ -15,21 +15,16 @@ case (decstate)
         alu_res_carry <= 0;
     end
     `ALU_OP_COPY: begin
-        case (alu_reg_src1)
-        `ALU_REG_A,
-        `ALU_REG_B,
-        `ALU_REG_C,
-        `ALU_REG_D: alu_res1 <= alu_src1;
-        `ALU_REG_M: alu_res1 <= bus_nibble_out;
-        default: begin
-            $display("ALU_P2 ERROR : ALU_OP %d REGISTER NOT IMPLEMENTED %d", alu_op, alu_reg_src1);
-            alu_p2_halt <= 1;
-        end
-        endcase
+        alu_res1 <=  (alu_reg_src1 == `ALU_REG_M)? bus_nibble_out : alu_src1;
+        alu_res_carry <= 0;
+    end
+    `ALU_OP_EXCH: begin
+        alu_res1 <= alu_src2;
+        alu_res2 <= alu_src1;
         alu_res_carry <= 0;
     end
     `ALU_OP_2CMPL: begin
-        {alu_res_carry, alu_res1} <= !alu_src1 + alu_carry;
+        {alu_res_carry, alu_res1} <= ~alu_src1 + alu_carry;
     end
    `ALU_OP_1CMPL: begin
         alu_res1 <= ~alu_src1;
