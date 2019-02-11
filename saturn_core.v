@@ -439,6 +439,10 @@ always @(posedge dec_strobe) begin
 				PC, decstate, nb_in);
 		case (decstate)
 		`DEC_START:	begin
+			// disable ALU debugging at the start of a new instruction
+			alu_debug <= 0;
+			// reset debugger op_code
+			dbg_op_code <= 0;
 			instr_ctr <= instr_ctr + 1;
 			inst_start_PC <= PC;
 			case (nb_in)
