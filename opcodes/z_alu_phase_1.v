@@ -22,36 +22,50 @@ case (decstate)
                 alu_first, alu_last, alu_reg_src1, alu_reg_src2,alu_reg_dest);
         $display("CARRY %b | STICKY-BIT %b", Carry, HST[1]);
 
-        $write("SRC1 ");
-        case (alu_reg_src1)
-        `ALU_REG_A: $display("A: %h", A);
-        `ALU_REG_B: $display("B: %h", B);
-        `ALU_REG_C: $display("C: %h", C);
-        `ALU_REG_D: $display("D: %h", D);
-        `ALU_REG_M: $display("M: %h", dbg_data);
-        `ALU_REG_0: $display("0: 0000000000000000");
-        default: $display("%d ?", alu_reg_src1);
-        endcase
-        $write("        ");
-        for (display_counter = 15; display_counter != 255; display_counter = display_counter - 1)
-            case (display_counter[3:0])
-            alu_last:  
-                if (alu_first == alu_last) $write("!");
-                else $write("L");
-            alu_first: $write("^");
-            default:   $write(".");
+        case (alu_op)
+        `ALU_OP_COPY,
+        `ALU_OP_EXCH,
+        `ALU_OP_2CMPL,
+        `ALU_OP_1CMPL,
+        `ALU_OP_INC,
+        `ALU_OP_TEST_EQ,
+        `ALU_OP_TEST_NEQ: begin
+            $write("SRC1 ");
+            case (alu_reg_src1)
+            `ALU_REG_A:  $display("A:  %h", A);
+            `ALU_REG_B:  $display("B:  %h", B);
+            `ALU_REG_C:  $display("C:  %h", C);
+            `ALU_REG_D:  $display("D:  %h", D);
+            `ALU_REG_D0: $display("D0:            %h", D0);
+            `ALU_REG_D1: $display("D1:            %h", D1);
+            `ALU_REG_M:  $display("M:  %h", dbg_data);
+            `ALU_REG_0:  $display("0:  0000000000000000");
+            default: $display("%d ?", alu_reg_src1);
             endcase
-        $display("");
+            $write("         ");
+            for (display_counter = 15; display_counter != 255; display_counter = display_counter - 1)
+                case (display_counter[3:0])
+                alu_last:  
+                    if (alu_first == alu_last) $write("!");
+                    else $write("L");
+                alu_first: $write("^");
+                default:   $write(".");
+                endcase
+            $display("");
+        end
+        endcase
 
         // dest
         $write("DEST ");
         case (alu_reg_dest)
-        `ALU_REG_A: $display("A: %h", A);
-        `ALU_REG_B: $display("B: %h", B);
-        `ALU_REG_C: $display("C: %h", C);
-        `ALU_REG_D: $display("D: %h", D);
+        `ALU_REG_A:  $display("A:  %h", A);
+        `ALU_REG_B:  $display("B:  %h", B);
+        `ALU_REG_C:  $display("C:  %h", C);
+        `ALU_REG_D:  $display("D:  %h", D);
+        `ALU_REG_D0: $display("D0:            %h", D0);
+        `ALU_REG_D1: $display("D1:            %h", D1);
         endcase
-        $write("        ");
+        $write("         ");
         for (display_counter = 15; display_counter != 255; display_counter = display_counter - 1)
             case (display_counter[3:0])
             alu_last:  
@@ -86,7 +100,7 @@ case (decstate)
         `ALU_REG_M: begin end // handled in phase 2
         default: begin
 `ifdef SIM
-            $display("ALU_P1 ERROR: ALU_OP %d REGISTER NOT IMPLEMENTED %d", alu_op, alu_reg_src1);
+            $display("ALU_P1 ERROR: ALU_OP %d SRC1 REGISTER NOT IMPLEMENTED %d", alu_op, alu_reg_src1);
             alu_p1_halt <= 1;
 `endif
         end
@@ -115,6 +129,12 @@ case (decstate)
         `ALU_REG_C: alu_src2 <= C[alu_first*4+:4];
         `ALU_REG_D: alu_src2 <= D[alu_first*4+:4];
         `ALU_REG_0: alu_src2 <= 0;
+        default: begin
+`ifdef SIM
+            $display("ALU_P1 ERROR: ALU_OP %d SRC2 REGISTER NOT IMPLEMENTED %d", alu_op, alu_reg_src1);
+            alu_p1_halt <= 1;
+`endif
+        end
         endcase
     end
     default: begin

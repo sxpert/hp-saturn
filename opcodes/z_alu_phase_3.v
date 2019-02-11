@@ -27,10 +27,18 @@
     `ALU_OP_1CMPL,
     `ALU_OP_INC: begin
         case ((alu_op==`ALU_OP_EXCH)?alu_reg_src1:alu_reg_dest)
-        `ALU_REG_A: A[alu_first*4+:4] <= alu_res1;
-        `ALU_REG_B: B[alu_first*4+:4] <= alu_res1;
-        `ALU_REG_C: C[alu_first*4+:4] <= alu_res1;
-        `ALU_REG_D: D[alu_first*4+:4] <= alu_res1;
+        `ALU_REG_A:  A[alu_first*4+:4]  <= alu_res1;
+        `ALU_REG_B:  B[alu_first*4+:4]  <= alu_res1;
+        `ALU_REG_C:  C[alu_first*4+:4]  <= alu_res1;
+        `ALU_REG_D:  D[alu_first*4+:4]  <= alu_res1;
+        `ALU_REG_D0: D0[alu_first*4+:4] <= alu_res1;
+        `ALU_REG_D1: D1[alu_first*4+:4] <= alu_res1;
+        default: begin
+`ifdef SIM
+            $display("ALU_P3 ERROR: ALU_OP %d DEST REGISTER NOT IMPLEMENTED %d", alu_op, (alu_op==`ALU_OP_EXCH)?alu_reg_src1:alu_reg_dest);
+            alu_p1_halt <= 1;
+`endif
+        end
         endcase   
         alu_first <= (alu_first + 1) & 4'hF;
     end
@@ -58,10 +66,18 @@
     // exchange requires res2
     `ALU_OP_EXCH: begin
         case (alu_reg_dest)
-        `ALU_REG_A: A[alu_first*4+:4] <= alu_res2;
-        `ALU_REG_B: B[alu_first*4+:4] <= alu_res2;
-        `ALU_REG_C: C[alu_first*4+:4] <= alu_res2;
-        `ALU_REG_D: D[alu_first*4+:4] <= alu_res2;
+        `ALU_REG_A:  A[alu_first*4+:4]  <= alu_res2;
+        `ALU_REG_B:  B[alu_first*4+:4]  <= alu_res2;
+        `ALU_REG_C:  C[alu_first*4+:4]  <= alu_res2;
+        `ALU_REG_D:  D[alu_first*4+:4]  <= alu_res2;
+        `ALU_REG_D0: D0[alu_first*4+:4] <= alu_res2;
+        `ALU_REG_D1: D1[alu_first*4+:4] <= alu_res2;
+        default: begin
+`ifdef SIM
+            $display("ALU_P3 ERROR: ALU_OP %d DEST2 REGISTER NOT IMPLEMENTED %d", alu_op, alu_reg_dest);
+            alu_p1_halt <= 1;
+`endif
+        end
         endcase  
     end
     default: begin

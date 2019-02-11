@@ -76,23 +76,23 @@ end
  
 `DEC_MEMAXX, `DEC_MEMAXX_END: begin
     next_cycle <= t_dir ? `BUSCMD_DP_READ : `BUSCMD_DP_WRITE;  
-    case (next_cycle)
-    `BUSCMD_LOAD_DP: $write("BUSCMD_LOAD_DP");
-    `BUSCMD_DP_WRITE: $write("BUSCMD_WRITE_DP");
-    `BUSCMD_DP_READ: $write("BUSCMD_READ_DP");
-    default: $write("UNKNOWN %h", next_cycle);
-    endcase
-    $display(" | CNT %h | CTR %h", t_cnt, t_ctr);
+    // case (next_cycle)
+    // `BUSCMD_LOAD_DP: $write("BUSCMD_LOAD_DP");
+    // `BUSCMD_DP_WRITE: $write("BUSCMD_WRITE_DP");
+    // `BUSCMD_DP_READ: $write("BUSCMD_READ_DP");
+    // default: $write("UNKNOWN %h", next_cycle);
+    // endcase
+    // $display(" | CNT %h | CTR %h", t_cnt, t_ctr);
     if (t_dir == `T_DIR_IN) begin
         if (next_cycle != `BUSCMD_LOAD_DP) begin
             case (t_reg) 
             `T_REG_A: begin
                 A[t_ctr*4+:4] <= nb_in;
-                $display("DP_READ (%h) A[%h] = %h", t_cnt, t_ctr, nb_in);
+                // $display("DP_READ (%h) A[%h] = %h", t_cnt, t_ctr, nb_in);
             end
             `T_REG_C: begin
                 C[t_ctr*4+:4] <= nb_in;
-                $display("DP_READ (%h) C[%h] = %h", t_cnt, t_ctr, nb_in);
+                // $display("DP_READ (%h) C[%h] = %h", t_cnt, t_ctr, nb_in);
             end
             endcase
             if (t_cnt != t_ctr)
@@ -103,17 +103,17 @@ end
             case (t_reg)
             `T_REG_A: begin
                 nb_out <= A[t_ctr*4+:4];
-                $display("DP_WRITE (%h) A[%h] = %h", t_cnt, t_ctr, A[t_ctr*4+:4]);
+                // $display("DP_WRITE (%h) A[%h] = %h", t_cnt, t_ctr, A[t_ctr*4+:4]);
             end
             `T_REG_C: begin
                 nb_out <= C[t_ctr*4+:4];
-                $display("DP_WRITE (%h) C[%h] = %h", t_cnt, t_ctr, C[t_ctr*4+:4]);
+                // $display("DP_WRITE (%h) C[%h] = %h", t_cnt, t_ctr, C[t_ctr*4+:4]);
             end
             endcase
         end
         // needs an extra cycle
         if (t_cnt == t_ctr) begin
-            $display("go to DEC_MEMAXX_END");
+            // $display("go to DEC_MEMAXX_END");
             decstate <= `DEC_MEMAXX_END;
         end else t_ctr <= (t_ctr + 1) & 15;
     end
@@ -122,7 +122,7 @@ end
     if ((t_cnt==t_ctr) &
         (((t_dir == `T_DIR_IN) & (decstate == `DEC_MEMAXX)&(next_cycle!=`BUSCMD_LOAD_DP)) |
          ((t_dir == `T_DIR_OUT) & (decstate == `DEC_MEMAXX_END)))) begin
-        $display("---------------------------- DEC_MEMAXX_END -------------------------------");
+        // $display("---------------------------- DEC_MEMAXX_END -------------------------------");
         decstate <= `DEC_START;
         next_cycle <= `BUSCMD_PC_READ;
 

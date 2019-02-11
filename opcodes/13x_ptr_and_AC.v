@@ -7,15 +7,19 @@
 `include "decstates.v"
 
 `DEC_13X: begin
-    case (nb_in)
-    4'h4: D0[19:0] <= C[19:0];
-    4'h5: D1[19:0] <= C[19:0];
-    default: begin 
-        $display("ERROR : DEC_13X");
-        decode_error <= 1;    
-    end
-    endcase
-    decstate <= `DEC_START;
+    field <= `T_FIELD_A;
+    alu_first <= 0;
+    alu_last  <= nb_in[3]?3:4;
+    alu_reg_dest <= {1'b0, !nb_in[1], nb_in[2] &&  nb_in[1], !nb_in[1] && nb_in[0]};
+    alu_reg_src1 <= {1'b0,  nb_in[1], nb_in[2] && !nb_in[1],  nb_in[1] && nb_in[0]};
+    alu_op <= nb_in[1]?`ALU_OP_EXCH:`ALU_OP_COPY;
+
+    next_cycle <= `BUSCMD_NOP;
+    decstate <= `DEC_ALU_INIT;
+    alu_return <= `DEC_START;
+
+    alu_debug <= 1;
+
 `ifdef SIM
     $write("%5h ", inst_start_PC);
     if (!nb_in[1]) 
