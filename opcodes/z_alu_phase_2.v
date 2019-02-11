@@ -16,8 +16,15 @@ case (decstate)
     end
     `ALU_OP_COPY: begin
         case (alu_reg_src1)
-        `ALU_REG_MEM: alu_res1 <= bus_nibble_out;
-        default: $display("register not handled %d", alu_reg_src1);
+        `ALU_REG_A,
+        `ALU_REG_B,
+        `ALU_REG_C,
+        `ALU_REG_D: alu_res1 <= alu_src1;
+        `ALU_REG_M: alu_res1 <= bus_nibble_out;
+        default: begin
+            $display("ALU_P2 ERROR : ALU_OP %d REGISTER NOT IMPLEMENTED %d", alu_op, alu_reg_src1);
+            alu_p2_halt <= 1;
+        end
         endcase
         alu_res_carry <= 0;
     end

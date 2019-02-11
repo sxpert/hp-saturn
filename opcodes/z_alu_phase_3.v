@@ -15,8 +15,6 @@
     end
 `endif
 
-
-
     /*
      * put the result in destination register
      */
@@ -66,7 +64,7 @@
         // the alu is done
         next_cycle <= alu_next_cycle;
         decstate <= alu_return;
-        alu_requested_halt <= alu_halt;
+        alu_requested_halt <= alu_p1_halt | alu_p2_halt | alu_halt ;
     end else decstate <= `DEC_ALU_CONT;
 
 end
