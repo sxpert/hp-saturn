@@ -8,20 +8,33 @@
 `include "decstates.v"
 
 `DEC_DX: begin
-    case (nb_in)
-    4'hA: begin
-        A[19:0] <= C[19:0];
-        $display("%5h A=C\tA", inst_start_PC);
+    field <= `T_FIELD_A;
+    alu_first <= 0;
+    alu_last  <= 4;
+
+    case (nb_in[3:2])
+    2'b00: begin
+        alu_op <= `ALU_OP_ZERO;
+        alu_reg_dest <= {2'b00, nb_in[1:0]};
     end
-    4'hE: begin
-        A[19:0] <= C[19:0];
-        C[19:0] <= A[19:0];
-        $display("%5h ACEX\tA", inst_start_PC);
+    2'b01: begin
+        alu_op <= `ALU_OP_COPY;
+        alu_reg_dest <= {2'b00, nb_in[1:0]};
+        alu_reg_src1 <= {2'b00, nb_in[0], !(nb_in[1] | nb_in[0])};
     end
-    default: begin 
-        $display("ERROR : DEC_DX");
-        decode_error <= 1;    
+    2'b10: begin
+        alu_op <= `ALU_OP_COPY;
+        alu_reg_dest <= {2'b00, nb_in[0], !(nb_in[1] | nb_in[0])};
+        alu_reg_src1 <= {2'b00, nb_in[1:0]};
+    end
+    2'b11: begin
+        alu_op <= `ALU_OP_EXCH;
+        alu_reg_dest <= {2'b00, nb_in[1] & nb_in[0], (!nb_in[1]) & nb_in[0]};
+        alu_reg_src1 <= {2'b00, nb_in[1] | nb_in[0], (!nb_in[1]) ^ nb_in[0]};
     end
     endcase
-    decstate <= `DEC_START;
+    alu_debug <= 1;
+    next_cycle <= `BUSCMD_NOP;
+    decstate <= `DEC_ALU_INIT;
+    alu_return <= `DEC_START;
 end
