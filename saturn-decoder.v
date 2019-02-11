@@ -35,10 +35,12 @@ reg [31:0]  instr_ctr;
 initial begin
   continue = 0;
 `ifdef SIM
-  $monitor({"i_clk %b | i_reset %b | i_cycles %d | i_en_dec %b | i_en_exec %b |",
-           " continue %b | instr_start %b | i_nibble %h | block_0x %b | ins_rtnsxm %b"}, 
-           i_clk, i_reset, i_cycles, i_en_dec, i_en_exec, continue, 
-           instr_start, i_nibble, block_0x, ins_rtnsxm);
+  // $monitor({"i_clk %b | i_reset %b | i_cycles %d | i_en_dec %b | i_en_exec %b |",
+  //          " continue %b | instr_start %b | i_nibble %h"}, 
+  //          i_clk, i_reset, i_cycles, i_en_dec, i_en_exec, continue, 
+  //          instr_start, i_nibble);
+  // $monitor("i_en_dec %b | i_en_exec %b | i_cycles %d | nb %h | fn %b | cont %b | b0x %b | rtn %b | sxm %b | sc %b | cv %b",
+  //          i_en_dec, i_en_exec, i_cycles, i_nibble, instr_start, continue, block_0x, ins_rtn, set_xm, set_carry, carry_val);
 `endif
 end
 
@@ -55,43 +57,85 @@ always @(posedge i_clk) begin
   if (i_reset) begin
     block_0x <= 0;
   end else begin
-    if (instr_start && i_en_dec) begin
-      continue <= 1;
-      // assign block regs
-      block_0x <= (i_nibble == 4'h0);
+    if (i_en_dec)
+      if (instr_start && i_en_dec) begin
+`ifdef SIM
+        $display("%d | %b | %b | first nibble", i_cycles, i_en_dec, i_en_exec);
+`endif
+        continue <= 1;
+        // assign block regs
+        block_0x <= (i_nibble == 4'h0);
+      end else begin
+        $display("%d | first_nibble: clear block_0x", i_cycles);
+        block_0x <= 0;
+      end
     end
-  end
 end
 
-/*
- * handle block 0
+/******************************************************************************
+ *
+ * 0x
+ *
+ * 00   RTNSXM
+ * 01   RTN
+ *
  */
 
-reg ins_rtnsxm;
+reg ins_rtn;
+
+reg set_xm;
+reg set_carry;
+reg carry_val;
 
 always @(posedge i_clk) begin
   if (i_reset) begin
-    ins_rtnsxm <= 0;
+    ins_rtn   <= 0;
+    set_xm    <= 0;
+    set_carry <= 0;
+    carry_val <= 0;
   end else begin
-    if (continue && i_en_dec && block_0x) begin
-      ins_rtnsxm <= (i_nibble == 4'h0);
-      continue <= (i_nibble == 4'hE);
+    if (i_en_dec)
+      if (continue && block_0x) begin
+`ifdef SIM
+        $display("%d | block_0x:", i_cycles);
+`endif
+        block_0x <= 0;
+        case (i_nibble)
+        4'h0, 4'h1, 4'h2, 4'h3:
+          ins_rtn <= 1;
+        endcase
+        set_xm    <= (i_nibble == 4'h0);
+        set_carry <= (i_nibble[3:1] == 1);
+        carry_val <= (i_nibble[1] && i_nibble[0]);
+        continue <= (i_nibble == 4'hE);
+      end else begin
+        $display("%d | block_0x: clearing rtn, xm, sc, cv", i_cycles);
+        ins_rtn <= 0;
+        set_xm <= 0;
+        set_carry <= 0;
+        carry_val <= 0;
+      end
     end
-  end
 end
 
-reg set_xm;
+
+
+
+/******************************************************************************
+ *
+ * execute things
+ * 
+ *****************************************************************************/
 
 always @(posedge i_clk) begin
   if (i_reset) 
     set_xm <= 0;
   else
-    if (i_en_exec && ins_rtnsxm) begin
+    if (i_en_exec && ins_rtn) begin
 `ifdef SIM
-      $display("do something");
+      $display("RTN (XM: %b SC %b CV %b)", set_xm, set_carry, carry_val);
 `endif
-      set_xm <= 1;
-    end
+    end;
 end
 
 

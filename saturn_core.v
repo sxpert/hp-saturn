@@ -149,9 +149,20 @@ reg [3:0] nibble_in;
 always @(posedge clk)
 	if (en_bus_recv)
 		case (cycle_ctr)
+		// RTNSXM
 		0:	nibble_in <= 0;
 		1:  nibble_in <= 0;
-		2:  clock_end <= 1;
+		// RTN
+		2:  nibble_in <= 0;
+		3:  nibble_in <= 1;
+		// RTNSC
+		4:  nibble_in <= 0;
+		5:  nibble_in <= 2;
+		// RTNCC
+		6:  nibble_in <= 0;
+		7:  nibble_in <= 3;
+		// END
+		8:  clock_end <= 1;
 		endcase
 
 assign halt = clock_end;
