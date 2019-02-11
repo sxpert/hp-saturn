@@ -4,9 +4,10 @@
 
 `default_nettype none //
 
-`include "bus_commands.v"
-`include "hp48_00_bus.v"
-`include "dbg_module.v"
+// `include "bus_commands.v"
+// `include "hp48_00_bus.v"
+// `include "dbg_module.v"
+`include "saturn-decoder.v"
 
 /**************************************************************************************************
  *
@@ -66,6 +67,16 @@ wire			halt;
 // 	.nibble_out		(bus_nibble_out),
 // 	.bus_error		(bus_error)
 // );
+
+saturn_decoder i_decoder (
+	.i_clk		(clk),
+	.i_reset	(reset),
+	.i_cycles	(cycle_ctr),
+	.i_en_dec	(en_inst_dec),
+	.i_en_exec  (en_inst_exec),
+	// .i_stalled	(stalled),
+	.i_nibble	(nibble_in)
+);
 
 initial
 	begin
@@ -129,10 +140,19 @@ always @(posedge clk) begin
 	end
 end
 
-always @(posedge clk) 
-	if (en_debugger)
-		$display(cycle_ctr);
+// always @(posedge clk) 
+// 	if (en_debugger)
+// 		$display(cycle_ctr);
 
+reg [3:0] nibble_in;
+
+always @(posedge clk)
+	if (en_bus_recv)
+		case (cycle_ctr)
+		0:	nibble_in <= 0;
+		1:  nibble_in <= 0;
+		2:  clock_end <= 1;
+		endcase
 
 assign halt = clock_end;
 
