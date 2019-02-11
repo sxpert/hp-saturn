@@ -47,6 +47,7 @@
 `define ALU_REG_B        1
 `define ALU_REG_C        2
 `define ALU_REG_D        3
+`define ALU_REG_MEM     14
 `define ALU_REG_0       15
 
 `endif
