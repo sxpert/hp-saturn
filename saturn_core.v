@@ -42,15 +42,16 @@ assign reset		= btn[1];
 `endif
 
 // clocks
-reg		[1:0]	clk_phase;
+reg		[31:0]	clk_phase;
 reg				en_debugger;	// phase 0
 reg				en_bus_send;	// phase 0
 reg				en_bus_recv;	// phase 1
 reg				en_alu_prep;	// phase 1
 reg				en_alu_calc;	// phase 2
 reg				en_inst_dec;	// phase 2
-reg				en_qlu_save;	// phase 3
+reg				en_alu_save;	// phase 3
 reg				en_inst_exec;	// phase 3
+reg				clock_end;
 
 // state machine stuff
 wire			halt;
@@ -179,19 +180,28 @@ reg	[63:0]	R2;
 reg	[63:0]	R3;
 reg	[63:0]	R4;
 
-hp48_bus bus_ctrl (
-	.strobe			(bus_strobe),
-	.reset			(reset),
-	.address		(bus_address),
-	.command		(bus_command),
-	.nibble_in		(bus_nibble_in),
-	.nibble_out		(bus_nibble_out),
-	.bus_error		(bus_error)
-);
+// hp48_bus bus_ctrl (
+// 	.strobe			(bus_strobe),
+// 	.reset			(reset),
+// 	.address		(bus_address),
+// 	.command		(bus_command),
+// 	.nibble_in		(bus_nibble_in),
+// 	.nibble_out		(bus_nibble_out),
+// 	.bus_error		(bus_error)
+// );
 
 initial
 	begin
 		clk_phase 				= 0;
+		en_debugger 			= 0;	// phase 0
+		en_bus_send 			= 0;	// phase 0
+		en_bus_recv 			= 0;	// phase 1
+		en_alu_prep 			= 0;	// phase 1
+		en_alu_calc 			= 0;	// phase 2
+		en_inst_dec 			= 0;	// phase 2
+		en_alu_save 			= 0;	// phase 3
+		en_inst_exec			= 0;	// phase 3
+		clock_end				= 0;
 		$display("initialize cycle counter");
 		cycle_ctr_ready			= 0;
 		cycle_ctr				= 0;
@@ -224,13 +234,12 @@ initial
 		inst_start_PC			= 0;
 		rstk_ptr				= 7;
 
-		// $monitor("rst %b | CLK %b | CLK2 %b | CLK3 %b | PH0 %b | PH1 %b | PH2 %b | PH3 %b | CTR %d | EBCLK %b| STRB %b  | BLPC %b | bnbi %b | bnbo %b | nb %b ",
-		// 		 reset, clk, clk2, clk3, ph0, ph1, ph2, ph3, cycle_ctr, en_bus_clk, strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
-		// $monitor("CTR %d | EBCLK %b| B_STRB %b  | EDCLK %b | D_STRB %b | BLPC %b | bnbi %b | bnbo %b | nb %b ",
-		// 		 cycle_ctr, en_bus_clk, bus_strobe, en_dec_clk, dec_strobe, bus_load_pc, bus_nibble_in, bus_nibble_out, nibble);
-		// $monitor("BLPC %b | EBLPC %b",
-		// 		 bus_load_pc, en_bus_load_pc);
-		//$monitor("NC %h", next_cycle);
+		$monitor("CLK %b | CLKP %d | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
+				 clk, clk_phase, 
+				 en_debugger, en_bus_send, 
+				 en_bus_recv, en_alu_prep, 
+				 en_alu_calc, en_inst_dec, 
+				 en_alu_save, en_inst_exec);
 	end
 
 //--------------------------------------------------------------------------------------------------
@@ -242,14 +251,28 @@ initial
 always @(posedge clk) begin
 	if (!reset) begin
 		clk_phase <= clk_phase + 1;
-		en_debugger  <= clk_phase == 0;
-		en_bus_send  <= clk_phase == 0;
-		en_bus_recv  <= clk_phase == 1;
-		en_alu_prep  <= clk_phase == 1;
-		en_alu_calc  <= clk_phase == 2;
-		en_inst_dec  <= clk_phase == 2;
-		en_alu_save  <= clk_phase == 3;
-		en_inst_exec <= clk_phase == 3;
+		en_debugger  <= clk_phase[1:0] == 0;
+		en_bus_send  <= clk_phase[1:0] == 0;
+		en_bus_recv  <= clk_phase[1:0] == 1;
+		en_alu_prep  <= clk_phase[1:0] == 1;
+		en_alu_calc  <= clk_phase[1:0] == 2;
+		en_inst_dec  <= clk_phase[1:0] == 2;
+		en_alu_save  <= clk_phase[1:0] == 3;
+		en_inst_exec <= clk_phase[1:0] == 3;
+		// stop after 50 clocks
+		if (clk_phase == 50)
+			clock_end <= 1;
+	end else begin
+		clk_phase 	  <= 0;
+		en_debugger   <= 0;
+		en_bus_send   <= 0;
+		en_bus_recv   <= 0;
+		en_alu_prep   <= 0;
+		en_alu_calc   <= 0;
+		en_inst_dec   <= 0;
+		en_alu_save   <= 0;
+		en_inst_exec  <= 0;
+		clock_end	  <= 0;
 	end
 end
 
@@ -262,110 +285,110 @@ end
 `include "fields.v"
 // `include "bus_commands.v"
 
-always @(posedge bus_ctrl_clk)
-begin
-	if (!reset) begin
-		if (clk3) begin
-			en_dec_clk <= 0;
-			if (cycle_ctr_ready)
-				cycle_ctr <= cycle_ctr + 1;
-			else cycle_ctr_ready <= 1;
-			case (next_cycle)
-			`BUSCMD_NOP: begin
-				bus_command <= `BUSCMD_NOP;
-				// $display("BUS NOT READING, STILL CLOCKING");
-			end
-			`BUSCMD_PC_READ: begin
-				bus_command <= `BUSCMD_PC_READ;
-				en_bus_clk <= 1;
-				PC <= next_PC;
-				inc_pc <= 1;
-			end
-			`BUSCMD_DP_READ: begin
-				bus_command <= `BUSCMD_DP_READ;
-				en_bus_clk <= 1;
-			end
-			`BUSCMD_DP_WRITE: begin
-				bus_command <= `BUSCMD_DP_WRITE;
-				bus_nibble_in <= nb_out;
-				en_bus_clk <= 1;
-			end
-			`BUSCMD_LOAD_PC: begin
-				bus_command <= `BUSCMD_LOAD_PC;
-				bus_address <= new_PC;
-				next_PC <= new_PC;
-				PC <= new_PC;
-				en_bus_clk <= 1;
-			end
-			`BUSCMD_LOAD_DP: begin
-				bus_command <= `BUSCMD_LOAD_DP;
-				bus_address <= add_out;
-				en_bus_clk <= 1;
-			end
-			`BUSCMD_CONFIGURE: begin
-				bus_command <= `BUSCMD_CONFIGURE;
-				bus_address <= add_out;
-				en_bus_clk <= 1;
-			end
-			`BUSCMD_RESET: begin
-				bus_command <= `BUSCMD_RESET;
-				en_bus_clk <= 1;
-			end
-			default: begin
-				$display("BUS PHASE 1: %h UNIMPLEMENTED", next_cycle);
-			end
-			endcase
-		end
-		else begin
-			case (next_cycle)
-			`BUSCMD_NOP: begin
-				en_dec_clk <= 1;
-			end
-			`BUSCMD_PC_READ: begin
-				nb_in <= bus_nibble_out;
-				en_dec_clk <= 1;
-				if (inc_pc) begin
-					next_PC <= PC + 1;
-					inc_pc <= 0;
-				end
-				// $display("reading nibble %h", bus_nibble_out);
-			end
-			`BUSCMD_DP_READ: begin
-				nb_in <= bus_nibble_out;
-				en_dec_clk <= 1;
-			end
-			`BUSCMD_DP_WRITE: begin
-				// $display("BUS PHASE 2: DP_WRITE cnt %h | ctr %h", t_cnt, t_ctr);
-				en_dec_clk <= 1;
-			end
-			`BUSCMD_LOAD_PC: begin
-				// $display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %5h", cycle_ctr, instr_ctr, new_PC);
-				en_dec_clk <= 1;
-			end
-			`BUSCMD_LOAD_DP: begin
-				// $display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_DP %s %5h", 
-				// 		 cycle_ctr, instr_ctr, t_ptr?"D1":"D0", add_out);
-				en_dec_clk <= 1;
-			end
-			`BUSCMD_CONFIGURE: begin
-				// $display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, add_out); 
-				en_dec_clk <= 1;
-			end
-			`BUSCMD_RESET: begin
-				// $display("CYCLE %d | INSTR %d -> BUSCMD_RESET", cycle_ctr, instr_ctr); 
-				en_dec_clk <= 1;
-			end
-			default: begin
-				$display("BUS PHASE 2: %h UNIMPLEMENTED", next_cycle);
-			end
-			endcase
-			en_bus_clk <= 0;
-		end
-	end
-	else begin
-		$display("RESET");
-	end
-end
+// always @(posedge bus_ctrl_clk)
+// begin
+// 	if (!reset) begin
+// 		if (clk3) begin
+// 			en_dec_clk <= 0;
+// 			if (cycle_ctr_ready)
+// 				cycle_ctr <= cycle_ctr + 1;
+// 			else cycle_ctr_ready <= 1;
+// 			case (next_cycle)
+// 			`BUSCMD_NOP: begin
+// 				bus_command <= `BUSCMD_NOP;
+// 				// $display("BUS NOT READING, STILL CLOCKING");
+// 			end
+// 			`BUSCMD_PC_READ: begin
+// 				bus_command <= `BUSCMD_PC_READ;
+// 				en_bus_clk <= 1;
+// 				PC <= next_PC;
+// 				inc_pc <= 1;
+// 			end
+// 			`BUSCMD_DP_READ: begin
+// 				bus_command <= `BUSCMD_DP_READ;
+// 				en_bus_clk <= 1;
+// 			end
+// 			`BUSCMD_DP_WRITE: begin
+// 				bus_command <= `BUSCMD_DP_WRITE;
+// 				bus_nibble_in <= nb_out;
+// 				en_bus_clk <= 1;
+// 			end
+// 			`BUSCMD_LOAD_PC: begin
+// 				bus_command <= `BUSCMD_LOAD_PC;
+// 				bus_address <= new_PC;
+// 				next_PC <= new_PC;
+// 				PC <= new_PC;
+// 				en_bus_clk <= 1;
+// 			end
+// 			`BUSCMD_LOAD_DP: begin
+// 				bus_command <= `BUSCMD_LOAD_DP;
+// 				bus_address <= add_out;
+// 				en_bus_clk <= 1;
+// 			end
+// 			`BUSCMD_CONFIGURE: begin
+// 				bus_command <= `BUSCMD_CONFIGURE;
+// 				bus_address <= add_out;
+// 				en_bus_clk <= 1;
+// 			end
+// 			`BUSCMD_RESET: begin
+// 				bus_command <= `BUSCMD_RESET;
+// 				en_bus_clk <= 1;
+// 			end
+// 			default: begin
+// 				$display("BUS PHASE 1: %h UNIMPLEMENTED", next_cycle);
+// 			end
+// 			endcase
+// 		end
+// 		else begin
+// 			case (next_cycle)
+// 			`BUSCMD_NOP: begin
+// 				en_dec_clk <= 1;
+// 			end
+// 			`BUSCMD_PC_READ: begin
+// 				nb_in <= bus_nibble_out;
+// 				en_dec_clk <= 1;
+// 				if (inc_pc) begin
+// 					next_PC <= PC + 1;
+// 					inc_pc <= 0;
+// 				end
+// 				// $display("reading nibble %h", bus_nibble_out);
+// 			end
+// 			`BUSCMD_DP_READ: begin
+// 				nb_in <= bus_nibble_out;
+// 				en_dec_clk <= 1;
+// 			end
+// 			`BUSCMD_DP_WRITE: begin
+// 				// $display("BUS PHASE 2: DP_WRITE cnt %h | ctr %h", t_cnt, t_ctr);
+// 				en_dec_clk <= 1;
+// 			end
+// 			`BUSCMD_LOAD_PC: begin
+// 				// $display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_PC %5h", cycle_ctr, instr_ctr, new_PC);
+// 				en_dec_clk <= 1;
+// 			end
+// 			`BUSCMD_LOAD_DP: begin
+// 				// $display("CYCLE %d | INSTR %d -> BUSCMD_LOAD_DP %s %5h", 
+// 				// 		 cycle_ctr, instr_ctr, t_ptr?"D1":"D0", add_out);
+// 				en_dec_clk <= 1;
+// 			end
+// 			`BUSCMD_CONFIGURE: begin
+// 				// $display("CYCLE %d | INSTR %d -> BUSCMD_CONFIGURE %5h", cycle_ctr, instr_ctr, add_out); 
+// 				en_dec_clk <= 1;
+// 			end
+// 			`BUSCMD_RESET: begin
+// 				// $display("CYCLE %d | INSTR %d -> BUSCMD_RESET", cycle_ctr, instr_ctr); 
+// 				en_dec_clk <= 1;
+// 			end
+// 			default: begin
+// 				$display("BUS PHASE 2: %h UNIMPLEMENTED", next_cycle);
+// 			end
+// 			endcase
+// 			en_bus_clk <= 0;
+// 		end
+// 	end
+// 	else begin
+// 		$display("RESET");
+// 	end
+// end
 
 // always @(posedge ph0) begin
 // 	if (dbg_op_code)
@@ -395,7 +418,7 @@ end
 // end
 
 
-assign halt = bus_error | decode_error | debug_stop;
+assign halt = clock_end || bus_error || decode_error || debug_stop;
 
 
 // Verilator lint_off UNUSED
