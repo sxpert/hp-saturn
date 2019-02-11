@@ -10,7 +10,7 @@
 `DEC_LC: begin
     alu_first <= P;
     alu_last <= (P + nb_in) & 4'hF;
-    alu_reg_src1 <= `ALU_REG_MEM;
+    alu_reg_src1 <= `ALU_REG_M;
     alu_reg_dest <= `ALU_REG_C;
     alu_op <= `ALU_OP_COPY;
 

@@ -21,7 +21,7 @@
         alu_reg_src1 <= {2'b00, nb_in[1:0]};
         alu_reg_src2 <= `ALU_REG_0;
     end
-    alu_debug <= 1;
+    // alu_debug <= 1;
     next_cycle <= `BUSCMD_NOP;
     decstate <= `DEC_ALU_INIT;    
     alu_return <= `DEC_TEST_GO;
