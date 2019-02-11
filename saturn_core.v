@@ -57,6 +57,7 @@ reg	    [31:0]	max_cycle;
 
 // state machine stuff
 wire			halt;
+wire [19:0]		reg_pc;
 wire			dec_error;
 
 // hp48_bus bus_ctrl (
@@ -78,6 +79,7 @@ saturn_decoder i_decoder (
 	.i_en_exec  	(en_inst_exec),
 	// .i_stalled	(stalled),
 	.i_nibble		(nibble_in),
+	.o_pc			(reg_pc),
 	.o_dec_error	(dec_error)
 );
 
@@ -139,7 +141,9 @@ always @(posedge clk) begin
 		clock_end	  <= 0;
 		cycle_ctr	  <= ~0;
 		max_cycle <= 50;
-
+`ifndef SIM
+		led[7:0] <= reg_pc[7:0];
+`endif
 	end
 end
 
