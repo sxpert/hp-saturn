@@ -6,6 +6,7 @@
 
 `include "bus_commands.v"
 `include "hp48_00_bus.v"
+`include "dbg_module.v"
 
 /**************************************************************************************************
  *
@@ -59,6 +60,7 @@ wire			dec_strobe;
 
 // state machine stuff
 wire			halt;
+reg				cycle_ctr_ready;
 reg		[31:0]	cycle_ctr;
 reg		[31:0]	instr_ctr;
 reg				decode_error;
@@ -143,10 +145,23 @@ reg			alu_res_carry;
 reg [3:0]	alu_tmp;
 reg			alu_carry;
 reg			alu_debug;
+reg			alu_p1_halt;
+reg			alu_p2_halt;
 reg			alu_halt;
 reg			alu_requested_halt;
 reg	[11:0]	alu_return;
 reg	[3:0]	alu_next_cycle;
+
+// debugger registers
+reg [19:0]	dbg_op_addr;
+reg [15:0]	dbg_op_code;
+reg [3:0]	dbg_reg_dest;
+reg [3:0]	dbg_reg_src1;
+reg [3:0]	dbg_reg_src2;
+reg [3:0]	dbg_field;
+reg [3:0]	dbg_first;
+reg [3:0]	dbg_last;
+reg [63:0]	dbg_data;
 
 // processor registers
 reg	[19:0]	PC;
@@ -186,8 +201,11 @@ initial
 		clk3					= 0;
 		en_bus_clk				= 0;
 		$display("initialize cycle counter");
-		cycle_ctr				= -1;
+		cycle_ctr_ready			= 0;
+		cycle_ctr				= 0;
 		instr_ctr				= 0;
+		$display("initializing debugger");
+		dbg_op_code				= 0;
 		$display("initializing bus_command");
 		bus_command				= `BUSCMD_NOP;
 		$display("initializing busstate");
@@ -202,6 +220,8 @@ initial
 		read_next_pc			= 1;
 		execute_cycle			= 0;
 		inc_pc					= 0;
+		alu_p1_halt				= 0;
+		alu_p2_halt             = 0;
 		alu_halt				= 0;
 		alu_requested_halt		= 0;
 		$display("should be initializing registers");
@@ -255,7 +275,9 @@ begin
 	if (!reset) begin
 		if (clk3) begin
 			en_dec_clk <= 0;
-			cycle_ctr <= cycle_ctr + 1;
+			if (cycle_ctr_ready)
+				cycle_ctr <= cycle_ctr + 1;
+			else cycle_ctr_ready <= 1;
 			case (next_cycle)
 			`BUSCMD_NOP: begin
 				bus_command <= `BUSCMD_NOP;
@@ -351,6 +373,20 @@ begin
 	else begin
 		$display("RESET");
 	end
+end
+
+always @(posedge ph0) begin
+	if (dbg_op_code)
+		case (dbg_op_code)
+		default: begin
+`ifdef SIM
+			$display("DEBUGGER - UNKNOWN OPCODE: %4h", dbg_op_code);
+`endif
+		end
+		endcase
+`ifdef SIM
+	else $display("DEBUGGER - NOTHING TO DO");
+`endif
 end
 
 always @(posedge ph1) begin
