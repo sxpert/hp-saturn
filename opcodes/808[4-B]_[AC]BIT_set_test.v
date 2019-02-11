@@ -1,4 +1,11 @@
-`DEC_AC_BIT_SET_TEST: begin
+/******************************************************************************
+ * 82x
+ * 
+ * lots of things there
+ *
+ */
+ 
+ `DEC_AC_BIT_SET_TEST: begin
     $display("ERROR: %h | t_reg %b | t_set_test %b | t_set_test_val %b", 
              nb_in, t_reg, t_set_test, t_set_test_val);
     if (!t_set_test) begin

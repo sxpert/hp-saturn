@@ -20,17 +20,17 @@
     2'b01: begin
         alu_op <= `ALU_OP_COPY;
         alu_reg_dest <= {2'b00, nb_in[1:0]};
-        alu_reg_src1 <= {2'b00, nb_in[0], !(nb_in[1] | nb_in[0])};
+        alu_reg_src1 <= {2'b00, nb_in[0], !(nb_in[1] || nb_in[0])};
     end
     2'b10: begin
         alu_op <= `ALU_OP_COPY;
-        alu_reg_dest <= {2'b00, nb_in[0], !(nb_in[1] | nb_in[0])};
+        alu_reg_dest <= {2'b00, nb_in[0], !(nb_in[1] || nb_in[0])};
         alu_reg_src1 <= {2'b00, nb_in[1:0]};
     end
     2'b11: begin
         alu_op <= `ALU_OP_EXCH;
-        alu_reg_dest <= {2'b00, nb_in[1] & nb_in[0], (!nb_in[1]) & nb_in[0]};
-        alu_reg_src1 <= {2'b00, nb_in[1] | nb_in[0], (!nb_in[1]) ^ nb_in[0]};
+        alu_reg_dest <= {2'b00, nb_in[1] && nb_in[0], (!nb_in[1]) && nb_in[0]};
+        alu_reg_src1 <= {2'b00, nb_in[1] || nb_in[0], (!nb_in[1]) ^  nb_in[0]};
         alu_halt <= 1;
     end
     endcase

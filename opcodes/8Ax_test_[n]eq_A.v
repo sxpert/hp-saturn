@@ -14,7 +14,7 @@
     alu_last  <= 4;
     alu_op    <= nb_in[2]?`ALU_OP_TEST_NEQ:`ALU_OP_TEST_EQ;
     if (!nb_in[3]) begin
-        alu_reg_src1 <= {2'b00, nb_in[0], !(nb_in[1] | nb_in[0])};
+        alu_reg_src1 <= {2'b00, nb_in[0], !(nb_in[1] || nb_in[0])};
         alu_reg_src2 <= {2'b00, nb_in[1:0]};
     end
     else begin
@@ -29,7 +29,7 @@
 `ifdef SIM
     $write("%5h ?",  inst_start_PC);
 
-    case ({2'b00, (nb_in[3]?nb_in[1:0]:{nb_in[0], !(nb_in[1] | nb_in[0])})})
+    case ({2'b00, (nb_in[3]?nb_in[1:0]:{nb_in[0], !(nb_in[1] || nb_in[0])})})
     `ALU_REG_A: $write("A");
     `ALU_REG_B: $write("B");
     `ALU_REG_C: $write("C");

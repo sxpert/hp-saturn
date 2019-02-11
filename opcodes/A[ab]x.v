@@ -20,7 +20,7 @@
             if (!nb_in[2]) alu_op <= `ALU_OP_ZERO;
             else begin
                 alu_op <= `ALU_OP_COPY;
-                alu_reg_src1 <= {2'b00, nb_in[0], (!(nb_in[0] | nb_in[1])) & nb_in[2]};
+                alu_reg_src1 <= {2'b00, nb_in[0], (!(nb_in[0] || nb_in[1])) && nb_in[2]};
             end;
         end else begin
             $display("DEC_Axx_EXEC %h", nb_in);
