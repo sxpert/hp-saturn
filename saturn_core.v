@@ -137,6 +137,9 @@ reg [3:0]	alu_reg_dest;
 
 reg [3:0]	alu_src1;
 reg [3:0]	alu_src2;
+reg [3:0]	alu_res1;
+reg [3:0]	alu_res2;
+reg			alu_res_carry;
 reg [3:0]	alu_tmp;
 reg			alu_carry;
 reg			alu_debug;
@@ -350,17 +353,16 @@ begin
 	end
 end
 
-always @(posedge ph1)
-	begin
-	end
+always @(posedge ph1) begin
+`include "opcodes/z_alu_phase_1.v"
+end
 
 always @(posedge ph2) begin
-`include "decstates.v"
 `include "opcodes/z_alu_phase_2.v"
 end
 
 always @(posedge ph3) begin
-	if (cycle_ctr == 750)
+	if (cycle_ctr == 800)
 		debug_stop <= 1;
 end
 
@@ -407,7 +409,7 @@ always @(posedge dec_strobe) begin
 			4'h0: decstate <= `DEC_0X;
 			4'h1: decstate <= `DEC_1X;
 			4'h2: decstate <= `DEC_P_EQ_N;
-			4'h3: decstate <= `DEC_LC_LEN;
+			4'h3: decstate <= `DEC_LC;
 			4'h6: decstate <= `DEC_GOTO;
 			4'h7: decstate <= `DEC_GOSUB;
 			4'h8: decstate <= `DEC_8X;

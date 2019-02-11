@@ -8,64 +8,36 @@
 `DEC_ALU_INIT, `DEC_ALU_CONT: begin
 `ifdef SIM
     if (alu_debug) begin
-        $display("------------------------------- z_alu_phase_3 ---------------------------------");
-        $display("alu_src1 %h | alu_src2 %h | alu_tmp %h | alu_carry %b", 
-                 alu_src1, alu_src2, alu_tmp, alu_carry);
+        $display("------------------------ z_alu_phase_3 - Store results -------------------------");
+        $display("SRC1 %h | SRC2 %h | RES1 %h | RES2 %h | RC %b | DEST %h | TMP %h | CARRY %b", 
+                 alu_src1, alu_src2, alu_res1, alu_res2, alu_res_carry,
+                 alu_reg_dest, alu_tmp, alu_carry);
     end
 `endif
 
+
+
+    /*
+     * put the result in destination register
+     */
     case (alu_op)
-    `ALU_OP_ZERO: begin
-        $display("ALU_OP_ZERO");
-        case (alu_reg_dest)
-        `ALU_REG_A: A[alu_first*4+:4] <= 0;
-        `ALU_REG_B: B[alu_first*4+:4] <= 0;
-        `ALU_REG_C: C[alu_first*4+:4] <= 0;
-        `ALU_REG_D: D[alu_first*4+:4] <= 0;
-        default: begin
-            $display("ALU_OP_ZERO register not handled");
-            alu_requested_halt <= 1;
-        end
-        endcase
-        alu_first <= (alu_first + 1) & 4'hF;
-    end
-    `ALU_OP_2CMPL: begin
-        case (alu_reg_dest)
-        `ALU_REG_A: {Carry, A[alu_first*4+:4]} <= !alu_src1 + alu_carry;
-        default: begin
-            $display("ALU_OP_2CMPL register not handled");
-            alu_requested_halt <= 1;
-        end
-        endcase
-        alu_first <= (alu_first + 1) & 4'hF;
-    end
-    `ALU_OP_1CMPL: begin
-        case (alu_reg_dest)
-        `ALU_REG_A: A[alu_first*4+:4] <= ~alu_src1;
-        `ALU_REG_C: C[alu_first*4+:4] <= ~alu_src1;
-        default: begin
-            $display("ALU_OP_1CMPL register not handled");
-            alu_requested_halt <= 1;
-        end
-        endcase
-        alu_first <= (alu_first + 1) & 4'hF;
-    end
+    // cases where the result is useful
+    `ALU_OP_ZERO,
+    `ALU_OP_COPY,
+    `ALU_OP_2CMPL,
+    `ALU_OP_1CMPL,
     `ALU_OP_INC: begin
         case (alu_reg_dest)
-        `ALU_REG_D: {Carry, D[alu_first*4+:4]} <= alu_src1 + alu_carry;
-        default: begin
-            $display("ALU_OP_INC register not handled");
-            alu_requested_halt <= 1;
-        end
-        endcase
+        `ALU_REG_A: A[alu_first*4+:4] <= alu_res1;
+        `ALU_REG_B: B[alu_first*4+:4] <= alu_res1;
+        `ALU_REG_C: C[alu_first*4+:4] <= alu_res1;
+        `ALU_REG_D: D[alu_first*4+:4] <= alu_res1;
+        endcase   
         alu_first <= (alu_first + 1) & 4'hF;
     end
-    `ALU_OP_TEST_EQ: begin
-        Carry <= (alu_src1 == alu_src2) & alu_carry;
-        alu_first <= (alu_first + 1) & 4'hF;
-    end
+    // cases where there's no result
+    `ALU_OP_TEST_EQ,
     `ALU_OP_TEST_NEQ: begin
-        Carry <= (alu_src1 != alu_src2) & alu_carry;
         alu_first <= (alu_first + 1) & 4'hF;
     end
     default: begin
@@ -73,6 +45,19 @@
         $display("ALU: operation not implemented");
         decode_error <= 1;
 `endif
+    end
+    endcase
+    /*
+     * handle carry TODO: check if there are operations that don't touch carry
+     */
+    case (alu_op)
+    // cases where carry is to be changed
+    `ALU_OP_2CMPL,
+    `ALU_OP_1CMPL,
+    `ALU_OP_INC,
+    `ALU_OP_TEST_EQ,
+    `ALU_OP_TEST_NEQ: begin
+        Carry <= alu_res_carry;
     end
     endcase
 
