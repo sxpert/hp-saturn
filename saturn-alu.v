@@ -45,7 +45,7 @@ always @(posedge i_clk) begin
   if (!i_reset) begin
     if (i_en_alu_prep) begin
       `ifdef SIM
-      $display("ALU_PREP: alu_op %h | f_start %h | f_last %h", i_alu_op, i_field_start, i_field_last);
+    //   $display("ALU_PREP: alu_op %h | f_start %h | f_last %h", i_alu_op, i_field_start, i_field_last);
       `endif
     end
   end
