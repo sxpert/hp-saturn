@@ -29,6 +29,7 @@ module saturn_decoder(
 
   o_fields_table,
   o_field,
+  o_field_valid,
   o_field_start,
   o_field_last,
 
