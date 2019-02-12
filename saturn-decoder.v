@@ -223,11 +223,25 @@ end
  *****************************************************************************/
 
 // general variables
-reg         continue;
-reg         block_0x;
-reg         block_0Efx;
+reg   continue;
+reg   block_0x;
+reg   block_0Efx;
 
-reg         fields_table;
+reg   fields_table;
+
+// wires to make all this supposedly faster
+wire  decoder_active;
+wire  do_on_first_nibble;
+wire  do_on_other_nibbles;
+
+assign decoder_active = !i_reset && i_en_dec && !i_stalled;
+assign do_on_first_nibble = decoder_active && !continue;
+assign do_on_other_nibbles = decoder_active && continue;
+
+wire  do_block_0x;
+assign do_block_0x = do_on_other_nibbles && block_0x;
+wire  do_block_0Efx;
+assign do_block_0Efx = do_on_other_nibbles && block_0Efx;
 
 
 always @(posedge i_clk) begin
@@ -237,142 +251,140 @@ always @(posedge i_clk) begin
     o_dec_error   <= 0;
     o_ins_decoded <= 0;
     o_alu_op      <= 0;
-  end else begin
-    if (i_en_dec && !i_stalled) begin
+  end
+  
+  if (decoder_active) begin
+    /* 
+      * stuff that is always done
+      */
+    o_inc_pc <= 1; // may be set to 0 later
+  end
 
-      /* 
-       * stuff that is always done
-       */
-      o_inc_pc <= 1; // may be set to 0 later
+    /*
+      * cleanup
+      */ 
+  if (do_on_first_nibble) begin
+    continue       <= 1;
 
-      /*
-       * cleanup
-       */ 
-      if (!continue) begin
-        continue       <= 1;
+    o_push         <= 0;
+    o_pop          <= 0;
 
-        o_push         <= 0;
-        o_pop          <= 0;
+    o_ins_decoded  <= 0;
+    // store the address where the instruction starts
+    o_ins_addr     <= i_pc;
 
-        o_ins_decoded  <= 0;
-        // store the address where the instruction starts
-        o_ins_addr     <= i_pc;
+    // cleanup block variables
+    block_0x       <= 0;
+    block_0Efx     <= 0;
 
-        // cleanup block variables
-        block_0x       <= 0;
-        block_0Efx     <= 0;
+    // cleanup fields table variables
+    fields_table   <= 0;
+    o_fields_table <= 3;
+    o_field        <= 0;
+    o_field_start  <= 0;
+    o_field_last   <= 0;
 
-        // cleanup fields table variables
-        fields_table   <= 0;
-        o_fields_table <= 3;
-        o_field        <= 0;
-        o_field_start  <= 0;
-        o_field_last   <= 0;
+    o_alu_op       <= 0;
 
-        o_alu_op       <= 0;
+    // cleanup
+    o_direction    <= 0;
 
-        // cleanup
-        o_direction    <= 0;
+    o_ins_rtn      <= 0;
+    o_set_xm       <= 0;
+    o_set_carry    <= 0;
+    o_carry_val    <= 0;
+    
+    o_ins_set_mode <= 0;
+    o_mode_dec     <= 0;
 
-        o_ins_rtn      <= 0;
-        o_set_xm       <= 0;
-        o_set_carry    <= 0;
-        o_carry_val    <= 0;
-        
-        o_ins_set_mode <= 0;
-        o_mode_dec     <= 0;
+    o_ins_alu_op   <= 0;
 
-        o_ins_alu_op   <= 0;
-      end
+    /*
+      * x first nibble
+      */
 
-      /*
-       * x first nibble
-       */
+    // assign block regs
+    case (i_nibble) 
+    4'h0: block_0x <= 1;
+    default: begin
+      `ifdef SIM
+      $display("new_instruction: nibble %h not handled", i_nibble);
+      `endif
+      o_dec_error <= 1;
+    end
+    endcase
+  end
 
-      if (!continue) begin
-        // assign block regs
-        case (i_nibble) 
-        4'h0: block_0x <= 1;
-        default: begin
-          `ifdef SIM
-          $display("new_instruction: nibble %h not handled", i_nibble);
-          `endif
-          o_dec_error <= 1;
-        end
-        endcase
-      end
 
-      if (continue) begin
+  /******************************************************************************
+  *
+  * 0x
+  *
+  * 00   RTNSXM
+  * 01   RTN
+  * 02   RTNSC
+  * 03   RTNCC
+  * 04   SETHEX
+  * 05   SETDEC
+  * 06   RSTK=C
+  * 07   C=RSTK
+  *
+  *****************************************************************************/
 
-        /******************************************************************************
-        *
-        * 0x
-        *
-        * 00   RTNSXM
-        * 01   RTN
-        * 02   RTNSC
-        * 03   RTNCC
-        * 04   SETHEX
-        * 05   SETDEC
-        * 06   RSTK=C
-        * 07   C=RSTK
-        *
-        *****************************************************************************/
-
-        if (block_0x) begin
-          case (i_nibble)
-          4'h0, 4'h1, 4'h2, 4'h3: begin
-            o_ins_rtn      <= 1;
-            o_set_xm       <= (i_nibble == 4'h0);
-            o_set_carry    <= (i_nibble[3:1] == 1);
-            o_carry_val    <= (i_nibble[1] && i_nibble[0]);
-          end
-          4'h4, 4'h5: begin
-            o_ins_set_mode <= 1;
-            o_mode_dec     <= (i_nibble[0]);
-          end
-          /* RSTK=C
-          * C=RSTK
-          * those 2 are alu copy ops between RSTK and C
-          */
-          4'h6, 6'h7: begin 
-            o_ins_alu_op   <= 1;
-            o_alu_op       <= `ALU_OP_COPY;
-            o_push         <= !i_nibble[0];
-            o_pop          <=  i_nibble[0];
-          end
-          4'h8: begin
-            o_ins_alu_op <= 1;
-            o_alu_op     <= `ALU_OP_ZERO;
-          end
-          4'h9, 4'hA: begin
-            o_ins_alu_op <= 1;
-            o_alu_op     <= `ALU_OP_COPY;
-          end
-          4'hB: begin
-            o_ins_alu_op <= 1;
-            o_alu_op     <= `ALU_OP_EXCH;
-          end
-          4'hC, 4'hD: begin
-            o_ins_alu_op <= 1;
-            o_alu_op     <= i_nibble[0]?`ALU_OP_DEC:`ALU_OP_INC;
-          end
-          4'hE: begin 
-            block_0x <= 0;
-            o_fields_table <= `FT_TABLE_f;
-          end
-          default: begin
-            `ifdef SIM
-            $display("block_0x: nibble %h not handled", i_nibble);
-            `endif
-            o_dec_error <= 1;
-          end
-          endcase
-          continue       <= (i_nibble == 4'hE);
-          block_0Efx     <= (i_nibble == 4'hE);
-          fields_table   <= (i_nibble == 4'hE);
-          o_ins_decoded  <= (i_nibble != 4'hE);
-        end 
+  if (do_block_0x) begin
+    case (i_nibble)
+    4'h0, 4'h1, 4'h2, 4'h3: begin
+      o_ins_rtn      <= 1;
+      o_set_xm       <= (i_nibble == 4'h0);
+      o_set_carry    <= (i_nibble[3:1] == 1);
+      o_carry_val    <= (i_nibble[1] && i_nibble[0]);
+    end
+    4'h4, 4'h5: begin
+      o_ins_set_mode <= 1;
+      o_mode_dec     <= (i_nibble[0]);
+    end
+    /* RSTK=C
+    * C=RSTK
+    * those 2 are alu copy ops between RSTK and C
+    */
+    4'h6, 6'h7: begin 
+      o_ins_alu_op   <= 1;
+      o_alu_op       <= `ALU_OP_COPY;
+      o_push         <= !i_nibble[0];
+      o_pop          <=  i_nibble[0];
+    end
+    4'h8: begin
+      o_ins_alu_op <= 1;
+      o_alu_op     <= `ALU_OP_ZERO;
+    end
+    4'h9, 4'hA: begin
+      o_ins_alu_op <= 1;
+      o_alu_op     <= `ALU_OP_COPY;
+    end
+    4'hB: begin
+      o_ins_alu_op <= 1;
+      o_alu_op     <= `ALU_OP_EXCH;
+    end
+    4'hC, 4'hD: begin
+      o_ins_alu_op <= 1;
+      o_alu_op     <= i_nibble[0]?`ALU_OP_DEC:`ALU_OP_INC;
+    end
+    4'hE: begin 
+      block_0x <= 0;
+      o_fields_table <= `FT_TABLE_f;
+    end
+    default: begin
+      `ifdef SIM
+      $display("block_0x: nibble %h not handled", i_nibble);
+      `endif
+      o_dec_error <= 1;
+    end
+    endcase
+    continue       <= (i_nibble == 4'hE);
+    block_0Efx     <= (i_nibble == 4'hE);
+    fields_table   <= (i_nibble == 4'hE);
+    o_ins_decoded  <= (i_nibble != 4'hE);
+  end 
 
         /******************************************************************************
         *
@@ -381,16 +393,13 @@ always @(posedge i_clk) begin
         *
         *****************************************************************************/
 
-        if (block_0Efx && !fields_table) begin
-          o_ins_alu_op  <= 1;
-          o_alu_op      <= (!i_nibble[3])?`ALU_OP_AND:`ALU_OP_OR;
-          continue      <= 0;
-          o_ins_decoded <= 1;
-        end
-
-      end // (continue == 1)
-    end
+  if (do_block_0Efx && !fields_table) begin
+    o_ins_alu_op  <= 1;
+    o_alu_op      <= (!i_nibble[3])?`ALU_OP_AND:`ALU_OP_OR;
+    continue      <= 0;
+    o_ins_decoded <= 1;
   end
+
 end
 
 
@@ -401,64 +410,59 @@ end
 *****************************************************************************/
 
 always @(posedge i_clk) begin
+
   if (i_reset) begin
     o_reg_dest <= 0;
     o_reg_src1 <= 0;
     o_reg_src2 <= 0;
-  end else begin
-
-    if (i_en_dec && !i_stalled) begin
-
-      // reset values on instruction decode start
-      if (!continue) begin
-        o_reg_dest <= 0;
-        o_reg_src1 <= 0;
-        o_reg_src2 <= 0;
-      end
-
-      if (continue) begin
-
-      /************************************************************************
-      *
-      * set registers for specific instructions
-      *
-      ************************************************************************/
-
-        if (block_0x) begin
-          case (i_nibble)
-          4'h6: begin
-            o_reg_dest <= `ALU_REG_RSTK;
-            o_reg_src1 <= `ALU_REG_C;
-          end
-          4'h7: begin
-            o_reg_dest <= `ALU_REG_C;
-            o_reg_src1 <= `ALU_REG_RSTK;
-          end
-          4'h8: o_reg_dest <= `ALU_REG_ST;
-          4'h9, 4'hB: begin
-            o_reg_dest <= `ALU_REG_C;
-            o_reg_src1 <= `ALU_REG_ST;
-          end
-          4'hA: begin
-            o_reg_dest <= `ALU_REG_ST;
-            o_reg_src1 <= `ALU_REG_C;
-          end
-          4'hC, 4'hD: begin
-            o_reg_dest <= `ALU_REG_P;
-            o_reg_src1 <= `ALU_REG_P;
-          end
-          endcase
-        end 
-
-        if (block_0Efx && !fields_table) begin
-          `ifdef SIM
-          $write("\nset registers for block_0Efx");
-          `endif
-        end   
-
-      end    
-    end
   end
+
+  if (do_on_first_nibble) begin
+    // reset values on instruction decode start
+    o_reg_dest <= 0;
+    o_reg_src1 <= 0;
+    o_reg_src2 <= 0;
+  end
+
+
+  /************************************************************************
+  *
+  * set registers for specific instructions
+  *
+  ************************************************************************/
+
+  if (do_block_0x) begin
+    case (i_nibble)
+    4'h6: begin
+      o_reg_dest <= `ALU_REG_RSTK;
+      o_reg_src1 <= `ALU_REG_C;
+    end
+    4'h7: begin
+      o_reg_dest <= `ALU_REG_C;
+      o_reg_src1 <= `ALU_REG_RSTK;
+    end
+    4'h8: o_reg_dest <= `ALU_REG_ST;
+    4'h9, 4'hB: begin
+      o_reg_dest <= `ALU_REG_C;
+      o_reg_src1 <= `ALU_REG_ST;
+    end
+    4'hA: begin
+      o_reg_dest <= `ALU_REG_ST;
+      o_reg_src1 <= `ALU_REG_C;
+    end
+    4'hC, 4'hD: begin
+      o_reg_dest <= `ALU_REG_P;
+      o_reg_src1 <= `ALU_REG_P;
+    end
+    endcase
+  end 
+
+  if (do_block_0Efx && !fields_table) begin
+    `ifdef SIM
+    $write("\nset registers for block_0Efx");
+    `endif
+  end   
+
 end
 
 
