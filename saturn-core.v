@@ -20,16 +20,16 @@
 
 `ifdef SIM
 module saturn_core (
-	input			clk,
-	input			reset,
-	output			halt,
+	input			    clk,
+	input			    reset,
+	output [0:0]  halt,
 	output [3:0] 	busstate,
-	output [11:0] 	decstate
+	output [11:0] decstate
 );
 `else
 module saturn_core (
-	input			clk_25mhz,
-	input [	6:0] 	btn,
+	input			    clk_25mhz,
+	input  [6:0] 	btn,
 	output [7:0]	led
 );
 wire 		clk;
@@ -101,8 +101,7 @@ saturn_decoder	m_decoder (
   .o_set_carry    (set_carry),
   .o_carry_val    (carry_val),
   .o_ins_set_mode (ins_set_mode),
-	.o_mode_dec     (mode_dec),
-  .o_ins_rstk_c   (ins_rstk_c)
+	.o_mode_dec     (mode_dec)
 );
 
 wire            inc_pc;
@@ -125,7 +124,6 @@ wire            set_carry;
 wire            carry_val;
 wire            ins_set_mode;
 wire		        mode_dec;
-wire            ins_rstk_c;
 
 
 saturn_alu		m_alu (
@@ -213,7 +211,6 @@ always @(posedge clk) begin
 		en_inst_exec  <= 0;
 		clock_end	  <= 0;
 		cycle_ctr	  <= ~0;
-		stalled		  <= 0;
 		max_cycle <= 1024;
 `ifndef SIM
 		led[7:0] <= reg_pc[7:0];
@@ -232,20 +229,25 @@ reg [19:0]	reg_pc;
 reg			    stalled;
 
 always @(posedge clk)
-  if (reset)
-	reg_pc <= ~0;
-  else begin
+  if (reset) begin
+		reg_pc  <= ~0;
+		stalled <= 0;
+  end else begin
 	if (en_bus_send) begin
 		if (inc_pc & !stalled)
 			reg_pc <= reg_pc + 1;
+		`ifdef SIM
 		else
-			$display("not incrementing PC");
+			$write("\nnot incrementing PC");
+		`endif
 	end
 	if (en_bus_recv) begin
-`ifdef SIM
-		$display("%5h %h", reg_pc, rom[reg_pc]);
-`endif
-		nibble_in <= rom[reg_pc];
+		if (!stalled) begin
+	`ifdef SIM
+			$write("%h", rom[reg_pc]);
+	`endif
+			nibble_in <= rom[reg_pc];
+		end
 	end
 	if (en_inst_exec) begin
 		if (cycle_ctr == 5) stalled <= 1;
