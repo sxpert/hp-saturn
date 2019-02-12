@@ -6,7 +6,12 @@
 0 5                 // SETDEC
 0 6                 // RSTK=C
 0 7                 // C=RSTK
-
+0 8                 // CLRST
+0 9                 // C=ST
+0 A                 // ST=C
+0 B                 // CSTEX
+0 C                 // P=P+1
+0 D                 // P=P-1
 0 E 0 0             // A=A&B    P
 0 E 1 0             // A=A&B    WP
 0 E 2 0             // A=A&B    XS
