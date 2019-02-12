@@ -1,0 +1,2 @@
+read_verilog -I. saturn-core.v
+synth_ecp5 -top saturn_core -json saturn-core.json

@@ -5,5 +5,5 @@
 
 
 #yosys -p "synth_ecp5 -top saturn_core -json saturn_core.json" saturn_core.v
-yosys saturn_core.ESP5.ys
-nextpnr-ecp5 --gui --85k --speed 6 --freq 5 --lpf ulx3s_v20.lpf --textcfg empty_lfe5u-85f.config --json saturn_core.json --save saturn_core.ecp5 
+yosys saturn-core.ESP5.ys
+nextpnr-ecp5 --gui --85k --speed 6 --freq 5 --lpf ulx3s_v20.lpf --textcfg empty_lfe5u-85f.config --json saturn-core.json --save saturn-core.ecp5 

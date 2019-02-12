@@ -8,6 +8,7 @@
 // `include "hp48_00_bus.v"
 // `include "dbg_module.v"
 `include "saturn-decoder.v"
+`include "saturn-alu.v"
 
 /**************************************************************************************************
  *
@@ -83,7 +84,7 @@ wire            ins_rstk_c;
 // 	.bus_error		(bus_error)
 // );
 
-saturn_decoder i_decoder (
+saturn_decoder	m_decoder (
 	.i_clk			(clk),
 	.i_reset		(reset),
 	.i_cycles		(cycle_ctr),
@@ -107,6 +108,17 @@ saturn_decoder i_decoder (
     .o_ins_rstk_c	(ins_rstk_c)
 );
 
+saturn_alu		m_alu (
+	.i_clk			(clk),
+	.i_reset		(reset),
+	.i_en_alu_prep	(en_alu_prep),
+	.i_en_alu_calc	(en_alu_calc),
+	.i_en_alu_save	(en_alu_save)
+);
+
+/*
+ * test rom...
+ */
 
 reg [3:0] rom [0:1024];
 
@@ -177,9 +189,15 @@ always @(posedge clk) begin
 	end
 end
 
-// always @(posedge clk) 
-// 	if (en_debugger)
-// 		$display(cycle_ctr);
+//--------------------------------------------------------------------------------------------------
+//
+// test cases
+//
+//--------------------------------------------------------------------------------------------------
+
+
+
+
 
 reg [3:0]   nibble_in;
 reg [19:0]	reg_pc;
