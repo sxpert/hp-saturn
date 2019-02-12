@@ -119,7 +119,9 @@ end
 // general variables
 reg         continue;
 reg         block_0x;
-reg         block_0Ex;
+reg         block_0Efx;
+
+reg         fields_f;
 
 
 always @(posedge i_clk) begin
@@ -148,7 +150,10 @@ always @(posedge i_clk) begin
 
         // cleanup block variables
         block_0x       <= 0;
-        block_0Ex      <= 0;
+        block_0Efx     <= 0;
+
+        // cleanup fields table variables
+        fields_f       <= 0;
 
         // cleanup
         o_direction    <= 0;
@@ -223,7 +228,8 @@ always @(posedge i_clk) begin
         end
         endcase
         continue      <= (i_nibble == 4'hE);
-        block_0Ex     <= (i_nibble == 4'hE);
+        block_0Efx    <= (i_nibble == 4'hE);
+        fields_f      <= (i_nibble == 4'hE);
         o_ins_decoded <= (i_nibble != 4'hE);
       end 
 
@@ -233,11 +239,23 @@ always @(posedge i_clk) begin
       *
       *
       *****************************************************************************/
-      if (continue && block_0Ex) begin
-        $display("block_0Ex: nibble %h not handled", i_nibble);
+      if (continue && block_0Efx && !fields_f) begin
+        $display("block_0Efx: nibble %h not handled", i_nibble);
         continue <= 0;
         o_dec_error <= 1;
       end
+
+      /******************************************************************************
+      *
+      * fields f table
+      *
+      *
+      *****************************************************************************/
+      if (continue && fields_f) begin
+        $display("fields_f: nibble %h not handled", i_nibble);
+        fields_f <= 0;
+      end
+
 
     end
   end
