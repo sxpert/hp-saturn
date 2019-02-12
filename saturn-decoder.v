@@ -206,7 +206,7 @@ always @(posedge i_clk) begin
                 (o_reg_dest == `ALU_REG_P)    || (o_reg_src1 == `ALU_REG_P   ))) begin
             $write("\t");
             case (o_field)
-            default: $write("[f:%d]", o_field);
+            default: $write("[f:%d-%h:%h]", o_field, o_field_start, o_field_last);
             endcase
           end
 
@@ -232,7 +232,9 @@ reg   block_0Efx;
 
 reg   go_fields_table;
 
-// wires to make all this supposedly faster
+/* lots'o-wires to decode common states
+ */
+
 wire  decoder_active;
 wire  do_on_first_nibble;
 wire  do_on_other_nibbles;
@@ -248,6 +250,12 @@ assign do_block_0Efx = do_on_other_nibbles && block_0Efx;
 
 wire in_fields_table;
 assign in_fields_table = go_fields_table && !fields_table_done;
+
+/* most instructions are groupped by sets of 4 with
+ * varrying series of registers that are common
+ * this generates all the required series from i_nibble
+ */
+
 
 always @(posedge i_clk) begin
   if (i_reset) begin
@@ -483,6 +491,10 @@ end
 
 reg fields_table_done;
 
+/* more wires to decode common states.
+ * can possibly be made less redundant / faster ?
+ */
+
 wire do_fields_table;
 assign do_fields_table = decoder_active && go_fields_table && !fields_table_done;
 
@@ -498,21 +510,27 @@ assign table_value = (o_fields_table == `FT_TABLE_value);
 wire do_tables_a_f_b;
 assign do_tables_a_f_b = do_fields_table && !table_value;
 
+wire table_f_bit_3;
+wire [3:0] table_a_f_b_case_value;
+assign table_f_bit_3 = table_f && i_nibble[3];
+assign table_a_f_b_case_value = {table_f_bit_3, i_nibble[2:0]};
+
+/* value generation for debug
+ */
+
 wire table_a_nb_ok;
 wire table_b_nb_ok;
 wire table_f_cond;
 wire table_f_nb_ok;
 wire table_a_f_b_nb_ok;
-assign table_a_nb_ok = table_a && !i_nibble[3];
+assign table_a_nb_ok = table_a && !i_nibble[3];   
 assign table_b_nb_ok = table_b &&  i_nibble[3];
 assign table_f_cond  = !i_nibble[3] || (i_nibble == 4'hF);
 assign table_f_nb_ok = table_f && table_f_cond;
 assign table_a_f_b_nb_ok = table_a_nb_ok || table_b_nb_ok || table_f_nb_ok;
 
-wire [3:0] table_f_nibble_value;
-wire [3:0] table_a_f_b_case_value;
-assign table_f_nibble_value = (i_nibble & {4{table_f}});
-assign table_a_f_b_case_value = (i_nibble & 4'h7) | table_f_nibble_value;
+/* here we go
+ */ 
 
 always @(posedge i_clk) begin
   if (i_reset || do_on_first_nibble) begin
@@ -551,9 +569,9 @@ always @(posedge i_clk) begin
   *
   *****************************************************************************/
 
+  `ifdef DEBUG_FIELDS_TABLE
   if (do_tables_a_f_b) begin
     // debug info
-    `ifdef DEBUG_FIELDS_TABLE
     $display("====== fields_table | table %h | nibble %b", o_fields_table, i_nibble);
     $display("table_a     : %b", table_a_nb_ok);
     $display("table_b     : %b", table_b_nb_ok);
@@ -562,116 +580,94 @@ always @(posedge i_clk) begin
     // $display("table_f nbl : %h", {4{o_fields_table == `FT_TABLE_f}} );
     $display("table_f val : %h", table_f_nibble_value);
     $display("case nibble : %h", table_a_f_b_case_value);
-    `endif
   end
-      // 
+  `endif
+
+
+  // 
   if (do_tables_a_f_b) begin
-    if (table_a_f_b_nb_ok) begin
-      case (table_a_f_b_case_value)
-      4'h0: begin 
-        o_field       <= `FT_FIELD_P;
-        o_field_start <= i_reg_p;
-        o_field_last  <= i_reg_p;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field P (%h)", i_reg_p);
-        `endif
-      end
-      4'h1: begin 
-        o_field       <= `FT_FIELD_WP;
-        o_field_start <= 0;
-        o_field_last  <= i_reg_p;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field WP (0-%h)", i_reg_p);
-        `endif
-      end
-      4'h2: begin 
-        o_field       <= `FT_FIELD_XS;
-        o_field_start <= 2;
-        o_field_last  <= 2;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field XS");
-        `endif
-      end
-      4'h3: begin 
-        o_field       <= `FT_FIELD_X;
-        o_field_start <= 0;
-        o_field_last  <= 2;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field X");
-        `endif
-      end
-      4'h4: begin 
-        o_field       <= `FT_FIELD_S;
-        o_field_start <= 15;
-        o_field_last  <= 15;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field S");
-        `endif
-      end
-      4'h5: begin 
-        o_field       <= `FT_FIELD_M;
-        o_field_start <= 3;
-        o_field_last  <= 14;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field M");
-        `endif
-      end
-      4'h6: begin 
-        o_field       <= `FT_FIELD_B;
-        o_field_start <= 0;
-        o_field_last  <= 1;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field B");
-        `endif
-      end
-      4'h7: begin 
-        o_field       <= `FT_FIELD_W;
-        o_field_start <= 0;
-        o_field_last  <= 15;
-        `ifdef DEBUG_FIELDS_TABLE
-        $display("fields_table: field W");
-        `endif
-      end
-      4'hF: begin
-        if (table_f) begin
-          o_field       <= `FT_FIELD_A;
-          o_field_start <= 0;
-          o_field_last  <= 4;
-          `ifdef DEBUG_FIELDS_TABLE
-          $display("fields_table: field A");
-          `endif
-        end else begin
-          // should never get here
-          o_dec_error <= 1;
-          `ifdef SIM
-          $display("fields_table: table %h nibble %h", o_fields_table, i_nibble);
-          `endif
-        end
-      end
-      default: begin
-        o_dec_error <= 1;
-        `ifdef SIM
-        $display("fields_table: table %h nibble %h not handled", o_fields_table, i_nibble);
-        `endif
-      end
-      endcase
-      fields_table_done <= 1;
-    end else begin
-      o_dec_error <= 1;
-      `ifdef SIM
-      $display("fields_table: table %h invalid nibble %h", o_fields_table, i_nibble);
+    case (table_a_f_b_case_value)
+    4'h0: begin 
+      o_field       <= `FT_FIELD_P;
+      o_field_start <= i_reg_p;
+      o_field_last  <= i_reg_p;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field P (%h)", i_reg_p);
       `endif
     end
+    4'h1: begin 
+      o_field       <= `FT_FIELD_WP;
+      o_field_start <= 0;
+      o_field_last  <= i_reg_p;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field WP (0-%h)", i_reg_p);
+      `endif
+    end
+    4'h2: begin 
+      o_field       <= `FT_FIELD_XS;
+      o_field_start <= 2;
+      o_field_last  <= 2;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field XS");
+      `endif
+    end
+    4'h3: begin 
+      o_field       <= `FT_FIELD_X;
+      o_field_start <= 0;
+      o_field_last  <= 2;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field X");
+      `endif
+    end
+    4'h4: begin 
+      o_field       <= `FT_FIELD_S;
+      o_field_start <= 15;
+      o_field_last  <= 15;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field S");
+      `endif
+    end
+    4'h5: begin 
+      o_field       <= `FT_FIELD_M;
+      o_field_start <= 3;
+      o_field_last  <= 14;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field M");
+      `endif
+    end
+    4'h6: begin 
+      o_field       <= `FT_FIELD_B;
+      o_field_start <= 0;
+      o_field_last  <= 1;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field B");
+      `endif
+    end
+    4'h7: begin 
+      o_field       <= `FT_FIELD_W;
+      o_field_start <= 0;
+      o_field_last  <= 15;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field W");
+      `endif
+    end
+    4'hF: begin
+      o_field       <= `FT_FIELD_A;
+      o_field_start <= 0;
+      o_field_last  <= 4;
+      `ifdef DEBUG_FIELDS_TABLE
+      $display("fields_table: field A");
+      `endif
+    end
+    `ifdef SIM
+    default: begin
+      o_dec_error <= 1;
+      $display("fields_table: table %h nibble %h not handled", o_fields_table, i_nibble);
+    end
+    `endif
+    endcase
+    fields_table_done <= 1;
   end 
-    
-    // if (begin
-    //   o_dec_error <= 1;
-    //   `ifdef SIM
-    //   $display("fields_table: there is nothing to decode for table FT_TABLE_value");
-    //   `endif
-    // end
-
-
 end
 
 

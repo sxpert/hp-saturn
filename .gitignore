@@ -9,5 +9,4 @@ obj_dir/Vsaturn_core_classes.mk
 saturn_core.ICE40.json
 blinky.pcf
 demo.blif
-history.txt
 saturn-core.json
