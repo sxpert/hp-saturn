@@ -20,6 +20,8 @@ module saturn_decoder(
   i_reg_p,
 
   o_inc_pc,
+  o_push,
+  o_pop,
   o_dec_error,
   
   o_ins_addr,
@@ -32,6 +34,10 @@ module saturn_decoder(
 
   o_alu_op,
 
+  o_reg_dest,
+  o_reg_src1,
+  o_reg_src2,
+
   o_direction,
   o_ins_rtn,
   o_set_xm,
@@ -39,7 +45,6 @@ module saturn_decoder(
   o_carry_val,
   o_ins_set_mode,
   o_mode_dec,
-  o_ins_rstk_c,
   o_ins_alu_op
 );
 
@@ -58,6 +63,8 @@ input   wire [3:0]  i_nibble;
 input   wire [3:0]  i_reg_p;
 
 output  reg         o_inc_pc;
+output  reg         o_push;
+output  reg         o_pop;
 output  reg         o_dec_error;
 
 // instructions related outputs
@@ -71,6 +78,10 @@ output  reg [3:0]   o_field_last;
 
 output  reg [4:0]   o_alu_op;
 
+output  reg [3:0]   o_reg_dest;
+output  reg [3:0]   o_reg_src1;
+output  reg [3:0]   o_reg_src2;
+
 // generic
 output  reg         o_direction;
 
@@ -83,9 +94,6 @@ output  reg         o_carry_val;
 // setdec/hex
 output  reg         o_ins_set_mode;
 output  reg         o_mode_dec;
-
-// rstk and c
-output  reg         o_ins_rstk_c; 
 
 // alu_operations
 output  reg         o_ins_alu_op;
@@ -118,7 +126,7 @@ always @(posedge i_clk) begin
   if (!i_reset && i_en_dbg && !i_stalled)
     if (!continue) begin
       `ifdef SIM
-      $display("-------------------------------------------------------------------------------");  
+      $display("\n-------------------------------------------------------------------------------");  
       if (o_ins_decoded) begin
         $write("%5h ", o_ins_addr);
         if (o_ins_rtn) begin
@@ -130,11 +138,60 @@ always @(posedge i_clk) begin
         if (o_ins_set_mode) begin
           $display("SET%s", o_mode_dec?"DEC":"HEX");
         end
-        if (o_ins_rstk_c) begin
-          $display("%s", o_direction?"C=RSTK":"RSTK=C");
-        end
         if (o_ins_alu_op) begin
-          $display("an alu operation (debugger code missing)");
+          
+          case (o_reg_dest)
+          `ALU_REG_A:    $write("A");
+          `ALU_REG_C:    $write("C");
+          `ALU_REG_RSTK: $write("RSTK");
+          `ALU_REG_ST:   if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
+          default: $write("[dest:%d]", o_reg_dest);
+          endcase
+          
+          case (o_alu_op)
+          `ALU_OP_ZERO: if (o_reg_dest==`ALU_REG_ST) $write("CLRST"); else $write("=0");
+          `ALU_OP_COPY: $write("=");
+          default: $write("[op:%d]", o_alu_op);
+          endcase
+          
+          case (o_alu_op)
+          `ALU_OP_COPY,
+          `ALU_OP_AND,
+          `ALU_OP_OR:
+            case (o_reg_src1)
+            `ALU_REG_A:    $write("A");
+            `ALU_REG_C:    $write("C");
+            `ALU_REG_RSTK: $write("RSTK");
+            `ALU_REG_ST:   $write("ST");
+            default: $write("[src1:%d]", o_reg_src1);
+            endcase
+          endcase
+          
+          case (o_alu_op)
+          `ALU_OP_AND,
+          `ALU_OP_OR: begin
+            case (o_alu_op)
+            default: $write("[op:%d]", o_alu_op);
+            endcase
+            
+            case (o_reg_src2)
+            `ALU_REG_A:    $write("A");
+            `ALU_REG_C:    $write("C");
+            `ALU_REG_RSTK: $write("RSTK");
+            default: $write("[src2:%d]", o_reg_src2);
+            endcase
+          end
+          endcase
+          
+          if (!((o_reg_dest == `ALU_REG_RSTK) || (o_reg_src1 == `ALU_REG_RSTK) ||
+                (o_reg_dest == `ALU_REG_ST)   || (o_reg_src1 == `ALU_REG_ST  ))) begin
+            $write("\t");
+            case (o_field)
+            default: $write("[f:%d]", o_field);
+            endcase
+          end
+
+          $display("");
         end
       end
      `endif
@@ -162,7 +219,7 @@ always @(posedge i_clk) begin
     o_inc_pc      <= 1;
     o_dec_error   <= 0;
     o_ins_decoded <= 0;
-
+    o_alu_op      <= 0;
   end else begin
     if (i_en_dec && !i_stalled) begin
 
@@ -176,7 +233,10 @@ always @(posedge i_clk) begin
        */ 
       if (!continue) begin
         continue       <= 1;
-        $display("resetting o_ins_decoded");
+
+        o_push         <= 0;
+        o_pop          <= 0;
+
         o_ins_decoded  <= 0;
         // store the address where the instruction starts
         o_ins_addr     <= i_pc;
@@ -204,8 +264,6 @@ always @(posedge i_clk) begin
         
         o_ins_set_mode <= 0;
         o_mode_dec     <= 0;
-        
-        o_ins_rstk_c   <= 0;
 
         o_ins_alu_op   <= 0;
       end
@@ -254,9 +312,31 @@ always @(posedge i_clk) begin
           o_ins_set_mode <= 1;
           o_mode_dec     <= (i_nibble[0]);
         end
-        4'h6, 6'h7: begin
-          o_ins_rstk_c   <= 1;
-          o_direction    <= (i_nibble[0]);
+        /* RSTK=C
+         * C=RSTK
+         * those 2 are alu copy ops between RSTK and C
+         */
+        4'h6, 6'h7: begin 
+          o_ins_alu_op   <= 1;
+          o_alu_op       <= `ALU_OP_COPY;
+          o_push         <= !i_nibble[0];
+          o_pop          <=  i_nibble[0];
+        end
+        4'h8: begin
+          o_ins_alu_op <= 1;
+          o_alu_op     <= `ALU_OP_ZERO;
+        end
+        4'h9, 4'hA: begin
+          o_ins_alu_op <= 1;
+          o_alu_op     <= `ALU_OP_COPY;
+        end
+        4'hB: begin
+          o_ins_alu_op <= 1;
+          o_alu_op     <= `ALU_OP_EXCH;
+        end
+        4'hC, 4'hD: begin
+          o_ins_alu_op <= 1;
+          o_alu_op     <= i_nibble[0]?`ALU_OP_DEC:`ALU_OP_INC;
         end
         4'hE: begin 
           block_0x <= 0;
@@ -288,20 +368,126 @@ always @(posedge i_clk) begin
         continue      <= 0;
         o_ins_decoded <= 1;
       end
+    end
+  end
+end
 
-      /******************************************************************************
+
+/******************************************************************************
+*
+* set registers from instruction nibble
+*
+*****************************************************************************/
+
+always @(posedge i_clk) begin
+  if (i_reset) begin
+    o_reg_dest <= 0;
+    o_reg_src1 <= 0;
+    o_reg_src2 <= 0;
+  end else begin
+
+    // reset values on instruction decode start
+    if (i_en_dec && !i_stalled && !continue) begin
+      o_reg_dest <= 0;
+      o_reg_src1 <= 0;
+      o_reg_src2 <= 0;
+    end
+
+      /************************************************************************
       *
-      * fields f table
+      * set registers for specific instructions
       *
-      *
-      *****************************************************************************/
+      ************************************************************************/
+
+    if (i_en_dec && !i_stalled && continue) begin
+
+      if (block_0x) begin
+        case (i_nibble)
+        4'h6: begin
+          o_reg_dest <= `ALU_REG_RSTK;
+          o_reg_src1 <= `ALU_REG_C;
+        end
+        4'h7: begin
+          o_reg_dest <= `ALU_REG_C;
+          o_reg_src1 <= `ALU_REG_RSTK;
+        end
+        4'h8: o_reg_dest <= `ALU_REG_ST;
+        4'h9, 4'hB: begin
+          o_reg_dest <= `ALU_REG_C;
+          o_reg_src1 <= `ALU_REG_ST;
+        end
+        4'hA: begin
+          o_reg_dest <= `ALU_REG_ST;
+          o_reg_src1 <= `ALU_REG_C;
+        end
+        endcase
+      end      
+
+    end    
+
+  end
+end
+
+
+/******************************************************************************
+*
+* set fields from instruction nibble
+*
+*****************************************************************************/
 
 `ifdef SIM
 //`define DEBUG_FIELDS_TABLE
 `endif
 
-      if (continue && fields_table) begin
-        if (fields_table != `FT_TABLE_value) begin
+
+always @(posedge i_clk) begin
+  if (i_reset) begin
+      // reset values
+      o_field       <= 0;
+      o_field_start <= 0;
+      o_field_last  <= 0;
+  end else begin
+
+    // reset values on instruction decode start
+    if (i_en_dec && !i_stalled && !continue) begin
+      // reset values
+      o_field       <= 0;
+      o_field_start <= 0;
+      o_field_last  <= 0;
+    end
+
+    if (i_en_dec && !i_stalled && continue) begin
+
+      /******************************************************************************
+      *
+      * set field for specific instructions
+      *
+      *****************************************************************************/
+
+      if (block_0x) begin
+        case (i_nibble)
+        4'h6, 4'h7: begin
+          // virtual A
+          o_field_start <= 0;
+          o_field_last  <= 4;
+        end
+        4'h8, 4'h9, 4'hA, 4'hB: begin
+          // ST is 0-3
+          o_field_start <= 0;
+          o_field_last  <= 3;
+        end
+        endcase
+      end
+
+      /******************************************************************************
+      *
+      * set field from a table
+      *
+      *
+      *****************************************************************************/
+
+      if (fields_table) begin
+        if (o_fields_table != `FT_TABLE_value) begin
 
           // debug info
 
