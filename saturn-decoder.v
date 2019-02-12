@@ -5,16 +5,29 @@
  *****************************************************************************/
 
 module saturn_decoder(
-     i_clk, 
-     i_reset,
-     i_cycles,
-     i_en_dbg,
-     i_en_dec,
-     i_stalled,
-     i_pc,
-     i_nibble,
-     o_inc_pc,
-     o_dec_error);
+  i_clk, 
+  i_reset,
+  i_cycles,
+  i_en_dbg,
+  i_en_dec,
+  i_stalled,
+  i_pc,
+  i_nibble,
+  o_inc_pc,
+  o_dec_error,
+  
+  o_ins_addr,
+  o_ins_decoded,
+
+  o_direction,
+  o_ins_rtn,
+  o_set_xm,
+  o_set_carry,
+  o_carry_val,
+  o_ins_set_mode,
+  o_mode_dec,
+  o_ins_rstk_c
+);
 
 /*
  * module input / output ports
@@ -31,11 +44,32 @@ input   wire [3:0]  i_nibble;
 output  reg         o_inc_pc;
 output  reg         o_dec_error;
 
+// instructions related outputs
+output  reg [19:0]  o_ins_addr;
+output  reg         o_ins_decoded;
+
+// generic
+output  reg         o_direction;
+
+// rtn specific
+output  reg         o_ins_rtn;
+output  reg         o_set_xm;
+output  reg         o_set_carry;
+output  reg         o_carry_val;
+
+// setdec/hex
+output  reg         o_ins_set_mode;
+output  reg         o_mode_dec;
+
+// rstk and c
+output  reg         o_ins_rstk_c;        
+
+
+
 /*
  * state registers
  */
 
-reg         ins_decoded;
 reg [31:0]  instr_ctr;
 
 initial begin
@@ -56,20 +90,20 @@ end
 
 always @(posedge i_clk) begin
   if (!i_reset && i_en_dbg && !i_stalled) 
-    if (!continue && ins_decoded) begin
+    if (o_ins_decoded) begin
 `ifdef SIM
-      $write("%5h ", ins_addr);
-      if (ins_rtn) begin
+      $write("%5h ", o_ins_addr);
+      if (o_ins_rtn) begin
         $write("RTN");
-        if (set_xm) $write("SXM");
-        if (set_carry) $write("%sC", carry_val?"S":"C");
+        if (o_set_xm) $write("SXM");
+        if (o_set_carry) $write("%sC", o_carry_val?"S":"C");
         $display("");
       end
-      if (ins_set_mode) begin
-        $display("SET%s", mode_dec?"DEC":"HEX");
+      if (o_ins_set_mode) begin
+        $display("SET%s", o_mode_dec?"DEC":"HEX");
       end
-      if (ins_rstk_c) begin
-        $display("%s", direction?"C=RSTK":"RSTK=C");
+      if (o_ins_rstk_c) begin
+        $display("%s", o_direction?"C=RSTK":"RSTK=C");
       end
 `endif
     end
@@ -83,33 +117,17 @@ end
  *****************************************************************************/
 
 // general variables
-reg [19:0]  ins_addr;
 reg         continue;
-
 reg         block_0x;
+reg         block_0Ex;
 
-// generic
-reg         direction;
-
-// rtn specific
-reg         ins_rtn;
-reg         set_xm;
-reg         set_carry;
-reg         carry_val;
-
-// setdec/hex
-reg         ins_set_mode;
-reg         mode_dec;
-
-// rstk and c
-reg         ins_rstk_c;        
 
 always @(posedge i_clk) begin
   if (i_reset) begin
-    continue     <= 0;
-    o_inc_pc     <= 1;
-    o_dec_error  <= 0;
-    ins_decoded  <= 0;
+    continue      <= 0;
+    o_inc_pc      <= 1;
+    o_dec_error   <= 0;
+    o_ins_decoded <= 0;
 
   end else begin
     if (i_en_dec && !i_stalled) begin
@@ -123,23 +141,27 @@ always @(posedge i_clk) begin
        * cleanup
        */ 
       if (!continue) begin
-        continue     <= 1;
-        ins_decoded  <= 0;
+        continue       <= 1;
+        o_ins_decoded  <= 0;
         // store the address where the instruction starts
-        ins_addr     <= i_pc;
+        o_ins_addr     <= i_pc;
+
+        // cleanup block variables
+        block_0x       <= 0;
+        block_0Ex      <= 0;
 
         // cleanup
-        direction    <= 0;
+        o_direction    <= 0;
 
-        ins_rtn      <= 0;
-        set_xm       <= 0;
-        set_carry    <= 0;
-        carry_val    <= 0;
+        o_ins_rtn      <= 0;
+        o_set_xm       <= 0;
+        o_set_carry    <= 0;
+        o_carry_val    <= 0;
         
-        ins_set_mode <= 0;
-        mode_dec     <= 0;
+        o_ins_set_mode <= 0;
+        o_mode_dec     <= 0;
         
-        ins_rstk_c   <= 0;
+        o_ins_rstk_c   <= 0;
       end
 
       /*
@@ -177,18 +199,21 @@ always @(posedge i_clk) begin
       if (continue && block_0x) begin
         case (i_nibble)
         4'h0, 4'h1, 4'h2, 4'h3: begin
-          ins_rtn      <= 1;
-          set_xm       <= (i_nibble == 4'h0);
-          set_carry    <= (i_nibble[3:1] == 1);
-          carry_val    <= (i_nibble[1] && i_nibble[0]);
+          o_ins_rtn      <= 1;
+          o_set_xm       <= (i_nibble == 4'h0);
+          o_set_carry    <= (i_nibble[3:1] == 1);
+          o_carry_val    <= (i_nibble[1] && i_nibble[0]);
         end
-        4'h4, 4'h5            : begin
-          ins_set_mode <= 1;
-          mode_dec     <= (i_nibble[0]);
+        4'h4, 4'h5: begin
+          o_ins_set_mode <= 1;
+          o_mode_dec     <= (i_nibble[0]);
         end
-        4'h6, 6'h7            : begin
-          ins_rstk_c   <= 1;
-          direction    <= (i_nibble[0]);
+        4'h6, 6'h7: begin
+          o_ins_rstk_c   <= 1;
+          o_direction    <= (i_nibble[0]);
+        end
+        4'hE: begin 
+          block_0x <= 0;
         end
         default: begin
 `ifdef SIM
@@ -197,12 +222,22 @@ always @(posedge i_clk) begin
           o_dec_error <= 1;
         end
         endcase
-        continue    <= (i_nibble == 4'hE);
-        ins_decoded <= (i_nibble != 4'hE);
+        continue      <= (i_nibble == 4'hE);
+        block_0Ex     <= (i_nibble == 4'hE);
+        o_ins_decoded <= (i_nibble != 4'hE);
       end 
 
-
-
+      /******************************************************************************
+      *
+      * 0Ex
+      *
+      *
+      *****************************************************************************/
+      if (continue && block_0Ex) begin
+        $display("block_0Ex: nibble %h not handled", i_nibble);
+        continue <= 0;
+        o_dec_error <= 1;
+      end
 
     end
   end

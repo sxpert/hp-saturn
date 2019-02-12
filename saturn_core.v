@@ -41,7 +41,7 @@ assign reset		= btn[1];
 `endif
 
 // clocks
-reg		[1:0]	clk_phase;
+reg	 [1:0]      clk_phase;
 reg				en_reset;
 reg				en_debugger;	// phase 0
 reg				en_bus_send;	// phase 0
@@ -52,13 +52,26 @@ reg				en_inst_dec;	// phase 2
 reg				en_alu_save;	// phase 3
 reg				en_inst_exec;	// phase 3
 reg				clock_end;
-reg		[31:0]	cycle_ctr;
-reg	    [31:0]	max_cycle;
+reg	 [31:0]	    cycle_ctr;
+reg	 [31:0]     max_cycle;
 
 // state machine stuff
 wire			halt;
 wire			inc_pc;
 wire			dec_error;
+
+// decoder outputs
+wire [19:0]     ins_addr;
+wire            ins_decoded;
+wire            direction;
+wire            ins_rtn;
+wire            set_xm;
+wire            set_carry;
+wire            carry_val;
+wire            ins_set_mode;
+wire			mode_dec;
+wire            ins_rstk_c;
+
 
 // hp48_bus bus_ctrl (
 // 	.strobe			(bus_strobe),
@@ -80,7 +93,18 @@ saturn_decoder i_decoder (
 	.i_stalled  	(stalled),
 	.i_nibble		(nibble_in),
 	.o_inc_pc		(inc_pc),
-	.o_dec_error	(dec_error)
+	.o_dec_error	(dec_error),
+     
+    .o_ins_addr     (ins_addr),
+    .o_ins_decoded  (ins_decoded),
+    .o_direction    (direction),
+    .o_ins_rtn      (ins_rtn),
+    .o_set_xm		(set_xm),
+    .o_set_carry	(set_carry),
+    .o_carry_val	(carry_val),
+    .o_ins_set_mode (ins_set_mode),
+	.o_mode_dec		(mode_dec),
+    .o_ins_rstk_c	(ins_rstk_c)
 );
 
 
