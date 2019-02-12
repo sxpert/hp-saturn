@@ -57,7 +57,7 @@ reg	    [31:0]	max_cycle;
 
 // state machine stuff
 wire			halt;
-wire [19:0]		reg_pc;
+wire			inc_pc;
 wire			dec_error;
 
 // hp48_bus bus_ctrl (
@@ -76,15 +76,19 @@ saturn_decoder i_decoder (
 	.i_cycles		(cycle_ctr),
 	.i_en_dbg   	(en_debugger),
 	.i_en_dec		(en_inst_dec),
-	.i_en_exec  	(en_inst_exec),
+	.i_pc			(reg_pc),
 	// .i_stalled	(stalled),
 	.i_nibble		(nibble_in),
-	.o_pc			(reg_pc),
+	.o_inc_pc		(inc_pc),
 	.o_dec_error	(dec_error)
 );
 
+
+reg [3:0] rom [0:1024];
+
 initial
 	begin
+		$readmemh( "testrom.hex", rom);
 		clk_phase 				= 0;
 		en_debugger 			= 0;	// phase 0
 		en_bus_send 			= 0;	// phase 0
@@ -96,6 +100,7 @@ initial
 		en_inst_exec			= 0;	// phase 3
 		clock_end				= 0;
 		cycle_ctr				= 0;
+		reg_pc					= 0;
 
 `ifdef DEBUG_CLOCKS
 		$monitor("RST %b | CLK %b | CLKP %d | CYCL %d | eRST %b | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
@@ -151,29 +156,26 @@ end
 // 	if (en_debugger)
 // 		$display(cycle_ctr);
 
-reg [3:0] nibble_in;
+reg [3:0]   nibble_in;
+reg [19:0]	reg_pc;
 
 always @(posedge clk)
-	if (en_bus_recv)
-		case (cycle_ctr)
-		// RTNSXM
-		0:	nibble_in <= 0;
-		1:  nibble_in <= 0;
-		// RTN
-		2:  nibble_in <= 0;
-		3:  nibble_in <= 1;
-		// RTNSC
-		4:  nibble_in <= 0;
-		5:  nibble_in <= 2;
-		// RTNCC
-		6:  nibble_in <= 0;
-		7:  nibble_in <= 3;
-		// SETHEX
-		8:  nibble_in <= 0;
-		9:  nibble_in <= 4;
-		// END
-		50:  clock_end <= 1;
-		endcase
+  if (reset)
+	reg_pc <= ~0;
+  else begin
+	if (en_bus_send) begin
+		if (inc_pc)
+			reg_pc <= reg_pc + 1;
+		else
+			$display("not incrementing PC");
+	end
+	if (en_bus_recv) begin
+`ifdef SIM
+		$display("%5h %h", reg_pc, rom[reg_pc]);
+`endif
+		nibble_in <= rom[reg_pc];
+	end
+  end
 
 assign halt = clock_end || dec_error;
 

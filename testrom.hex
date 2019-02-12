@@ -1,0 +1,10 @@
+0 0                 // RTNSXM
+0 1                 // RTN
+0 2                 // RTNSC
+0 3                 // RTNCC
+0 4                 // SETHEX
+0 5                 // SETDEC
+0 6                 // RSTK=C
+0 7                 // C=RSTK
+
+F                   // end
