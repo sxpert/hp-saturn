@@ -1,5 +1,5 @@
-`ifndef _FIELDS
-`define _FIELDS
+`ifndef _DEF_FIELDS
+`define _DEF_FIELDS
 
 `define FT_TABLE_a       0
 `define FT_TABLE_b       1

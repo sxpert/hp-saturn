@@ -58,20 +58,6 @@ reg	 [31:0]     max_cycle;
 
 // state machine stuff
 wire			halt;
-wire			inc_pc;
-wire			dec_error;
-
-// decoder outputs
-wire [19:0]     ins_addr;
-wire            ins_decoded;
-wire            direction;
-wire            ins_rtn;
-wire            set_xm;
-wire            set_carry;
-wire            carry_val;
-wire            ins_set_mode;
-wire			mode_dec;
-wire            ins_rstk_c;
 
 
 // hp48_bus bus_ctrl (
@@ -85,36 +71,82 @@ wire            ins_rstk_c;
 // );
 
 saturn_decoder	m_decoder (
-	.i_clk			(clk),
-	.i_reset		(reset),
-	.i_cycles		(cycle_ctr),
-	.i_en_dbg   	(en_debugger),
-	.i_en_dec		(en_inst_dec),
-	.i_pc			(reg_pc),
-	.i_stalled  	(stalled),
-	.i_nibble		(nibble_in),
-	.o_inc_pc		(inc_pc),
-	.o_dec_error	(dec_error),
+	.i_clk			    (clk),
+	.i_reset		    (reset),
+	.i_cycles		    (cycle_ctr),
+	.i_en_dbg       (en_debugger),
+	.i_en_dec		    (en_inst_dec),
+	.i_pc			      (reg_pc),
+	.i_stalled      (stalled),
+	.i_nibble		    (nibble_in),
+
+	.i_reg_p        (reg_p),
+
+	.o_inc_pc       (inc_pc),
+	.o_dec_error    (inv_opcode),
      
-    .o_ins_addr     (ins_addr),
-    .o_ins_decoded  (ins_decoded),
-    .o_direction    (direction),
-    .o_ins_rtn      (ins_rtn),
-    .o_set_xm		(set_xm),
-    .o_set_carry	(set_carry),
-    .o_carry_val	(carry_val),
-    .o_ins_set_mode (ins_set_mode),
-	.o_mode_dec		(mode_dec),
-    .o_ins_rstk_c	(ins_rstk_c)
+  .o_ins_addr     (ins_addr),
+  .o_ins_decoded  (ins_decoded),
+
+  .o_fields_table (fields_table),
+  .o_field        (field),
+  .o_field_start  (field_start),
+  .o_field_last   (field_last),
+
+	.o_alu_op				(alu_op),
+
+  .o_direction    (direction),
+  .o_ins_rtn      (ins_rtn),
+  .o_set_xm       (set_xm),
+  .o_set_carry    (set_carry),
+  .o_carry_val    (carry_val),
+  .o_ins_set_mode (ins_set_mode),
+	.o_mode_dec     (mode_dec),
+  .o_ins_rstk_c   (ins_rstk_c)
 );
 
+wire            inc_pc;
+wire            inv_opcode;
+
+wire [19:0]     ins_addr;
+wire            ins_decoded;
+
+wire [1:0]      fields_table;
+wire [3:0]      field;
+wire [3:0]      field_start;
+wire [3:0]      field_last;
+
+wire [4:0]			alu_op;
+
+wire            direction;
+wire            ins_rtn;
+wire            set_xm;
+wire            set_carry;
+wire            carry_val;
+wire            ins_set_mode;
+wire		        mode_dec;
+wire            ins_rstk_c;
+
+
 saturn_alu		m_alu (
-	.i_clk			(clk),
-	.i_reset		(reset),
+	.i_clk					(clk),
+	.i_reset				(reset),
 	.i_en_alu_prep	(en_alu_prep),
 	.i_en_alu_calc	(en_alu_calc),
-	.i_en_alu_save	(en_alu_save)
+	.i_en_alu_save	(en_alu_save),
+
+  .i_field_start  (field_start),
+	.i_field_last   (field_last),
+
+	.i_alu_op				(alu_op),
+
+	.o_reg_p				(reg_p)
 );
+
+
+// interconnections
+
+wire [3:0]		reg_p;
 
 /*
  * test rom...
@@ -125,18 +157,18 @@ reg [3:0] rom [0:1024];
 initial
 	begin
 		$readmemh( "testrom.hex", rom);
-		clk_phase 				= 0;
-		en_debugger 			= 0;	// phase 0
-		en_bus_send 			= 0;	// phase 0
-		en_bus_recv 			= 0;	// phase 1
-		en_alu_prep 			= 0;	// phase 1
-		en_alu_calc 			= 0;	// phase 2
-		en_inst_dec 			= 0;	// phase 2
-		en_alu_save 			= 0;	// phase 3
-		en_inst_exec			= 0;	// phase 3
-		clock_end				= 0;
-		cycle_ctr				= 0;
-		reg_pc					= 0;
+		clk_phase 		= 0;
+		en_debugger 	= 0;	// phase 0
+		en_bus_send 	= 0;	// phase 0
+		en_bus_recv 	= 0;	// phase 1
+		en_alu_prep 	= 0;	// phase 1
+		en_alu_calc 	= 0;	// phase 2
+		en_inst_dec 	= 0;	// phase 2
+		en_alu_save 	= 0;	// phase 3
+		en_inst_exec	= 0;	// phase 3
+		clock_end			= 0;
+		cycle_ctr			= 0;
+		reg_pc				= 0;
 
 `ifdef DEBUG_CLOCKS
 		$monitor("RST %b | CLK %b | CLKP %d | CYCL %d | eRST %b | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
@@ -182,7 +214,7 @@ always @(posedge clk) begin
 		clock_end	  <= 0;
 		cycle_ctr	  <= ~0;
 		stalled		  <= 0;
-		max_cycle <= 50;
+		max_cycle <= 1024;
 `ifndef SIM
 		led[7:0] <= reg_pc[7:0];
 `endif
@@ -195,13 +227,9 @@ end
 //
 //--------------------------------------------------------------------------------------------------
 
-
-
-
-
 reg [3:0]   nibble_in;
 reg [19:0]	reg_pc;
-reg			stalled;
+reg			    stalled;
 
 always @(posedge clk)
   if (reset)
@@ -225,7 +253,7 @@ always @(posedge clk)
 	end
   end
 
-assign halt = clock_end || dec_error;
+assign halt = clock_end || inv_opcode;
 
 
 // Verilator lint_off UNUSED

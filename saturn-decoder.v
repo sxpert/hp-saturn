@@ -4,7 +4,8 @@
  *
  *****************************************************************************/
 
-`include "def_fields.v"
+`include "def-fields.v"
+`include "def-alu.v"
 
 module saturn_decoder(
   i_clk, 
@@ -15,6 +16,9 @@ module saturn_decoder(
   i_stalled,
   i_pc,
   i_nibble,
+
+  i_reg_p,
+
   o_inc_pc,
   o_dec_error,
   
@@ -26,6 +30,8 @@ module saturn_decoder(
   o_field_start,
   o_field_last,
 
+  o_alu_op,
+
   o_direction,
   o_ins_rtn,
   o_set_xm,
@@ -33,20 +39,23 @@ module saturn_decoder(
   o_carry_val,
   o_ins_set_mode,
   o_mode_dec,
-  o_ins_rstk_c
+  o_ins_rstk_c,
+  o_ins_alu_op
 );
 
 /*
  * module input / output ports
  */
-input   wire        i_clk;
-input   wire        i_reset;
+input   wire [0:0]  i_clk;
+input   wire [0:0]  i_reset;
 input   wire [31:0] i_cycles;
 input   wire        i_en_dbg;
 input   wire        i_en_dec;
 input   wire        i_stalled;
 input   wire [19:0] i_pc;
 input   wire [3:0]  i_nibble;
+
+input   wire [3:0]  i_reg_p;
 
 output  reg         o_inc_pc;
 output  reg         o_dec_error;
@@ -59,6 +68,8 @@ output  reg [1:0]   o_fields_table;
 output  reg [3:0]   o_field;
 output  reg [3:0]   o_field_start;
 output  reg [3:0]   o_field_last;
+
+output  reg [4:0]   o_alu_op;
 
 // generic
 output  reg         o_direction;
@@ -74,7 +85,10 @@ output  reg         o_ins_set_mode;
 output  reg         o_mode_dec;
 
 // rstk and c
-output  reg         o_ins_rstk_c;        
+output  reg         o_ins_rstk_c; 
+
+// alu_operations
+output  reg         o_ins_alu_op;
 
 
 
@@ -92,7 +106,7 @@ initial begin
   //          instr_start, i_nibble);
   // $monitor("i_en_dec %b | i_cycles %d | nb %h | cont %b | b0x %b | rtn %b | sxm %b | sc %b | cv %b",
   //          i_en_dec, i_cycles, i_nibble, continue, block_0x, ins_rtn, set_xm, set_carry, carry_val);
-`endif
+`endif  
 end
 
 /*
@@ -101,23 +115,29 @@ end
  */
 
 always @(posedge i_clk) begin
-  if (!i_reset && i_en_dbg && !i_stalled) 
-    if (o_ins_decoded) begin
-`ifdef SIM
-      $write("%5h ", o_ins_addr);
-      if (o_ins_rtn) begin
-        $write("RTN");
-        if (o_set_xm) $write("SXM");
-        if (o_set_carry) $write("%sC", o_carry_val?"S":"C");
-        $display("");
+  if (!i_reset && i_en_dbg && !i_stalled)
+    if (!continue) begin
+      `ifdef SIM
+      $display("-------------------------------------------------------------------------------");  
+      if (o_ins_decoded) begin
+        $write("%5h ", o_ins_addr);
+        if (o_ins_rtn) begin
+          $write("RTN");
+          if (o_set_xm) $write("SXM");
+          if (o_set_carry) $write("%sC", o_carry_val?"S":"C");
+          $display("");
+        end
+        if (o_ins_set_mode) begin
+          $display("SET%s", o_mode_dec?"DEC":"HEX");
+        end
+        if (o_ins_rstk_c) begin
+          $display("%s", o_direction?"C=RSTK":"RSTK=C");
+        end
+        if (o_ins_alu_op) begin
+          $display("an alu operation (debugger code missing)");
+        end
       end
-      if (o_ins_set_mode) begin
-        $display("SET%s", o_mode_dec?"DEC":"HEX");
-      end
-      if (o_ins_rstk_c) begin
-        $display("%s", o_direction?"C=RSTK":"RSTK=C");
-      end
-`endif
+     `endif
     end
 end
 
@@ -156,6 +176,7 @@ always @(posedge i_clk) begin
        */ 
       if (!continue) begin
         continue       <= 1;
+        $display("resetting o_ins_decoded");
         o_ins_decoded  <= 0;
         // store the address where the instruction starts
         o_ins_addr     <= i_pc;
@@ -171,6 +192,8 @@ always @(posedge i_clk) begin
         o_field_start  <= 0;
         o_field_last   <= 0;
 
+        o_alu_op       <= 0;
+
         // cleanup
         o_direction    <= 0;
 
@@ -183,6 +206,8 @@ always @(posedge i_clk) begin
         o_mode_dec     <= 0;
         
         o_ins_rstk_c   <= 0;
+
+        o_ins_alu_op   <= 0;
       end
 
       /*
@@ -194,9 +219,9 @@ always @(posedge i_clk) begin
         case (i_nibble) 
         4'h0: block_0x <= 1;
         default: begin
-`ifdef SIM
+          `ifdef SIM
           $display("new_instruction: nibble %h not handled", i_nibble);
-`endif
+          `endif
           o_dec_error <= 1;
         end
         endcase
@@ -258,11 +283,10 @@ always @(posedge i_clk) begin
       *****************************************************************************/
 
       if (continue && block_0Efx && !fields_table) begin
-`ifdef SIM
-        $display("block_0Efx: nibble %h not handled", i_nibble);
-`endif
-        continue <= 0;
-        o_dec_error <= 1;
+        o_ins_alu_op  <= 1;
+        o_alu_op      <= (!i_nibble[3])?`ALU_OP_AND:`ALU_OP_OR;
+        continue      <= 0;
+        o_ins_decoded <= 1;
       end
 
       /******************************************************************************
@@ -272,12 +296,16 @@ always @(posedge i_clk) begin
       *
       *****************************************************************************/
 
-// `define DEBUG_FIELDS_TABLE
+`ifdef SIM
+//`define DEBUG_FIELDS_TABLE
+`endif
 
       if (continue && fields_table) begin
         if (fields_table != `FT_TABLE_value) begin
-`ifdef DEBUG_FIELDS_TABLE
-`ifdef SIM
+
+          // debug info
+
+          `ifdef DEBUG_FIELDS_TABLE
           $display("====== fields_table | table %h | nibble %b", o_fields_table, i_nibble);
           $display("table_a     : %b", ((o_fields_table == `FT_TABLE_a) &&  (!i_nibble[3])));
           $display("table_b     : %b", ((o_fields_table == `FT_TABLE_b) &&  ( i_nibble[3])));
@@ -286,44 +314,113 @@ always @(posedge i_clk) begin
           $display("table_f nbl : %h", {4{o_fields_table == `FT_TABLE_f}} );
           $display("table_f val : %h", (i_nibble & {4{o_fields_table == `FT_TABLE_f}}) );
           $display("case nibble : %h", ((i_nibble & 4'h7) | (i_nibble & {4{fields_table == `FT_TABLE_f}})) );
-`endif
-`endif
+          `endif
+
+          // 
+
           if (((o_fields_table == `FT_TABLE_a) &&  (!i_nibble[3])) ||
               ((o_fields_table == `FT_TABLE_b) &&  ( i_nibble[3])) ||
               ((o_fields_table == `FT_TABLE_f) && ((!i_nibble[3])  || (i_nibble == 4'hF) ))) begin
             case ((i_nibble & 4'h7) | (i_nibble & {4{o_fields_table == `FT_TABLE_f}}))
+            4'h0: begin 
+              o_field       <= `FT_FIELD_P;
+              o_field_start <= i_reg_p;
+              o_field_last  <= i_reg_p;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field P (%h)", i_reg_p);
+              `endif
+            end
+            4'h1: begin 
+              o_field       <= `FT_FIELD_WP;
+              o_field_start <= 0;
+              o_field_last  <= i_reg_p;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field WP (0-%h)", i_reg_p);
+              `endif
+            end
+            4'h2: begin 
+              o_field       <= `FT_FIELD_XS;
+              o_field_start <= 2;
+              o_field_last  <= 2;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field XS");
+              `endif
+            end
+            4'h3: begin 
+              o_field       <= `FT_FIELD_X;
+              o_field_start <= 0;
+              o_field_last  <= 2;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field X");
+              `endif
+            end
+            4'h4: begin 
+              o_field       <= `FT_FIELD_S;
+              o_field_start <= 15;
+              o_field_last  <= 15;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field S");
+              `endif
+            end
+            4'h5: begin 
+              o_field       <= `FT_FIELD_M;
+              o_field_start <= 3;
+              o_field_last  <= 14;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field M");
+              `endif
+            end
+            4'h6: begin 
+              o_field       <= `FT_FIELD_B;
+              o_field_start <= 0;
+              o_field_last  <= 1;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field B");
+              `endif
+            end
+            4'h7: begin 
+              o_field       <= `FT_FIELD_W;
+              o_field_start <= 0;
+              o_field_last  <= 15;
+              `ifdef DEBUG_FIELDS_TABLE
+              $display("fields_table: field W");
+              `endif
+            end
             4'hF: begin
               if (o_fields_table == `FT_TABLE_f) begin
-`ifdef SIM
+                o_field       <= `FT_FIELD_A;
+                o_field_start <= 0;
+                o_field_last  <= 4;
+                `ifdef DEBUG_FIELDS_TABLE
                 $display("fields_table: field A");
-`endif
+                `endif
               end else begin
-                // should never happen...
-`ifdef SIM
+                // should never get here
+                o_dec_error <= 1;
+                `ifdef SIM
                 $display("fields_table: table %h nibble %h", o_fields_table, i_nibble);
-`endif
+                `endif
               end
             end
             default: begin
-`ifdef SIM
-              $display("fields_table: table %h nibble %h not handled", o_fields_table, i_nibble);
-`endif
               o_dec_error <= 1;
+              `ifdef SIM
+              $display("fields_table: table %h nibble %h not handled", o_fields_table, i_nibble);
+              `endif
             end
             endcase
           end else begin
-`ifdef SIM
-            $display("fields_table: table %h invalid nibble %h", o_fields_table, i_nibble);
-`endif
             o_dec_error <= 1;
+            `ifdef SIM
+            $display("fields_table: table %h invalid nibble %h", o_fields_table, i_nibble);
+            `endif
           end
         end else begin
-`ifdef SIM
-          $display("fields_table: there is nothing to decode for table FT_TABLE_value");
-`endif
           o_dec_error <= 1;
+          `ifdef SIM
+          $display("fields_table: there is nothing to decode for table FT_TABLE_value");
+          `endif
         end
-
         fields_table <= 0;
       end
 
