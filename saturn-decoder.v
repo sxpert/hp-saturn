@@ -42,6 +42,7 @@ module saturn_decoder(
   o_ins_rtn,
   o_set_xm,
   o_set_carry,
+  o_en_intr,
   o_carry_val,
   o_ins_set_mode,
   o_mode_dec,
@@ -73,6 +74,7 @@ output  reg         o_ins_decoded;
 
 output  reg [1:0]   o_fields_table;
 output  reg [3:0]   o_field;
+output  reg         o_field_valid;
 output  reg [3:0]   o_field_start;
 output  reg [3:0]   o_field_last;
 
@@ -90,6 +92,7 @@ output  reg         o_ins_rtn;
 output  reg         o_set_xm;
 output  reg         o_set_carry;
 output  reg         o_carry_val;
+output  reg         o_en_intr;
 
 // setdec/hex
 output  reg         o_ins_set_mode;
@@ -125,97 +128,133 @@ end
 wire [19:0] new_pc;
 assign new_pc = i_pc + 1;
 
+wire run_debugger;
+assign run_debugger =  !i_reset && i_en_dbg && !i_stalled && !continue;
+
 always @(posedge i_clk) begin
-  if (!i_reset && i_en_dbg && !i_stalled)
-    if (!continue) begin
-      `ifdef SIM
-      if (o_ins_decoded) begin
-        $write("\n%5h ", o_ins_addr);
-        if (o_ins_rtn) begin
-          $write("RTN");
-          if (o_set_xm) $write("SXM");
-          if (o_set_carry) $write("%sC", o_carry_val?"S":"C");
-          $display("");
-        end
-        if (o_ins_set_mode) begin
-          $display("SET%s", o_mode_dec?"DEC":"HEX");
-        end
-        if (o_ins_alu_op) begin
-          
-          case (o_reg_dest)
+  if (run_debugger) begin
+    /*
+     * this whole thing is a large print statement
+     * THIS PART IS NEVER GENERATED
+     */
+    `ifdef SIM
+    if (o_ins_decoded) begin
+      $write("\n%5h ", o_ins_addr);
+      if (o_ins_rtn) begin
+        $write("RT%s", o_en_intr?"I":"N");
+        if (o_set_xm) $write("SXM");
+        if (o_set_carry) $write("%sC", o_carry_val?"S":"C");
+        $display("");
+      end
+      if (o_ins_set_mode) begin
+        $display("SET%s", o_mode_dec?"DEC":"HEX");
+      end
+      if (o_ins_alu_op) begin
+        
+        case (o_reg_dest)
+        `ALU_REG_A:    $write("A");
+        `ALU_REG_B:    $write("B");
+        `ALU_REG_C:    $write("C");
+        `ALU_REG_D:    $write("D");
+        `ALU_REG_RSTK: $write("RSTK");
+        `ALU_REG_R0:   $write("R0");
+        `ALU_REG_R1:   $write("R1");
+        `ALU_REG_R2:   $write("R2");
+        `ALU_REG_R3:   $write("R3");
+        `ALU_REG_R4:   $write("R4");
+        `ALU_REG_ST:   if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
+        `ALU_REG_P:    $write("P");
+        default: $write("[dest:%d]", o_reg_dest);
+        endcase
+        
+        case (o_alu_op)
+        `ALU_OP_ZERO: if (o_reg_dest==`ALU_REG_ST) $write("CLRST"); else $write("=0");
+        `ALU_OP_COPY,
+        `ALU_OP_AND,
+        `ALU_OP_OR,
+        `ALU_OP_INC,
+        `ALU_OP_DEC:  $write("=");
+        `ALU_OP_EXCH: begin end
+        default: $write("[op:%d]", o_alu_op);
+        endcase
+        
+        case (o_alu_op)
+        `ALU_OP_COPY,
+        `ALU_OP_EXCH,
+        `ALU_OP_AND,
+        `ALU_OP_OR,
+        `ALU_OP_INC,
+        `ALU_OP_DEC:
+          case (o_reg_src1)
           `ALU_REG_A:    $write("A");
+          `ALU_REG_B:    $write("B");
           `ALU_REG_C:    $write("C");
+          `ALU_REG_D:    $write("D");
           `ALU_REG_RSTK: $write("RSTK");
-          `ALU_REG_ST:   if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
+          `ALU_REG_R0:   $write("R0");
+          `ALU_REG_R1:   $write("R1");
+          `ALU_REG_R2:   $write("R2");
+          `ALU_REG_R3:   $write("R3");
+          `ALU_REG_R4:   $write("R4");
+          `ALU_REG_ST:   $write("ST");
           `ALU_REG_P:    $write("P");
-          default: $write("[dest:%d]", o_reg_dest);
+          default: $write("[src1:%d]", o_reg_src1);
           endcase
-          
+        endcase
+
+        if (o_alu_op == `ALU_OP_EXCH)
+          $write("EX");
+
+        case (o_alu_op)
+        `ALU_OP_AND,
+        `ALU_OP_OR: begin
           case (o_alu_op)
-          `ALU_OP_ZERO: if (o_reg_dest==`ALU_REG_ST) $write("CLRST"); else $write("=0");
-          `ALU_OP_COPY,
-          `ALU_OP_INC,
-          `ALU_OP_DEC:  $write("=");
-          `ALU_OP_EXCH: begin end
+          `ALU_OP_AND: $write("&");
+          `ALU_OP_OR:  $write("!");
           default: $write("[op:%d]", o_alu_op);
           endcase
           
-          case (o_alu_op)
-          `ALU_OP_COPY,
-          `ALU_OP_EXCH,
-          `ALU_OP_AND,
-          `ALU_OP_OR,
-          `ALU_OP_INC,
-          `ALU_OP_DEC:
-            case (o_reg_src1)
-            `ALU_REG_A:    $write("A");
-            `ALU_REG_C:    $write("C");
-            `ALU_REG_RSTK: $write("RSTK");
-            `ALU_REG_ST:   $write("ST");
-            `ALU_REG_P:    $write("P");
-            default: $write("[src1:%d]", o_reg_src1);
-            endcase
+          case (o_reg_src2)
+          `ALU_REG_A:    $write("A");
+          `ALU_REG_B:    $write("B");
+          `ALU_REG_C:    $write("C");
+          `ALU_REG_D:    $write("D");
+          `ALU_REG_RSTK: $write("RSTK");
+          default: $write("[src2:%d]", o_reg_src2);
           endcase
-
-          if (o_alu_op == `ALU_OP_EXCH)
-            $write("EX");
-
-          case (o_alu_op)
-          `ALU_OP_AND,
-          `ALU_OP_OR: begin
-            case (o_alu_op)
-            default: $write("[op:%d]", o_alu_op);
-            endcase
-            
-            case (o_reg_src2)
-            `ALU_REG_A:    $write("A");
-            `ALU_REG_C:    $write("C");
-            `ALU_REG_RSTK: $write("RSTK");
-            default: $write("[src2:%d]", o_reg_src2);
-            endcase
-          end
-          `ALU_OP_INC:  $write("+1");
-          `ALU_OP_DEC:  $write("-1");
-          `ALU_OP_ZERO,
-          `ALU_OP_COPY,
-          `ALU_OP_EXCH: begin end
-          endcase
-          
-          if (!((o_reg_dest == `ALU_REG_RSTK) || (o_reg_src1 == `ALU_REG_RSTK) ||
-                (o_reg_dest == `ALU_REG_ST)   || (o_reg_src1 == `ALU_REG_ST  ) ||
-                (o_reg_dest == `ALU_REG_P)    || (o_reg_src1 == `ALU_REG_P   ))) begin
-            $write("\t");
-            case (o_field)
-            default: $write("[f:%d-%h:%h]", o_field, o_field_start, o_field_last);
-            endcase
-          end
-
-          $display("");
         end
+        `ALU_OP_INC:  $write("+1");
+        `ALU_OP_DEC:  $write("-1");
+        `ALU_OP_ZERO,
+        `ALU_OP_COPY,
+        `ALU_OP_EXCH: begin end
+        endcase
+        
+        // if (!((o_reg_dest == `ALU_REG_RSTK) || (o_reg_src1 == `ALU_REG_RSTK) ||
+        //       (o_reg_dest == `ALU_REG_ST)   || (o_reg_src1 == `ALU_REG_ST  ) ||
+        //       (o_reg_dest == `ALU_REG_P)    || (o_reg_src1 == `ALU_REG_P   ))) begin
+        $write("\t");
+        if (o_field_valid)
+          case (o_field)
+          `FT_FIELD_P: $write("P");
+          `FT_FIELD_WP: $write("WP");
+          `FT_FIELD_XS: $write("XS");
+          `FT_FIELD_X: $write("X");
+          `FT_FIELD_S: $write("S");
+          `FT_FIELD_M: $write("M");
+          `FT_FIELD_B: $write("B");
+          `FT_FIELD_W: $write("W");
+          `FT_FIELD_A: $write("A");
+          endcase
+        else
+          $write("[f:%d-%h:%h]", o_field, o_field_start, o_field_last);
+
+        $display("");
       end
-      $display("new [%5h]--------------------------------------------------------------------", new_pc);  
-     `endif
     end
+    $display("new [%5h]--------------------------------------------------------------------", new_pc);  
+    `endif
+  end
 end
 
 /******************************************************************************
@@ -229,6 +268,14 @@ end
 reg   continue;
 reg   block_0x;
 reg   block_0Efx;
+reg   block_1x;
+reg   block_save_to_R_W;
+reg   block_rest_from_R_W;
+reg   block_exch_with_R_W;
+reg   block_pointer_assign_exch;
+reg   block_mem_transfer;
+reg   block_pointer_aryth_const;
+reg   block_load_pointer_imm;
 
 reg   go_fields_table;
 
@@ -244,9 +291,31 @@ assign do_on_first_nibble = decoder_active && !continue;
 assign do_on_other_nibbles = decoder_active && continue;
 
 wire  do_block_0x;
-assign do_block_0x = do_on_other_nibbles && block_0x;
 wire  do_block_0Efx;
-assign do_block_0Efx = do_on_other_nibbles && block_0Efx;
+wire  do_block_1x;
+wire  do_block_save_to_R_W;
+wire  do_block_rest_from_R_W;
+wire  do_block_exch_with_R_W;
+wire  do_block_Rn_A_C;
+wire  do_block_pointer_assign_exch;
+wire  do_block_mem_transfer;
+wire  do_block_pointer_aryth_const;
+wire  do_block_load_pointer_imm;
+assign do_block_0x                  = do_on_other_nibbles && block_0x;
+assign do_block_0Efx                = do_on_other_nibbles && block_0Efx;
+assign do_block_1x                  = do_on_other_nibbles && block_1x;
+assign do_block_save_to_R_W         = do_on_other_nibbles && block_save_to_R_W;                  
+assign do_block_rest_from_R_W       = do_on_other_nibbles && block_rest_from_R_W;       
+assign do_block_exch_with_R_W       = do_on_other_nibbles && block_exch_with_R_W;    
+assign do_block_Rn_A_C              = do_on_other_nibbles && 
+                                      ( block_save_to_R_W   ||
+                                        block_rest_from_R_W ||
+                                        block_exch_with_R_W );
+assign do_block_pointer_assign_exch = do_on_other_nibbles && block_pointer_assign_exch; 
+assign do_block_mem_transfer        = do_on_other_nibbles && block_mem_transfer;        
+assign do_block_pointer_aryth_const = do_on_other_nibbles && block_pointer_aryth_const; 
+assign do_block_load_pointer_imm    = do_on_other_nibbles && block_load_pointer_imm;    
+
 
 wire in_fields_table;
 assign in_fields_table = go_fields_table && !fields_table_done;
@@ -287,8 +356,16 @@ always @(posedge i_clk) begin
     o_ins_addr      <= i_pc;
 
     // cleanup block variables
-    block_0x        <= 0;
-    block_0Efx      <= 0;
+    block_0x                   <= 0;
+    block_0Efx                 <= 0;
+    block_1x                   <= 0;
+    block_save_to_R_W          <= 0;
+    block_rest_from_R_W        <= 0;
+    block_exch_with_R_W        <= 0;
+    block_pointer_assign_exch  <= 0;
+    block_mem_transfer         <= 0;
+    block_pointer_aryth_const  <= 0;
+    block_load_pointer_imm     <= 0;
 
     // cleanup fields table variables
     go_fields_table <= 0;
@@ -319,6 +396,7 @@ always @(posedge i_clk) begin
     // assign block regs
     case (i_nibble) 
     4'h0: block_0x <= 1;
+    4'h1: block_1x <= 1;
     default: begin
       `ifdef SIM
       $display("new_instruction: nibble %h not handled", i_nibble);
@@ -333,24 +411,25 @@ always @(posedge i_clk) begin
   *
   * 0x
   *
-  * 00   RTNSXM
-  * 01   RTN
-  * 02   RTNSC
-  * 03   RTNCC
-  * 04   SETHEX
-  * 05   SETDEC
+  * 00   RTNSXM        08   CLRST
+  * 01   RTN           09   C=ST
+  * 02   RTNSC         0A   ST=C
+  * 03   RTNCC         0B   CSTEX
+  * 04   SETHEX        0C   P=P+1
+  * 05   SETDEC        0D   P=P-1
   * 06   RSTK=C
-  * 07   C=RSTK
+  * 07   C=RSTK        0F   RTI
   *
   *****************************************************************************/
 
   if (do_block_0x) begin
     case (i_nibble)
-    4'h0, 4'h1, 4'h2, 4'h3: begin
+    4'h0, 4'h1, 4'h2, 4'h3, 4'hF: begin
       o_ins_rtn      <= 1;
-      o_set_xm       <= (i_nibble == 4'h0);
-      o_set_carry    <= (i_nibble[3:1] == 1);
-      o_carry_val    <= (i_nibble[1] && i_nibble[0]);
+      o_set_xm       <=  i_nibble == 4'h0;
+      o_set_carry    <= !i_nibble[3] && i_nibble[1];
+      o_carry_val    <=  i_nibble[1] && i_nibble[0];
+      o_en_intr      <=  i_nibble[3];
     end
     4'h4, 4'h5: begin
       o_ins_set_mode <= 1;
@@ -399,18 +478,72 @@ always @(posedge i_clk) begin
     o_ins_decoded   <= (i_nibble != 4'hE);
   end 
 
-        /******************************************************************************
-        *
-        * 0Ex
-        *
-        *
-        *****************************************************************************/
+  /******************************************************************************
+  *
+  * 0Ex   R1=R1[&!]R2    table_f
+  *
+  *****************************************************************************/
 
   if (do_block_0Efx && !in_fields_table) begin
     o_ins_alu_op  <= 1;
     o_alu_op      <= (!i_nibble[3])?`ALU_OP_AND:`ALU_OP_OR;
     continue      <= 0;
     o_ins_decoded <= 1;
+  end
+
+  /******************************************************************************
+  *
+  * 1x   jump table to other things
+  *
+  *****************************************************************************/
+
+  if (do_block_1x) begin
+    case (i_nibble)
+      4'h0: begin
+        block_save_to_R_W         <= 1;
+      end
+      4'h1: 
+        block_rest_from_R_W       <= 1;
+      4'h2: 
+        block_exch_with_R_W       <= 1;
+      4'h3: 
+        block_pointer_assign_exch <= 1;
+      4'h4, 4'h5: 
+        block_mem_transfer        <= 1;
+      4'h6, 4'h7, 4'h8, 4'hC:
+        block_pointer_aryth_const <= 1;
+      4'h9, 4'hA, 4'hB, 4'hD, 4'hE, 4'hF:
+        block_load_pointer_imm    <= 1;
+    endcase
+    block_1x <= 0;
+  end
+
+  if (do_block_save_to_R_W || do_block_rest_from_R_W) begin
+    o_ins_alu_op        <= 1;
+    o_alu_op            <= `ALU_OP_COPY;
+    continue            <= 0;
+    o_ins_decoded       <= 1;
+    block_save_to_R_W   <= 0;
+    block_rest_from_R_W <= 0;
+  end
+
+  if (do_block_exch_with_R_W) begin
+    o_ins_alu_op  <= 1;
+    o_alu_op      <= `ALU_OP_EXCH;
+    continue      <= 0;
+    o_ins_decoded <= 1;
+  end
+
+  if (do_block_pointer_assign_exch) begin
+  end
+
+  if (do_block_mem_transfer) begin
+  end
+
+  if (do_block_pointer_aryth_const) begin
+  end
+
+  if (do_block_load_pointer_imm) begin
   end
 
 end
@@ -421,6 +554,18 @@ end
 * set registers from instruction nibble
 *
 *****************************************************************************/
+
+wire [4:0]		reg_ABCD;
+wire [4:0]		reg_BCAC;
+wire [4:0]		reg_ABAC;
+wire [4:0]		reg_BCCD;
+wire [4:0]		reg_D0D1;
+
+assign reg_ABCD = { 2'b000, i_nibble[1:0]};
+assign reg_BCAC = { 2'b000, i_nibble[0], !(i_nibble[1] || i_nibble[0])};
+assign reg_ABAC = { 2'b000, i_nibble[1] && i_nibble[0], (!i_nibble[1]) && i_nibble[0]};
+assign reg_BCCD = { 2'b000, i_nibble[1] || i_nibble[0], (!i_nibble[1]) ^  i_nibble[0]};
+assign reg_D0D1 = {3'b0010, (i_nibble[0] && i_nibble[1]) || (i_nibble[2] && i_nibble[3])};
 
 always @(posedge i_clk) begin
 
@@ -471,10 +616,21 @@ always @(posedge i_clk) begin
   end 
 
   if (do_block_0Efx && !in_fields_table) begin
-    `ifdef SIM
-    $write("\nset registers for block_0Efx");
-    `endif
+    o_reg_dest <= i_nibble[2]?reg_BCAC:reg_ABCD;
+    o_reg_src1 <= i_nibble[2]?reg_BCAC:reg_ABCD;
+    o_reg_src2 <= i_nibble[2]?reg_ABCD:reg_BCAC;
   end   
+
+  if (do_block_save_to_R_W) begin
+    o_reg_dest <= {2'b01,  i_nibble[2:0]};
+    o_reg_src1 <= {3'b000, i_nibble[3]?2'b10:2'b00};
+  end
+  
+  if (do_block_rest_from_R_W || do_block_exch_with_R_W) begin
+    o_reg_dest <= {3'b000, i_nibble[3]?2'b10:2'b00};
+    o_reg_src1 <= {2'b01,  i_nibble[2:0]};
+  end
+
 
 end
 
@@ -537,6 +693,7 @@ always @(posedge i_clk) begin
     // reset values
     fields_table_done <= 0;
     o_field           <= 0;
+    o_field_valid     <= 0;
     o_field_start     <= 0;
     o_field_last      <= 0;
   end
@@ -561,6 +718,12 @@ always @(posedge i_clk) begin
     end
     endcase
   end
+
+  if (do_block_Rn_A_C) begin
+    o_field_start <= 0;
+    o_field_last  <= 15;
+  end
+  
 
   /******************************************************************************
   *
@@ -666,6 +829,7 @@ always @(posedge i_clk) begin
     end
     `endif
     endcase
+    o_field_valid     <= 1;
     fields_table_done <= 1;
   end 
 end
