@@ -77,7 +77,7 @@ saturn_decoder i_decoder (
 	.i_en_dbg   	(en_debugger),
 	.i_en_dec		(en_inst_dec),
 	.i_pc			(reg_pc),
-	// .i_stalled	(stalled),
+	.i_stalled  	(stalled),
 	.i_nibble		(nibble_in),
 	.o_inc_pc		(inc_pc),
 	.o_dec_error	(dec_error)
@@ -145,6 +145,7 @@ always @(posedge clk) begin
 		en_inst_exec  <= 0;
 		clock_end	  <= 0;
 		cycle_ctr	  <= ~0;
+		stalled		  <= 0;
 		max_cycle <= 50;
 `ifndef SIM
 		led[7:0] <= reg_pc[7:0];
@@ -158,13 +159,14 @@ end
 
 reg [3:0]   nibble_in;
 reg [19:0]	reg_pc;
+reg			stalled;
 
 always @(posedge clk)
   if (reset)
 	reg_pc <= ~0;
   else begin
 	if (en_bus_send) begin
-		if (inc_pc)
+		if (inc_pc & !stalled)
 			reg_pc <= reg_pc + 1;
 		else
 			$display("not incrementing PC");
@@ -174,6 +176,10 @@ always @(posedge clk)
 		$display("%5h %h", reg_pc, rom[reg_pc]);
 `endif
 		nibble_in <= rom[reg_pc];
+	end
+	if (en_inst_exec) begin
+		if (cycle_ctr == 5) stalled <= 1;
+		if (cycle_ctr == 10) stalled <= 0;
 	end
   end
 

@@ -10,7 +10,7 @@ module saturn_decoder(
      i_cycles,
      i_en_dbg,
      i_en_dec,
-    //  i_stalled,
+     i_stalled,
      i_pc,
      i_nibble,
      o_inc_pc,
@@ -24,7 +24,7 @@ input   wire        i_reset;
 input   wire [31:0] i_cycles;
 input   wire        i_en_dbg;
 input   wire        i_en_dec;
-// input   wire            i_stalled;
+input   wire        i_stalled;
 input   wire [19:0] i_pc;
 input   wire [3:0]  i_nibble;
 
@@ -55,8 +55,8 @@ end
  */
 
 always @(posedge i_clk) begin
-  if (!i_reset && i_en_dbg) 
-    if (!continue&ins_decoded) begin
+  if (!i_reset && i_en_dbg && !i_stalled) 
+    if (!continue && ins_decoded) begin
 `ifdef SIM
       $write("%5h ", ins_addr);
       if (ins_rtn) begin
@@ -112,7 +112,7 @@ always @(posedge i_clk) begin
     ins_decoded  <= 0;
 
   end else begin
-    if (i_en_dec) begin
+    if (i_en_dec && !i_stalled) begin
 
       /* 
        * stuff that is always done
@@ -167,6 +167,10 @@ always @(posedge i_clk) begin
       * 01   RTN
       * 02   RTNSC
       * 03   RTNCC
+      * 04   SETHEX
+      * 05   SETDEC
+      * 06   RSTK=C
+      * 07   C=RSTK
       *
       *****************************************************************************/
 
