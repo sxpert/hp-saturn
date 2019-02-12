@@ -78,9 +78,9 @@ output  reg [3:0]   o_field_last;
 
 output  reg [4:0]   o_alu_op;
 
-output  reg [3:0]   o_reg_dest;
-output  reg [3:0]   o_reg_src1;
-output  reg [3:0]   o_reg_src2;
+output  reg [4:0]   o_reg_dest;
+output  reg [4:0]   o_reg_src1;
+output  reg [4:0]   o_reg_src2;
 
 // generic
 output  reg         o_direction;
@@ -151,11 +151,13 @@ always @(posedge i_clk) begin
           case (o_alu_op)
           `ALU_OP_ZERO: if (o_reg_dest==`ALU_REG_ST) $write("CLRST"); else $write("=0");
           `ALU_OP_COPY: $write("=");
+          `ALU_OP_EXCH: begin end
           default: $write("[op:%d]", o_alu_op);
           endcase
           
           case (o_alu_op)
           `ALU_OP_COPY,
+          `ALU_OP_EXCH,
           `ALU_OP_AND,
           `ALU_OP_OR:
             case (o_reg_src1)
@@ -166,7 +168,10 @@ always @(posedge i_clk) begin
             default: $write("[src1:%d]", o_reg_src1);
             endcase
           endcase
-          
+
+          if (o_alu_op == `ALU_OP_EXCH)
+            $write("EX");
+
           case (o_alu_op)
           `ALU_OP_AND,
           `ALU_OP_OR: begin

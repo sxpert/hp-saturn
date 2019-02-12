@@ -50,6 +50,7 @@
 `define ALU_REG_R4      12
 `define ALU_REG_CST     13
 `define ALU_REG_ST      14
-`define ALU_REG_M       15
+`define ALU_REG_P       15
+`define ALU_REG_M       16
 
 `endif
