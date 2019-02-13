@@ -238,14 +238,11 @@ always @(posedge clk)
 			reg_pc <= reg_pc + 1;
 		`ifdef SIM
 		else
-			$write("\nnot incrementing PC");
+			$write("not incrementing PC\n");
 		`endif
 	end
 	if (en_bus_recv) begin
 		if (!stalled) begin
-	`ifdef SIM
-			$write("%h", rom[reg_pc]);
-	`endif
 			nibble_in <= rom[reg_pc];
 		end
 	end

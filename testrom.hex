@@ -111,4 +111,50 @@
 1 4 E               // C=DAT0   B
 1 4 F               // C=DAT1   B
 
+1 5 0 0             // DAT0=A   a
+1 5 1 1             // DAT1=A   a
+1 5 2 2             // A=DAT0   a
+1 5 3 3             // A=DAT1   a
+1 5 4 4             // DAT0=C   a
+1 5 5 5             // DAT1=C   a
+1 5 6 6             // C=DAT0   a
+1 5 7 7             // C=DAT1   a
+1 5 8 8             // DAT0=A   x+1
+1 5 9 9             // DAT1=A   x+1
+1 5 A A             // A=DAT0   x+1
+1 5 B B             // A=DAT1   x+1
+1 5 C C             // DAT0=C   x+1
+1 5 D D             // DAT1=C   x+1
+1 5 E E             // C=DAT0   x+1
+1 5 F F             // C=DAT1   x+1
+
+// pointer arithmetic
+
+1 6 2               // D0=D0+   n+1
+1 7 8               // D1=D1+   n+1
+1 8 A               // D0=D0-   n+1
+1 C F               // D1=D1-   n+1
+
+// pointer load
+
+1 9 1 2             // D0=(2)   21
+1 A 3 4 5 6         // D0=(4)   6543
+1 B 7 8 9 A B       // D0=(5)   BA987
+
+1 D 1 2             // D1=(2)   21
+1 E 3 4 5 6         // D1=(4)   6543
+1 F 7 8 9 A B       // D1=(5)   BA987
+
+// load P with immediate value
+
+2 3                 // P=       3
+
+// load c with immediate value
+// start on nibble pointed by p
+
+3 5 0 1 2 3 4 5
+3 F 0 1 2 3 4 5 6 7 8 9 A B C D E F
+
+
+
 F                   // end
