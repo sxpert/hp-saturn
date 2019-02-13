@@ -38,7 +38,7 @@ input   wire [0:0]  i_en_alu_calc;
 input   wire [0:0]  i_en_alu_init;
 input   wire [0:0]  i_en_alu_save;
 
-output  reg  [0:0]  o_alu_stall_dec;
+output  wire [0:0]  o_alu_stall_dec;
 input   wire [0:0]  i_ins_decoded;
 
 input   wire [3:0]  i_field_start;
@@ -87,7 +87,8 @@ reg  [19:0]      RSTK[0:7];
 initial begin
   // alu internal control bits
   alu_run         = 0;
-  o_alu_stall_dec = 0;
+  alu_done        = 0;
+//   o_alu_stall_dec = 0;
   // processor registers
   D0              = 0;
   D1              = 0;
@@ -133,6 +134,10 @@ assign do_alu_calc = (!i_reset) && i_en_alu_calc;
 assign do_alu_save = (!i_reset) && i_en_alu_save;
 
 reg       alu_run;
+reg       alu_done;
+
+assign o_alu_stall_dec = alu_run;
+
 reg [4:0] alu_op;
 reg [4:0] reg_dest;
 reg [4:0] reg_src1;
@@ -147,14 +152,16 @@ reg [3:0] c_res1;
 reg [3:0] c_res2;
 reg       c_carry;
 
+
+/*
+ * dump all registers 
+ * this only reads things...
+ *
+ */ 
+
 always @(posedge i_clk) begin
-
-//   if (!i_reset) begin
-//     $display("alu_clk");
-//   end
-
   if (do_reg_dump) begin
-    $display("ALU_DUMP 0:");
+    $display("ALU_DUMP 0: run %b | done %b ", alu_run, alu_done);
     `ifdef SIM
     // display registers
     $display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", 
@@ -171,26 +178,45 @@ always @(posedge i_clk) begin
              RSTK[0]);
     `endif
   end
+end
 
+
+always @(posedge i_clk) begin
   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
   if (do_alu_init) begin
-    $display("ALU_INIT 3: run %b | i_alu %b | op %d | dest %d | src1 %d | src2 %d | start %h | end %h",
-             alu_run, i_ins_alu_op, i_alu_op, i_reg_dest, i_reg_src1, i_reg_src2, i_field_start, i_field_last);
-    alu_run  <= 1;
+    $display({"ALU_INIT 3: run %b | done %b | stall %b | i_alu %b |",
+              " op %d | dest %d | src1 %d | src2 %d | start %h | end %h"},
+             alu_run, alu_done, o_alu_stall_dec, i_ins_alu_op, i_alu_op, 
+             i_reg_dest, i_reg_src1, i_reg_src2, i_field_start, i_field_last);
     alu_op   <= i_alu_op;
     reg_dest <= i_reg_dest;
     reg_src1 <= i_reg_src1;
     reg_src2 <= i_reg_src2;
     f_start  <= i_field_start;
     f_last   <= i_field_last;
-    // stall the decoder
-    o_alu_stall_dec <= 1;
   end
+end
 
+/*
+ * handles alu_done
+ */
+always @(posedge i_clk) begin
+  if (do_alu_init) alu_run <= 1;
+  if (do_alu_prep && alu_run) alu_done <= 0;
+  if (do_alu_calc && alu_run && (f_start == f_last)) alu_done <= 1; 
+  if (do_alu_save && alu_done) begin
+    alu_run <= 0;
+    alu_done <= 0;
+  end
+end
+
+
+
+always @(posedge i_clk) begin
   if (do_alu_prep && alu_run) begin
     `ifdef SIM
-    $display("ALU_PREP 1: run %b | stall %b | op %b | alu_op %h | f_start %h | f_last %h", 
-             alu_run, o_alu_stall_dec, alu_op, i_alu_op, f_start, f_last);
+    $display("ALU_PREP 1: run %b | done %b | stall %b | op %b | alu_op %h | f_start %h | f_last %h", 
+             alu_run, alu_done, o_alu_stall_dec, alu_op, i_alu_op, f_start, f_last);
     `endif
     
 
@@ -208,20 +234,24 @@ always @(posedge i_clk) begin
     // setup p_carry
 
   end
+end
 
+always @(posedge i_clk) begin
   if (do_alu_calc) begin
-    $display("ALU_CALC 2: run %b | op %d | src1 %h | src2 %h | p_carry %b", 
-             alu_run, alu_op, p_src1, p_src2, p_carry);
+    $display("ALU_CALC 2: run %b | done %b | stall %b | op %d | src1 %h | src2 %h | p_carry %b", 
+             alu_run, alu_done, o_alu_stall_dec, alu_op, p_src1, p_src2, p_carry);
 
     case (alu_op)
     `ALU_OP_ZERO: c_res1 <= 0;
     `ALU_OP_COPY: c_res1 <= p_src1;
     endcase
   end
+end
 
+always @(posedge i_clk) begin
   if (do_alu_save) begin
-    $display("ALU_SAVE 3: run %b | stall %b | op %b | res1 %h | res2 %h | c_carry %b", 
-             alu_run, o_alu_stall_dec, alu_op, c_res1, c_res2, c_carry);
+    $display("ALU_SAVE 3: run %b | done %b | stall %b | op %b | res1 %h | res2 %h | c_carry %b", 
+             alu_run, alu_done, o_alu_stall_dec, alu_op, c_res1, c_res2, c_carry);
 
     case (alu_op)
     `ALU_OP_ZERO,
@@ -230,12 +260,6 @@ always @(posedge i_clk) begin
       `ALU_REG_P: P <= c_res1;
       endcase
     endcase 
-
-    // find if we're finished
-    if (f_start == f_last) begin
-      $display("ALU_SAVE 3: unstall decoder");
-      o_alu_stall_dec <= 0;
-    end
 
   end
   

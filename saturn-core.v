@@ -177,7 +177,7 @@ wire [3:0]		reg_p;
 `ifdef SIM
 reg [3:0] rom [0:2**20];
 `else 
-reg [3:0] rom [0:2**20];
+reg [3:0] rom [0:2**10];
 `endif
 
 initial
@@ -277,8 +277,8 @@ always @(posedge clk)
 		if (inc_pc & !stalled)
 			reg_pc <= reg_pc + 1;
 		`ifdef SIM
-		else
-			$write("not incrementing PC\n");
+		else              
+			$write("PC_INC   0: not incrementing PC\n");
 		`endif
 	end
 	if (en_bus_recv) begin
