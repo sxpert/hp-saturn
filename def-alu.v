@@ -51,9 +51,11 @@
                       //13
                       //14
                       //15
-`define ALU_REG_CST     16
-`define ALU_REG_ST      17
-`define ALU_REG_P       18
-`define ALU_REG_M       19
+`define ALU_REG_DAT0    16
+`define ALU_REG_DAT1    17
+`define ALU_REG_CST     18
+`define ALU_REG_ST      19
+`define ALU_REG_P       20
+`define ALU_REG_M       21
 
 `endif

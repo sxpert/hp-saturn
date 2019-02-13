@@ -132,6 +132,10 @@ assign new_pc = i_pc + 1;
 wire run_debugger;
 assign run_debugger =  !i_reset && i_en_dbg && !i_stalled && !continue;
 
+wire is_short_transfer;
+assign is_short_transfer = (o_field_last == 3) && 
+                           ((o_reg_dest[4:1] == 4'b0010) || (o_reg_src1[4:1] == 4'b0010));
+
 always @(posedge i_clk) begin
   if (run_debugger) begin
     /*
@@ -157,6 +161,8 @@ always @(posedge i_clk) begin
         `ALU_REG_B:    $write("B");
         `ALU_REG_C:    $write("C");
         `ALU_REG_D:    $write("D");
+        `ALU_REG_D0:   $write("D0");
+        `ALU_REG_D1:   $write("D1");
         `ALU_REG_RSTK: $write("RSTK");
         `ALU_REG_R0:   $write("R0");
         `ALU_REG_R1:   $write("R1");
@@ -191,6 +197,8 @@ always @(posedge i_clk) begin
           `ALU_REG_B:    $write("B");
           `ALU_REG_C:    $write("C");
           `ALU_REG_D:    $write("D");
+          `ALU_REG_D0:   $write("D0");
+          `ALU_REG_D1:   $write("D1");
           `ALU_REG_RSTK: $write("RSTK");
           `ALU_REG_R0:   $write("R0");
           `ALU_REG_R1:   $write("R1");
@@ -203,8 +211,12 @@ always @(posedge i_clk) begin
           endcase
         endcase
 
+
+        if ((o_alu_op == `ALU_OP_COPY) && is_short_transfer) 
+          $write("S");
+
         if (o_alu_op == `ALU_OP_EXCH)
-          $write("EX");
+          $write("%s", is_short_transfer?"XS":"EX");
 
         case (o_alu_op)
         `ALU_OP_AND,
@@ -267,6 +279,8 @@ end
 
 // general variables
 reg   continue;
+reg   use_fields_tbl;
+
 reg   block_0x;
 reg   block_0Efx;
 reg   block_1x;
@@ -329,11 +343,12 @@ assign in_fields_table = go_fields_table && !fields_table_done;
 
 always @(posedge i_clk) begin
   if (i_reset) begin
-    continue      <= 0;
-    o_inc_pc      <= 1;
-    o_dec_error   <= 0;
-    o_ins_decoded <= 0;
-    o_alu_op      <= 0;
+    continue       <= 0;
+    use_fields_tbl <= 0;
+    o_inc_pc       <= 1;
+    o_dec_error    <= 0;
+    o_ins_decoded  <= 0;
+    o_alu_op       <= 0;
   end
   
   if (decoder_active) begin
@@ -348,6 +363,7 @@ always @(posedge i_clk) begin
       */ 
   if (do_on_first_nibble) begin
     continue        <= 1;
+    use_fields_tbl  <= 0;
 
     o_push          <= 0;
     o_pop           <= 0;
@@ -509,8 +525,10 @@ always @(posedge i_clk) begin
         block_exch_with_R_W       <= 1;
       4'h3: 
         block_pointer_assign_exch <= 1;
-      4'h4, 4'h5: 
+      4'h4, 4'h5: begin
         block_mem_transfer        <= 1;
+        use_fields_tbl            <= i_nibble[1];
+      end
       4'h6, 4'h7, 4'h8, 4'hC:
         block_pointer_aryth_const <= 1;
       4'h9, 4'hA, 4'hB, 4'hD, 4'hE, 4'hF:
@@ -536,9 +554,20 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_pointer_assign_exch) begin
+    o_ins_alu_op  <= 1;
+    o_alu_op      <= i_nibble[1]?`ALU_OP_EXCH:`ALU_OP_COPY;
+    continue      <= 0;
+    o_ins_decoded <= 1;
   end
 
   if (do_block_mem_transfer) begin
+    o_ins_alu_op    <= 1;
+    o_alu_op        <= `ALU_OP_COPY;
+    o_fields_table  <= i_nibble[3]?`FT_TABLE_value:`FT_TABLE_a;
+    // we continue if we need the fields table (nibble2 was 5)
+    go_fields_table <= use_fields_tbl;
+    continue        <= use_fields_tbl;
+    o_ins_decoded   <= !use_fields_tbl;
   end
 
   if (do_block_pointer_aryth_const) begin
@@ -561,12 +590,17 @@ wire [4:0]		reg_BCAC;
 wire [4:0]		reg_ABAC;
 wire [4:0]		reg_BCCD;
 wire [4:0]		reg_D0D1;
+wire [4:0]		reg_DAT0DAT1;
+wire [4:0]    reg_A_C;
 
-assign reg_ABCD = { 2'b000, i_nibble[1:0]};
-assign reg_BCAC = { 2'b000, i_nibble[0], !(i_nibble[1] || i_nibble[0])};
-assign reg_ABAC = { 2'b000, i_nibble[1] && i_nibble[0], (!i_nibble[1]) && i_nibble[0]};
-assign reg_BCCD = { 2'b000, i_nibble[1] || i_nibble[0], (!i_nibble[1]) ^  i_nibble[0]};
-assign reg_D0D1 = {3'b0010, (i_nibble[0] && i_nibble[1]) || (i_nibble[2] && i_nibble[3])};
+assign reg_ABCD     = { 3'b000,   i_nibble[1:0]};
+assign reg_BCAC     = { 3'b000,   i_nibble[0], !(i_nibble[1] ||   i_nibble[0])};
+assign reg_ABAC     = { 3'b000,   i_nibble[1] && i_nibble[0],   (!i_nibble[1]) && i_nibble[0]};
+assign reg_BCCD     = { 3'b000,   i_nibble[1] || i_nibble[0],   (!i_nibble[1]) ^  i_nibble[0]};
+// assign reg_D0D1 = { 4'b0010, (i_nibble[0] && i_nibble[1]) || (i_nibble[2]  && i_nibble[3])};
+assign reg_D0D1     = { 4'b0010,  i_nibble[0]};
+assign reg_DAT0DAT1 = { 4'b1000,  i_nibble[0]};
+assign reg_A_C      = { 3'b000,   i_nibble[2],   1'b0};
 
 always @(posedge i_clk) begin
 
@@ -632,6 +666,15 @@ always @(posedge i_clk) begin
     o_reg_src1 <= {2'b01,  i_nibble[2:0]};
   end
 
+  if (do_block_pointer_assign_exch) begin
+    o_reg_dest <= i_nibble[1]?reg_A_C:reg_D0D1;
+    o_reg_src1 <= i_nibble[1]?reg_D0D1:reg_A_C;
+  end
+
+  if (do_block_mem_transfer) begin
+    o_reg_dest <= i_nibble[1]?reg_A_C:reg_DAT0DAT1;
+    o_reg_src1 <= i_nibble[1]?reg_DAT0DAT1:reg_A_C;
+  end
 
 end
 
@@ -724,7 +767,11 @@ always @(posedge i_clk) begin
     o_field_start <= 0;
     o_field_last  <= 15;
   end
-  
+
+  if (do_block_pointer_assign_exch) begin
+    o_field_start <= 0;
+    o_field_last  <= i_nibble[3]?3:4;
+  end
 
   /******************************************************************************
   *

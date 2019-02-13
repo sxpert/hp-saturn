@@ -40,7 +40,8 @@
 0 E 0 F             // C=C!D    P
 0 F                 // RTI
 
-// Block 1x
+// Block 1[012]x saving and exchange with Rn registers
+
 1 0 0               // R0=A             (W)
 1 0 1               // R1=A             (W)
 1 0 2               // R2=A             (W)
@@ -51,26 +52,63 @@
 1 0 A               // R2=C             (W)
 1 0 B               // R3=C             (W)
 1 0 C               // R4=C             (W)
-1 1 0               // A=R0             (w)
-1 1 1               // A=R1             (w)
-1 1 2               // A=R2             (w)
-1 1 3               // A=R3             (w)
-1 1 4               // A=R4             (w)
-1 1 8               // C=R0             (w)
-1 1 9               // C=R1             (w)
-1 1 A               // C=R2             (w)
-1 1 B               // C=R3             (w)
-1 1 C               // C=R4             (w)
-1 2 0               // AR0EX            (w)
-1 2 1               // AR1EX            (w)
-1 2 2               // AR2EX            (w)
-1 2 3               // AR3EX            (w)
-1 2 4               // AR4EX            (w)
-1 2 8               // CR0EX            (w)
-1 2 9               // CR1EX            (w)
-1 2 A               // CR2EX            (w)
-1 2 B               // CR3EX            (w)
-1 2 C               // CR4EX            (w)
+1 1 0               // A=R0             (W)
+1 1 1               // A=R1             (W)
+1 1 2               // A=R2             (W)
+1 1 3               // A=R3             (W)
+1 1 4               // A=R4             (W)
+1 1 8               // C=R0             (W)
+1 1 9               // C=R1             (W)
+1 1 A               // C=R2             (W)
+1 1 B               // C=R3             (W)
+1 1 C               // C=R4             (W)
+1 2 0               // AR0EX            (W)
+1 2 1               // AR1EX            (W)
+1 2 2               // AR2EX            (W)
+1 2 3               // AR3EX            (W)
+1 2 4               // AR4EX            (W)
+1 2 8               // CR0EX            (W)
+1 2 9               // CR1EX            (W)
+1 2 A               // CR2EX            (W)
+1 2 B               // CR3EX            (W)
+1 2 C               // CR4EX            (W)
 
+// block 13x setting up pointer registers
+
+1 3 0               // D0=A             (A)
+1 3 1               // D1=A             (A)
+1 3 2               // AD0EX            (A)
+1 3 3               // AD1EX            (A)
+1 3 4               // D0=C             (A)
+1 3 5               // D1=C             (A)
+1 3 6               // CD0EX            (A)
+1 3 7               // CD1EX            (A)
+1 3 8               // D0=AS            (4-0)
+1 3 9               // D1=AS            (4-0)
+1 3 A               // AD0XS            (4-0)
+1 3 B               // AD0XS            (4-0)
+1 3 C               // D0=CS            (4-0)
+1 3 D               // D1=CS            (4-0)
+1 3 E               // CD0XS            (4-0)
+1 3 F               // CD1XS            (4-0)
+
+// block 1[45]x[a|x+1] data transfer
+
+1 4 0               // DAT0=A   A
+1 4 1               // DAT1=A   A
+1 4 2               // A=DAT0   A
+1 4 3               // A=DAT1   A
+1 4 4               // DAT0=C   A
+1 4 5               // DAT1=C   A
+1 4 6               // C=DAT0   A
+1 4 7               // C=DAT1   A
+1 4 8               // DAT0=A   B
+1 4 9               // DAT1=A   B
+1 4 A               // A=DAT0   B
+1 4 B               // A=DAT1   B
+1 4 C               // DAT0=C   B
+1 4 D               // DAT1=C   B
+1 4 E               // C=DAT0   B
+1 4 F               // C=DAT1   B
 
 F                   // end
