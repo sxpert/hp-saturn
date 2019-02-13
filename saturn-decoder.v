@@ -123,6 +123,7 @@ output  reg [3:0]        o_mem_pos;
 
 reg [31:0]  instr_ctr;
 reg [0:0]   next_nibble;
+reg [4:0]   inst_cycles;
 
 reg         inval_opcode_regs;
 
@@ -180,6 +181,7 @@ always @(posedge i_clk) begin
      */
     `ifdef SIM
     if (o_ins_decoded) begin
+      $write("DBG      0: ");
       $write("%5h ", o_ins_addr);
 
       // $write("[%2d] ", o_dbg_nb_nbls);
@@ -342,7 +344,7 @@ always @(posedge i_clk) begin
           else if (!p_is_dest)
             $write("[%h:%h]", o_field_start, o_field_last);
         end
-        $display("");
+        $display("\t(%d cycles)", inst_cycles);
       end
     end
     // $display("new [%5h]--------------------------------------------------------------------", new_pc);  
@@ -377,12 +379,16 @@ reg   go_fields_table;
 /* lots'o-wires to decode common states
  */
 
+wire  count_cycles;
 wire  decoder_active;
+wire  decoder_stalled;
 wire  do_on_first_nibble;
 wire  do_on_other_nibbles;
 
-assign decoder_active = !i_reset && i_en_dec && !i_stalled;
-assign do_on_first_nibble = decoder_active && !next_nibble;
+assign count_cycles        = !i_reset && i_en_dec && (next_nibble || i_stalled);
+assign decoder_active      = !i_reset && i_en_dec && !i_stalled;
+assign decoder_stalled     = !i_reset && i_en_dec &&  i_stalled;
+assign do_on_first_nibble  = decoder_active && !next_nibble;
 assign do_on_other_nibbles = decoder_active && next_nibble;
 
 wire  do_block_0x;
@@ -437,7 +443,8 @@ assign dbg_write_pos = (!next_nibble?0:o_dbg_nb_nbls);
 
 always @(posedge i_clk) begin
   if (i_reset) begin
-    next_nibble       <= 0;
+    inst_cycles    <= 0;
+    next_nibble    <= 0;
     use_fields_tbl <= 0;
     o_inc_pc       <= 1;
     o_dec_error    <= 0;
@@ -449,15 +456,25 @@ always @(posedge i_clk) begin
     /* 
       * stuff that is always done
       */
+    $display("DEC_RUN  2: nibble %h", i_nibble);
     o_inc_pc                          <= 1; // may be set to 0 later
     o_dbg_nibbles[dbg_write_pos*4+:4] <= i_nibble;
     o_dbg_nb_nbls                     <= o_dbg_nb_nbls + 1;
+  end
+
+  if (decoder_stalled) begin
+    $display("DEC_STAL 2:");
+  end
+
+  if (count_cycles) begin
+    inst_cycles <= inst_cycles + 1;
   end
 
     /*
       * cleanup
       */ 
   if (do_on_first_nibble) begin
+    inst_cycles     <= 1;
     next_nibble     <= 1;
     use_fields_tbl  <= 0;
 
@@ -520,7 +537,7 @@ always @(posedge i_clk) begin
     4'h3: block_load_c_hex <= 1;
     default: begin
       `ifdef SIM
-      $display("new_instruction: nibble %h not handled", i_nibble);
+      $display("DEC_INIT 2: nibble %h not handled", i_nibble);
       `endif
       o_dec_error <= 1;
     end

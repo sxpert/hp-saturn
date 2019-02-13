@@ -44,12 +44,14 @@ assign reset		= btn[1];
 // clocks
 reg	 [1:0]      clk_phase;
 reg				en_reset;
+reg				en_alu_dump;	// phase 0
 reg				en_debugger;	// phase 0
 reg				en_bus_send;	// phase 0
 reg				en_bus_recv;	// phase 1
 reg				en_alu_prep;	// phase 1
 reg				en_alu_calc;	// phase 2
 reg				en_inst_dec;	// phase 2
+reg				en_alu_init;	// phase 3
 reg				en_alu_save;	// phase 3
 reg				en_inst_exec;	// phase 3
 reg				clock_end;
@@ -92,8 +94,12 @@ saturn_decoder	m_decoder (
   .o_field        (field),
   .o_field_start  (field_start),
   .o_field_last   (field_last),
+	.o_imm_value    (imm_value),
 
 	.o_alu_op				(alu_op),
+	.o_reg_dest			(reg_dest),
+	.o_reg_src1			(reg_src1),
+	.o_reg_src2			(reg_src2),
 
   .o_direction    (direction),
   .o_ins_rtn      (ins_rtn),
@@ -101,7 +107,8 @@ saturn_decoder	m_decoder (
   .o_set_carry    (set_carry),
   .o_carry_val    (carry_val),
   .o_ins_set_mode (ins_set_mode),
-	.o_mode_dec     (mode_dec)
+	.o_mode_dec     (mode_dec),
+  .o_ins_alu_op		(ins_alu_op)
 );
 
 wire            inc_pc;
@@ -114,8 +121,12 @@ wire [1:0]      fields_table;
 wire [3:0]      field;
 wire [3:0]      field_start;
 wire [3:0]      field_last;
+wire [3:0]			imm_value;
 
 wire [4:0]			alu_op;
+wire [4:0]			reg_dest;
+wire [4:0]			reg_src1;
+wire [4:0]			reg_src2;
 
 wire            direction;
 wire            ins_rtn;
@@ -124,37 +135,60 @@ wire            set_carry;
 wire            carry_val;
 wire            ins_set_mode;
 wire		        mode_dec;
+wire						ins_alu_op;
 
 
 saturn_alu		m_alu (
-	.i_clk					(clk),
-	.i_reset				(reset),
-	.i_en_alu_prep	(en_alu_prep),
-	.i_en_alu_calc	(en_alu_calc),
-	.i_en_alu_save	(en_alu_save),
+	.i_clk					 (clk),
+	.i_reset				 (reset),
+	.i_en_alu_dump   (en_alu_dump),
+	.i_en_alu_prep	 (en_alu_prep),
+	.i_en_alu_calc	 (en_alu_calc),
+	.i_en_alu_init   (en_alu_init),
+	.i_en_alu_save 	 (en_alu_save),
 
-  .i_field_start  (field_start),
-	.i_field_last   (field_last),
+  .o_alu_stall_dec (alu_stall),
+	.i_ins_decoded   (ins_decoded),
 
-	.i_alu_op				(alu_op),
+  .i_field_start   (field_start),
+	.i_field_last    (field_last),
+	.i_imm_value     (imm_value),
 
-	.o_reg_p				(reg_p)
+	.i_alu_op			 	 (alu_op),
+	.i_reg_dest			 (reg_dest),
+	.i_reg_src1			 (reg_src1),
+	.i_reg_src2			 (reg_src2),
+
+  .i_ins_alu_op		 (ins_alu_op),
+
+	.o_reg_p				 (reg_p),
+	.i_pc			       (reg_pc)
 );
 
 
 // interconnections
 
+wire [0:0]    alu_stall;
 wire [3:0]		reg_p;
 
 /*
  * test rom...
  */
-
-reg [3:0] rom [0:1024];
+`ifdef SIM
+reg [3:0] rom [0:2**20];
+`else 
+reg [3:0] rom [0:2**20];
+`endif
 
 initial
 	begin
-		$readmemh( "testrom.hex", rom);
+
+		`ifndef SIM
+		$readmemh("rom-gx-r.hex", rom);
+		`else
+		$readmemh( "testrom-2.hex", rom);
+		`endif
+
 		clk_phase 		= 0;
 		en_debugger 	= 0;	// phase 0
 		en_bus_send 	= 0;	// phase 0
@@ -162,6 +196,7 @@ initial
 		en_alu_prep 	= 0;	// phase 1
 		en_alu_calc 	= 0;	// phase 2
 		en_inst_dec 	= 0;	// phase 2
+		en_alu_init   = 0;  // phase 0
 		en_alu_save 	= 0;	// phase 3
 		en_inst_exec	= 0;	// phase 3
 		clock_end			= 0;
@@ -187,12 +222,14 @@ initial
 always @(posedge clk) begin
 	if (!reset) begin
 		clk_phase    <= clk_phase + 1;
+		en_alu_dump  <= clk_phase[1:0] == 0;
 		en_debugger  <= clk_phase[1:0] == 0;
 		en_bus_send  <= clk_phase[1:0] == 0;
 		en_bus_recv  <= clk_phase[1:0] == 1;
 		en_alu_prep  <= clk_phase[1:0] == 1;
 		en_alu_calc  <= clk_phase[1:0] == 2;
 		en_inst_dec  <= clk_phase[1:0] == 2;
+		en_alu_init  <= clk_phase[1:0] == 3;
 		en_alu_save  <= clk_phase[1:0] == 3;
 		en_inst_exec <= clk_phase[1:0] == 3;
 		cycle_ctr    <= cycle_ctr + (clk_phase[1:0] == 0);
@@ -201,19 +238,21 @@ always @(posedge clk) begin
 			clock_end <= 1;
 	end else begin
 		clk_phase 	  <= ~0;
+		en_alu_dump   <= 0;
 		en_debugger   <= 0;
 		en_bus_send   <= 0;
 		en_bus_recv   <= 0;
 		en_alu_prep   <= 0;
 		en_alu_calc   <= 0;
 		en_inst_dec   <= 0;
+		en_alu_init   <= 0;
 		en_alu_save   <= 0;
 		en_inst_exec  <= 0;
-		clock_end	  <= 0;
-		cycle_ctr	  <= ~0;
-		max_cycle <= 1024;
+		clock_end	    <= 0;
+		cycle_ctr	    <= ~0;
+		max_cycle     <= 4;
 `ifndef SIM
-		led[7:0] <= reg_pc[7:0];
+		led[7:0]      <= reg_pc[7:0];
 `endif
 	end
 end
@@ -226,12 +265,13 @@ end
 
 reg [3:0]   nibble_in;
 reg [19:0]	reg_pc;
-reg			    stalled;
+wire			  stalled;
+assign stalled = alu_stall;
 
 always @(posedge clk)
   if (reset) begin
 		reg_pc  <= ~0;
-		stalled <= 0;
+		// stalled <= 0;
   end else begin
 	if (en_bus_send) begin
 		if (inc_pc & !stalled)
@@ -246,10 +286,10 @@ always @(posedge clk)
 			nibble_in <= rom[reg_pc];
 		end
 	end
-	if (en_inst_exec) begin
-		if (cycle_ctr == 5) stalled <= 1;
-		if (cycle_ctr == 10) stalled <= 0;
-	end
+	// if (en_inst_exec) begin
+	// 	if (cycle_ctr == 5) stalled <= 1;
+	// 	if (cycle_ctr == 10) stalled <= 0;
+	// end
   end
 
 assign halt = clock_end || inv_opcode;
@@ -299,8 +339,5 @@ end
 
 
 endmodule
-
-`else
-
 
 `endif
