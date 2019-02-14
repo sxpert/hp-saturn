@@ -1,3 +1,4 @@
+
 `ifndef _SATURN_ALU
 `define _SATURN_ALU
 
@@ -193,20 +194,23 @@ initial begin
   RSTK[7]         = 0;
 end
 
+`ifdef SIM
 wire do_reg_dump;
+wire do_alu_shpc;
+assign do_reg_dump = (!i_reset) && i_en_alu_dump && i_ins_decoded && !o_alu_stall_dec;
+assign do_alu_shpc = (!i_reset) && i_en_alu_dump;
+`endif
+
 wire do_alu_init;
 wire do_alu_prep;
 wire do_alu_calc;
 wire do_alu_save;
-wire do_alu_shpc;
 wire do_alu_pc;
 
-assign do_reg_dump = (!i_reset) && i_en_alu_dump && i_ins_decoded && !o_alu_stall_dec;
 assign do_alu_init = (!i_reset) && i_en_alu_init && i_ins_alu_op && !alu_run; 
 assign do_alu_prep = (!i_reset) && i_en_alu_prep && alu_run;
 assign do_alu_calc = (!i_reset) && i_en_alu_calc && alu_run;
 assign do_alu_save = (!i_reset) && i_en_alu_save && alu_run;
-assign do_alu_shpc = (!i_reset) && i_en_alu_dump;
 assign do_alu_pc   = (!i_reset) && i_en_alu_save;
 
 // the decoder may request the ALU to not stall it
@@ -237,17 +241,18 @@ assign is_alu_op_jump = ((alu_op == `ALU_OP_JMP_REL3) ||
  */ 
 
 always @(posedge i_clk) begin
-  `ifdef ALU_DEBUG_DBG
+`ifdef ALU_DEBUG_DBG
   $display("iad %b | AD %b | ad %b | ADD %b | add %b | ADJ %b | adj %b | ADP %b | adp %b",
            i_alu_debug, 
            `ALU_DEBUG,      i_alu_debug, 
            `ALU_DEBUG_DUMP, alu_debug_dump, 
            `ALU_DEBUG_JUMP, alu_debug_jump,
            `ALU_DEBUG_PC,   alu_debug_pc );
-  `endif
+`endif
 
+`ifdef SIM
   if (do_reg_dump && alu_debug_dump) begin
-    `ifdef SIM
+
     $display("ALU_DUMP 0: run %b | done %b", alu_run, alu_done);
     // display registers
     $display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", 
@@ -262,8 +267,8 @@ always @(posedge i_clk) begin
               D0, D1, R4, RSTK[1]);
     $display("                                                RSTK0: %5h", 
              RSTK[0]);
-    `endif
   end
+`endif
 end
 
 
@@ -271,11 +276,13 @@ always @(posedge i_clk) begin
   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
   if (do_alu_init) begin
 
+`ifdef SIM
     if (alu_debug)
       $display({"ALU_INIT 3: run %b | done %b | stall %b | op %d | s %h | l %h ",
                 "| ialu %b | dest %d | src1 %d | src2 %d"},
                alu_run, alu_done, o_alu_stall_dec, i_alu_op,i_field_start, i_field_last,  
                i_ins_alu_op, i_reg_dest, i_reg_src1, i_reg_src2);
+`endif
 
     jump_bse <= PC;
     alu_op   <= i_alu_op;
@@ -313,8 +320,6 @@ always @(posedge i_clk) begin
 end
 
 
-`define ALU_DEBUG
-`define JUMP_DEBUG
 
 always @(posedge i_clk) begin
   if (do_alu_prep) begin
@@ -430,25 +435,25 @@ always @(posedge i_clk) begin
   if (i_reset)
     PC <= ~0;
 
-  `ifdef SIM
+`ifdef SIM
   if (do_alu_shpc && alu_debug_pc) begin
     if (!o_alu_stall_dec)
       $display("ALU_SHPC 0: pc %5h", PC);
     if (o_alu_stall_dec)
       $display("ALU_SHPC 0: STALL");
   end
-  `endif
+`endif
 
   /*
    * updates the PC on phase 3 to be ready for the next 
    * thing to do...
    */
   if (do_alu_pc) begin
-    `ifdef SIM
+`ifdef SIM
     if (alu_debug_pc)
       $display("ALU_PC   3: !stl %b | nx %5h | jmp %b | push %b",
                !o_alu_stall_dec,  next_pc, is_alu_op_jump, i_push);
-    `endif
+`endif
     if (!o_alu_stall_dec || is_alu_op_jump) begin
       PC <= next_pc;
     end
@@ -456,3 +461,5 @@ always @(posedge i_clk) begin
 end
 
 endmodule
+
+`endif

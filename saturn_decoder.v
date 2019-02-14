@@ -236,7 +236,7 @@ always @(posedge i_clk) begin
           `ALU_REG_DAT1:   $write("DAT1");
           `ALU_REG_ST:     if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
           `ALU_REG_P:      $write("P");
-          default:         $write("[dest:%d]", o_reg_dest);
+          default:         $write("[dest:%0d]", o_reg_dest);
           endcase
         endcase
 
@@ -258,7 +258,7 @@ always @(posedge i_clk) begin
         `ALU_OP_JMP_REL3,
         `ALU_OP_JMP_REL4,
         `ALU_OP_JMP_ABS5: begin end
-        default: $write("[op:%d]", o_alu_op);
+        default: $write("[op:%0d]", o_alu_op);
         endcase
         
         case (o_alu_op)
@@ -288,10 +288,8 @@ always @(posedge i_clk) begin
           `ALU_REG_ST:   $write("ST");
           `ALU_REG_P:    $write("P");
           `ALU_REG_IMM: 
-            if (disp_nb_nibbles)
-              if (o_mem_pos < 9) $write("(%1d)", o_mem_pos+1);
-              else $write("(%2d)", o_mem_pos+1);
-          default: $write("[src1:%d]", o_reg_src1);
+            if (disp_nb_nibbles) $write("(%0d)", o_mem_pos+1);
+          default: $write("[src1:%0d]", o_reg_src1);
           endcase
         `ALU_OP_RST_BIT: $write("0");
         `ALU_OP_SET_BIT: $write("1");
@@ -313,7 +311,7 @@ always @(posedge i_clk) begin
           `ALU_OP_OR:  $write("!");
           `ALU_OP_ADD:  $write("+");
           `ALU_OP_SUB:  $write("-");
-          default: $write("[op:%d]", o_alu_op);
+          default: $write("[op:%0d]", o_alu_op);
           endcase
           
           case (o_reg_src2)
@@ -322,10 +320,8 @@ always @(posedge i_clk) begin
           `ALU_REG_C:    $write("C");
           `ALU_REG_D:    $write("D");
           `ALU_REG_RSTK: $write("RSTK");
-          `ALU_REG_IMM:
-            if (o_imm_value < 9) $write("\t%1d", o_imm_value+1);
-            else $write("\t%2d", o_imm_value+1);
-          default: $write("[src2:%d]", o_reg_src2);
+          `ALU_REG_IMM:  $write("\t%0d", o_imm_value+1);
+          default:       $write("[src2:%0d]", o_reg_src2);
           endcase
         end
         `ALU_OP_INC:  $write("+1");
@@ -343,30 +339,25 @@ always @(posedge i_clk) begin
           // $write("[FT%d]", o_fields_table);
           if (o_fields_table != `FT_TABLE_value)
             case (o_field)
-            `FT_FIELD_P: $write("P");
+            `FT_FIELD_P:  $write("P");
             `FT_FIELD_WP: $write("WP");
             `FT_FIELD_XS: $write("XS");
-            `FT_FIELD_X: $write("X");
-            `FT_FIELD_S: $write("S");
-            `FT_FIELD_M: $write("M");
-            `FT_FIELD_B: $write("B");
-            `FT_FIELD_W: $write("W");
-            `FT_FIELD_A: $write("A");
+            `FT_FIELD_X:  $write("X");
+            `FT_FIELD_S:  $write("S");
+            `FT_FIELD_M:  $write("M");
+            `FT_FIELD_B:  $write("B");
+            `FT_FIELD_W:  $write("W");
+            `FT_FIELD_A:  $write("A");
             endcase
-          else
-            if (o_field_last < 9) $write("%1d", o_field_last+1);
-            else $write("%2d", o_field_last+1);
+          else $write("%0d", o_field_last+1);
         end
         
         // $write("@%b@", is_load_imm);
         if (is_load_imm) begin
-          if (is_p_eq) begin
-            if (o_imm_value < 10) $write("%1d", o_imm_value);
-            else $write("%2d", o_imm_value);
-          end else begin
+          if (is_p_eq) $write("%0d", o_imm_value);
+          else
             for(nibble_pos=(o_mem_pos - 1); nibble_pos!=31; nibble_pos=nibble_pos-1)
               $write("%h", o_mem_load[nibble_pos*4+:4]);
-          end
         end
         else 
           case (o_reg_dest)
@@ -375,7 +366,7 @@ always @(posedge i_clk) begin
           default: $write("[%h:%h]", o_field_start, o_field_last);
           endcase
 
-        $display("\t(%d cycles)", inst_cycles);
+        $display("\t(%0d cycles)", inst_cycles);
       end
     end
     // $display("new [%5h]--------------------------------------------------------------------", new_pc);  
@@ -409,6 +400,8 @@ reg   block_jmp2_cry_clr;
 
 reg   block_8x;
 reg   block_80x;
+
+reg   block_Fx;
 
 reg   go_fields_table;
 
@@ -445,6 +438,8 @@ wire  do_block_jmp2_cry_clr;
 wire  do_block_8x;
 wire  do_block_80x;
 
+wire  do_block_Fx;
+
 assign do_block_0x                  = do_on_other_nibbles && block_0x;
 assign do_block_0Efx                = do_on_other_nibbles && block_0Efx;
 assign do_block_1x                  = do_on_other_nibbles && block_1x;
@@ -465,6 +460,8 @@ assign do_block_jmp2_cry_clr        = do_on_other_nibbles && block_jmp2_cry_clr;
 
 assign do_block_8x                  = do_on_other_nibbles && block_8x;
 assign do_block_80x                 = do_on_other_nibbles && block_80x;
+
+assign do_block_Fx                  = do_on_other_nibbles && block_Fx;
 
 /*
  * subroutines
@@ -564,6 +561,8 @@ always @(posedge i_clk) begin
     block_8x                   <= 0;
     block_80x                  <= 0;
 
+    block_Fx                   <= 0;
+
     // decoder subroutine states
 
     block_load_reg_imm         <= 0;
@@ -616,6 +615,7 @@ always @(posedge i_clk) begin
       block_jmp      <= 1;
     end
     4'h8: block_8x   <= 1;
+    4'hF: block_Fx   <= 1;
     default: begin
       `ifdef SIM
       $display("DEC_INIT 2: nibble %h not handled", i_nibble);
@@ -743,7 +743,7 @@ always @(posedge i_clk) begin
       4'hB, 4'hD, 
       4'hE, 4'hF: // D[0]=([245]) <stuff>    
       begin
-        mem_load_max              <= {1'b0, i_nibble[1], !i_nibble[1], i_nibble[1] && i_nibble[0]};
+        mem_load_max              <= {2'b00, i_nibble[1], !i_nibble[1], i_nibble[1] && i_nibble[0]};
         o_mem_pos                 <= 0;
         block_load_reg_imm        <= 1;
         o_alu_no_stall            <= 1;
@@ -854,7 +854,6 @@ always @(posedge i_clk) begin
       begin
         o_ins_alu_op   <= 1;
         o_alu_op       <= `ALU_OP_COPY;
-        o_alu_debug    <= 1;
         next_nibble    <= 0;
         o_ins_decoded  <= 1;
       end
@@ -863,9 +862,20 @@ always @(posedge i_clk) begin
         o_dec_error    <= 1;
       end
     endcase
-    block_80x        <= 0;
+    block_80x          <= 0;
   end
 
+
+  if (do_block_Fx) begin
+    $display("block_Fx %h | op %d", i_nibble, o_alu_op);
+    case (i_nibble)
+      default: begin
+        $display("block_Fx %h error", i_nibble);
+        o_dec_error    <= 1;
+      end
+    endcase
+    block_Fx           <= 0;
+  end
 
   // utilities
 

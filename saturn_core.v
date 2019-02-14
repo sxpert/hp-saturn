@@ -7,8 +7,8 @@
 // `include "bus_commands.v"
 // `include "hp48_00_bus.v"
 // `include "dbg_module.v"
-`include "saturn-decoder.v"
-`include "saturn-alu.v"
+`include "saturn_decoder.v"
+`include "saturn_alu.v"
 
 /**************************************************************************************************
  *
@@ -189,10 +189,11 @@ wire [19:0]		reg_pc;
  * test rom...
  */
 `ifdef SIM
-reg [3:0] rom [0:2**20];
+`define ROMBITS 20
 `else 
-reg [3:0] rom [0:2**10];
+`define ROMBITS 10
 `endif
+reg [3:0] rom [0:2**`ROMBITS-1];
 
 // `define DEBUG_CLOCKS
 
@@ -248,7 +249,7 @@ always @(posedge clk) begin
 		en_alu_init  <= clk_phase[1:0] == 3;
 		en_alu_save  <= clk_phase[1:0] == 3;
 		en_inst_exec <= clk_phase[1:0] == 3;
-		cycle_ctr    <= cycle_ctr + (clk_phase[1:0] == 0);
+		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == 0) };
 		// stop after 50 clocks
 		if (cycle_ctr == (max_cycle + 1))
 			clock_end <= 1;
@@ -300,8 +301,11 @@ always @(posedge clk)
 	end
 	if (en_bus_recv) begin
 		if (!stalled) begin
-			$display("BUS_RECV %1d: [%d] %5h => %1h", `PH_BUS_RECV, cycle_ctr, reg_pc, rom[reg_pc]);
-			nibble_in <= rom[reg_pc];
+`ifdef SIM
+			$display("BUS_RECV %1d: [%d] %5h => %1h", `PH_BUS_RECV, cycle_ctr, reg_pc, rom[reg_pc[`ROMBITS-1:0]]);
+`endif
+			nibble_in <= rom[reg_pc[`ROMBITS-1:0]];
+
 		end
 	end
 	// if (en_inst_exec) begin
