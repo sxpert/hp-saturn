@@ -21,19 +21,25 @@
 // logic
 `define ALU_OP_AND       5
 `define ALU_OP_OR        6
+// bit set/reset
+`define ALU_OP_RST_BIT   7
+`define ALU_OP_SET_BIT   8
 // arithmetic
-`define ALU_OP_2CMPL     7
-`define ALU_OP_1CMPL     8
-`define ALU_OP_INC       9
-`define ALU_OP_DEC      10
-`define ALU_OP_ADD      11
-`define ALU_OP_SUB      12
+`define ALU_OP_2CMPL     9
+`define ALU_OP_1CMPL    10
+`define ALU_OP_INC      11
+`define ALU_OP_DEC      12
+`define ALU_OP_ADD      13
+`define ALU_OP_SUB      14
 // tests
-`define ALU_OP_TEST_EQ  13
-`define ALU_OP_TEST_NEQ 14
+`define ALU_OP_TEST_EQ  15
+`define ALU_OP_TEST_NEQ 16
 // relative jump
-`define ALU_OP_JMP_REL2 15
-`define ALU_OP_JMP_REL3 16
+`define ALU_OP_JMP_REL2 17
+`define ALU_OP_JMP_REL3 18
+`define ALU_OP_JMP_REL4 19
+`define ALU_OP_JMP_ABS5 20
+
 
 // registers
 

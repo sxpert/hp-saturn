@@ -3,7 +3,14 @@
 
 `include "def-alu.v"
 
-`define ALU_DEBUG
+`ifdef SIM
+// `define ALU_DEBUG_DBG
+`endif
+
+`define ALU_DEBUG       1'b0
+`define ALU_DEBUG_DUMP  1'b1   
+`define ALU_DEBUG_JUMP  1'b0
+`define ALU_DEBUG_PC    1'b0
 
 module saturn_alu (
     i_clk,
@@ -13,6 +20,10 @@ module saturn_alu (
 	i_en_alu_calc,
     i_en_alu_init,
 	i_en_alu_save,
+
+    i_push,
+    i_pop,
+    i_alu_debug,
 
     o_alu_stall_dec,
     i_ins_decoded,
@@ -41,6 +52,19 @@ input   wire [0:0]  i_en_alu_calc;
 input   wire [0:0]  i_en_alu_init;
 input   wire [0:0]  i_en_alu_save;
 
+input   wire [0:0]  i_push;
+input   wire [0:0]  i_pop;
+input   wire [0:0]  i_alu_debug;
+
+wire alu_debug;
+wire alu_debug_dump;
+wire alu_debug_jump;
+wire alu_debug_pc;
+assign alu_debug      = `ALU_DEBUG      || i_alu_debug;
+assign alu_debug_dump = `ALU_DEBUG_DUMP || i_alu_debug;
+assign alu_debug_jump = `ALU_DEBUG_JUMP || i_alu_debug;
+assign alu_debug_pc   = `ALU_DEBUG_PC   || i_alu_debug;
+
 output  wire [0:0]  o_alu_stall_dec;
 input   wire [0:0]  i_ins_decoded;
 
@@ -61,6 +85,42 @@ output  wire [19:0] o_pc;
 
 assign o_reg_p = P;
 assign o_pc    = PC;
+
+/* internal registers */
+
+/* copy of arguments */
+reg [4:0] alu_op;
+reg [4:0] reg_dest;
+reg [4:0] reg_src1;
+reg [4:0] reg_src2;
+reg [3:0] f_start;
+reg [3:0] f_last;
+
+/* internal pointers */
+
+reg [3:0] p_src1;
+reg [3:0] p_src2;
+reg       p_carry;
+reg [3:0] c_res1;
+reg [3:0] c_res2;
+reg       c_carry;
+
+/* alu status */
+
+reg        alu_run;
+reg        alu_done;
+
+/*
+ * next PC in case of jump 
+ */
+reg  [19:0]      jump_bse;
+reg  [19:0]      jump_off;
+wire [19:0]      jump_pc;
+assign jump_pc = (alu_op == `ALU_OP_JMP_ABS5)?jump_off:(jump_bse + jump_off); 
+
+reg  [2:0]       rstk_ptr;
+
+/* public registers */
 
 reg  [19:0]      PC;
 
@@ -84,12 +144,18 @@ reg  [3:0]       P;
 reg  [3:0]       HST;
 reg  [15:0]      ST;
 
-reg  [2:0]       rstk_ptr;
 reg  [19:0]      RSTK[0:7];
 
 
 initial begin
   // alu internal control bits
+  alu_op          = 0;
+  reg_dest        = 0;
+  reg_src1        = 0;
+  reg_src2        = 0;
+  f_start         = 0;
+  f_last          = 0;
+
   alu_run         = 0;
   alu_done        = 0;
 //   o_alu_stall_dec = 0;
@@ -143,33 +209,26 @@ assign do_alu_save = (!i_reset) && i_en_alu_save && alu_run;
 assign do_alu_shpc = (!i_reset) && i_en_alu_dump;
 assign do_alu_pc   = (!i_reset) && i_en_alu_save;
 
-reg        alu_run;
-reg        alu_done;
-wire       test_finish;
-wire [3:0] f_next;
-
-assign test_finish = f_start == f_last;
-assign f_next      = (f_start + 1) & 4'hF;
-
 // the decoder may request the ALU to not stall it
 
+assign o_alu_stall_dec = alu_run && (!i_alu_no_stall || alu_finish);
 
-assign o_alu_stall_dec = alu_run && (!i_alu_no_stall || test_finish);
+wire       alu_start;
+wire       alu_finish;
+wire [3:0] f_next;
 
-reg [4:0] alu_op;
-reg [4:0] reg_dest;
-reg [4:0] reg_src1;
-reg [4:0] reg_src2;
-reg [3:0] f_start;
-reg [3:0] f_last;
+assign alu_start  = f_start == 0;
+assign alu_finish = f_start == f_last;
+assign f_next     = (f_start + 1) & 4'hF;
 
-reg [3:0] p_src1;
-reg [3:0] p_src2;
-reg       p_carry;
-reg [3:0] c_res1;
-reg [3:0] c_res2;
-reg       c_carry;
+/*
+ * test things on alu_op
+ */
 
+wire is_alu_op_jump;
+assign is_alu_op_jump = ((alu_op == `ALU_OP_JMP_REL3) ||
+                         (alu_op == `ALU_OP_JMP_REL4) ||
+                         (alu_op == `ALU_OP_JMP_ABS5));
 
 /*
  * dump all registers 
@@ -178,9 +237,18 @@ reg       c_carry;
  */ 
 
 always @(posedge i_clk) begin
-  if (do_reg_dump) begin
-    $display("ALU_DUMP 0: run %b | done %b ", alu_run, alu_done);
+  `ifdef ALU_DEBUG_DBG
+  $display("iad %b | AD %b | ad %b | ADD %b | add %b | ADJ %b | adj %b | ADP %b | adp %b",
+           i_alu_debug, 
+           `ALU_DEBUG,      i_alu_debug, 
+           `ALU_DEBUG_DUMP, alu_debug_dump, 
+           `ALU_DEBUG_JUMP, alu_debug_jump,
+           `ALU_DEBUG_PC,   alu_debug_pc );
+  `endif
+
+  if (do_reg_dump && alu_debug_dump) begin
     `ifdef SIM
+    $display("ALU_DUMP 0: run %b | done %b", alu_run, alu_done);
     // display registers
     $display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", 
              PC, CARRY, DEC?"DEC":"HEX", rstk_ptr, RSTK[7]);
@@ -202,10 +270,14 @@ end
 always @(posedge i_clk) begin
   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
   if (do_alu_init) begin
-    $display({"ALU_INIT 3: run %b | done %b | stall %b | op %d | s %h | l %h ",
-              "| ialu %b | dest %d | src1 %d | src2 %d"},
-             alu_run, alu_done, o_alu_stall_dec, i_alu_op,i_field_start, i_field_last,  
-             i_ins_alu_op, i_reg_dest, i_reg_src1, i_reg_src2);
+
+    if (alu_debug)
+      $display({"ALU_INIT 3: run %b | done %b | stall %b | op %d | s %h | l %h ",
+                "| ialu %b | dest %d | src1 %d | src2 %d"},
+               alu_run, alu_done, o_alu_stall_dec, i_alu_op,i_field_start, i_field_last,  
+               i_ins_alu_op, i_reg_dest, i_reg_src1, i_reg_src2);
+
+    jump_bse <= PC;
     alu_op   <= i_alu_op;
     reg_dest <= i_reg_dest;
     reg_src1 <= i_reg_src1;
@@ -227,7 +299,7 @@ always @(posedge i_clk) begin
   end
   if (do_alu_calc) begin
     // $display("ALU_TEST 2: tf %b | nxt %h", test_finish, f_next);
-    alu_done <= test_finish; 
+    alu_done <= alu_finish; 
     // f_next  <= (f_start + 1) & 4'hF;
   end
   if (do_alu_save) begin
@@ -241,21 +313,28 @@ always @(posedge i_clk) begin
 end
 
 
+`define ALU_DEBUG
+`define JUMP_DEBUG
 
 always @(posedge i_clk) begin
   if (do_alu_prep) begin
-    `ifdef ALU_DEBUG
-    $display("ALU_PREP 1: run %b | done %b | stall %b | op %d | s %h | l %h", 
-             alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last);
-    `endif
-    
+    if (alu_debug) begin
+      `ifdef SIM
+      $display("ALU_PREP 1: run %b | done %b | stall %b | op %d | s %h | l %h", 
+               alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last);
+      `endif
+    end
 
     // setup value for src1
 
     case (alu_op)
     `ALU_OP_ZERO: begin end // no source required
     `ALU_OP_COPY,
-    `ALU_OP_JMP_REL3:
+    `ALU_OP_RST_BIT,
+    `ALU_OP_SET_BIT,
+    `ALU_OP_JMP_REL3,
+    `ALU_OP_JMP_REL4,
+    `ALU_OP_JMP_ABS5:
       case (reg_src1)
       `ALU_REG_A:   p_src1 <= A [f_start*4+:4];
       `ALU_REG_B:   p_src1 <= B [f_start*4+:4];
@@ -275,14 +354,37 @@ end
 
 always @(posedge i_clk) begin
   if (do_alu_calc) begin
-    `ifdef ALU_DEBUG
-    $display("ALU_CALC 2: run %b | done %b | stall %b | op %d | s %h | l %h | src1 %h | src2 %h | p_carry %b", 
-             alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last, p_src1, p_src2, p_carry);
+    `ifdef SIM
+    if (alu_debug)
+      $display("ALU_CALC 2: run %b | done %b | stall %b | op %d | s %h | l %h | dest %d | src1 %h | src2 %h | p_carry %b", 
+               alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last, reg_dest, p_src1, p_src2, p_carry);
+    if (alu_debug_jump)
+      $display("ALU_JUMP 2: run %b | done %b | stall %b | op %d | s %h | l %h | jbs %5h | jof %5h | jpc %5h | fin %b",
+               alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last, jump_bse, jump_off, jump_pc, alu_finish);
     `endif
 
     case (alu_op)
-    `ALU_OP_ZERO: c_res1 <= 0;
-    `ALU_OP_COPY: c_res1 <= p_src1;
+    `ALU_OP_JMP_REL3,
+    `ALU_OP_JMP_REL4,
+    `ALU_OP_JMP_ABS5: if (alu_start)
+                        jump_off               <= { 16'b0, p_src1 };
+    endcase
+
+    case (alu_op)
+    `ALU_OP_ZERO:       c_res1                 <= 0;
+    `ALU_OP_COPY,
+    `ALU_OP_RST_BIT,
+    `ALU_OP_SET_BIT:    c_res1                 <= p_src1;
+    `ALU_OP_JMP_REL3,
+    `ALU_OP_JMP_REL4,
+    `ALU_OP_JMP_ABS5:   jump_off[f_start*4+:4] <= p_src1;
+    endcase
+
+    case (alu_op)
+    `ALU_OP_JMP_REL3: if (alu_finish)
+                        jump_off               <= { {8{p_src1[3]}}, p_src1, jump_off[7:0] };
+    `ALU_OP_JMP_REL4: if (alu_finish)
+                        jump_off               <= { {4{p_src1[3]}}, p_src1, jump_off[11:0] };
     endcase
   end
 end
@@ -290,10 +392,14 @@ end
 always @(posedge i_clk) begin
   if (do_alu_save) begin
     `ifdef ALU_DEBUG
-    $display({"ALU_SAVE 3: run %b | done %b | stall %b | op %d | s %h | l %h |",
-             " res1 %h | res2 %h | c_carry %b"}, 
-             alu_run, alu_done, o_alu_stall_dec, alu_op, 
-             f_start, f_last, c_res1, c_res2, c_carry);
+    if (alu_debug)
+      $display({"ALU_SAVE 3: run %b | done %b | stall %b | op %d | s %h | l %h |",
+                " dest %d | res1 %h | res2 %h | c_carry %b"}, 
+                alu_run, alu_done, o_alu_stall_dec, alu_op, 
+                f_start, f_last, reg_dest, c_res1, c_res2, c_carry);
+    if (alu_debug_jump)
+      $display( "ALU_JUMP 3: run %b | done %b | stall %b | op %d | s %h | l %h | bse %5h | jof %5h | jpc %5h | fin %b",
+                alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last, jump_bse, jump_off, jump_pc, alu_finish);
     `endif
 
     case (alu_op)
@@ -303,7 +409,15 @@ always @(posedge i_clk) begin
       `ALU_REG_C:  C [f_start*4+:4] <= c_res1;
       `ALU_REG_D0: D0[f_start*4+:4] <= c_res1;
       `ALU_REG_D1: D1[f_start*4+:4] <= c_res1;
+      `ALU_REG_ST: ST[f_start*4+:4] <= c_res1;
       `ALU_REG_P:  P <= c_res1;
+      endcase
+    `ALU_OP_RST_BIT,
+    `ALU_OP_SET_BIT:
+      case (reg_dest)
+      `ALU_REG_ST: ST[c_res1] <= alu_op==`ALU_OP_SET_BIT?1:0;
+      default:
+        $display("invalid register for op");
       endcase
     endcase 
 
@@ -311,23 +425,33 @@ always @(posedge i_clk) begin
 end
 
 wire [19:0] next_pc;
-assign next_pc = PC + 1;
+assign next_pc = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
 always @(posedge i_clk) begin
   if (i_reset)
     PC <= ~0;
 
-  if (do_alu_shpc) begin
-    // if (!o_alu_stall_dec)
-    //   $display("ALU_SHPC 0: pc %5h", PC);
+  `ifdef SIM
+  if (do_alu_shpc && alu_debug_pc) begin
+    if (!o_alu_stall_dec)
+      $display("ALU_SHPC 0: pc %5h", PC);
     if (o_alu_stall_dec)
       $display("ALU_SHPC 0: STALL");
   end
+  `endif
 
+  /*
+   * updates the PC on phase 3 to be ready for the next 
+   * thing to do...
+   */
   if (do_alu_pc) begin
-    // if (!o_alu_stall_dec)
-    //   $display("ALU_PC   3: nx %5h", next_pc);
-    if (!o_alu_stall_dec)
+    `ifdef SIM
+    if (alu_debug_pc)
+      $display("ALU_PC   3: !stl %b | nx %5h | jmp %b | push %b",
+               !o_alu_stall_dec,  next_pc, is_alu_op_jump, i_push);
+    `endif
+    if (!o_alu_stall_dec || is_alu_op_jump) begin
       PC <= next_pc;
+    end
   end
 end
 

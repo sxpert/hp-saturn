@@ -23,6 +23,7 @@ module saturn_decoder(
   o_push,
   o_pop,
   o_dec_error,
+  o_alu_debug,
   
   o_ins_addr,
   o_ins_decoded,
@@ -74,6 +75,7 @@ output  reg         o_inc_pc;
 output  reg         o_push;
 output  reg         o_pop;
 output  reg         o_dec_error;
+output  reg         o_alu_debug;
 
 // instructions related outputs
 output  reg [19:0]  o_ins_addr;
@@ -115,7 +117,7 @@ output  reg         o_ins_alu_op;
 output  reg [(21*4-1):0] o_dbg_nibbles;
 output  reg [4:0]        o_dbg_nb_nbls;
 output  reg [63:0]       o_mem_load;
-output  reg [3:0]        o_mem_pos;
+output  reg [4:0]        o_mem_pos;
 
 
 /*
@@ -164,7 +166,13 @@ wire is_la_hex;
 wire is_lc_hex; 
 wire disp_nb_nibbles;
 assign p_is_dest       = (o_reg_dest == `ALU_REG_P);
-assign is_load_imm     = (o_alu_op ==`ALU_OP_COPY) && (o_reg_src1 == `ALU_REG_IMM);
+assign is_load_imm     =   ((o_alu_op == `ALU_OP_COPY)     || 
+                            (o_alu_op == `ALU_OP_RST_BIT)  ||
+                            (o_alu_op == `ALU_OP_SET_BIT)  ||
+                            (o_alu_op == `ALU_OP_JMP_REL3) ||
+                            (o_alu_op == `ALU_OP_JMP_REL4) ||
+                            (o_alu_op == `ALU_OP_JMP_ABS5))
+                         && (o_reg_src1 == `ALU_REG_IMM);
 assign is_d0_eq        = is_load_imm && (o_reg_dest == `ALU_REG_D0);
 assign is_d1_eq        = is_load_imm && (o_reg_dest == `ALU_REG_D1);
 assign is_p_eq         = is_load_imm && p_is_dest;
@@ -204,38 +212,52 @@ always @(posedge i_clk) begin
       end
       if (o_ins_alu_op) begin
         
-        case (o_reg_dest)
-        `ALU_REG_A:    $write("A");
-        `ALU_REG_B:    $write("B");
-        `ALU_REG_C:    
-          if (is_lc_hex) $write("LCHEX");
-          else $write("C");
-        `ALU_REG_D:    $write("D");
-        `ALU_REG_D0:   $write("D0");
-        `ALU_REG_D1:   $write("D1");
-        `ALU_REG_RSTK: $write("RSTK");
-        `ALU_REG_R0:   $write("R0");
-        `ALU_REG_R1:   $write("R1");
-        `ALU_REG_R2:   $write("R2");
-        `ALU_REG_R3:   $write("R3");
-        `ALU_REG_R4:   $write("R4");
-        `ALU_REG_DAT0: $write("DAT0");
-        `ALU_REG_DAT1: $write("DAT1");
-        `ALU_REG_ST:   if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
-        `ALU_REG_P:    $write("P");
-        default: $write("[dest:%d]", o_reg_dest);
-        endcase
-        
         case (o_alu_op)
-        `ALU_OP_ZERO: if (o_reg_dest==`ALU_REG_ST) $write("CLRST"); else $write("=0");
+        `ALU_OP_JMP_REL3:  $write("GOTO"); 
+        `ALU_OP_JMP_REL4:  $write("%s", o_push?"GOSUBL":"GOLONG");
+        `ALU_OP_JMP_ABS5:  $write("%s", o_push?"GOSBVL":"GOVLNG");  
+        default:
+          case (o_reg_dest)
+          `ALU_REG_A:      $write("A");
+          `ALU_REG_B:      $write("B");
+          `ALU_REG_C:    
+            if (is_lc_hex) $write("LCHEX");
+            else $write("C");
+          `ALU_REG_D:      $write("D");
+          `ALU_REG_D0:     $write("D0");
+          `ALU_REG_D1:     $write("D1");
+          `ALU_REG_RSTK:   $write("RSTK");
+          `ALU_REG_R0:     $write("R0");
+          `ALU_REG_R1:     $write("R1");
+          `ALU_REG_R2:     $write("R2");
+          `ALU_REG_R3:     $write("R3");
+          `ALU_REG_R4:     $write("R4");
+          `ALU_REG_DAT0:   $write("DAT0");
+          `ALU_REG_DAT1:   $write("DAT1");
+          `ALU_REG_ST:     if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
+          `ALU_REG_P:      $write("P");
+          default:         $write("[dest:%d]", o_reg_dest);
+          endcase
+        endcase
+
+        case (o_alu_op)
+        `ALU_OP_ZERO:     if (o_reg_dest==`ALU_REG_ST) 
+                            $write("CLRST"); 
+                          else $write("=0");
         `ALU_OP_COPY,
         `ALU_OP_AND,
         `ALU_OP_OR,
         `ALU_OP_INC,
         `ALU_OP_DEC,
         `ALU_OP_ADD,
-        `ALU_OP_SUB: if (!is_lc_hex) $write("=");
-        `ALU_OP_EXCH: begin end
+        `ALU_OP_SUB,
+        `ALU_OP_RST_BIT,
+        `ALU_OP_SET_BIT:  if (!is_lc_hex) 
+                            $write("=");
+        `ALU_OP_EXCH,
+        `ALU_OP_JMP_REL3,
+        `ALU_OP_JMP_REL4,
+        `ALU_OP_JMP_ABS5: begin end
         default: $write("[op:%d]", o_alu_op);
         endcase
         
@@ -271,6 +293,8 @@ always @(posedge i_clk) begin
               else $write("(%2d)", o_mem_pos+1);
           default: $write("[src1:%d]", o_reg_src1);
           endcase
+        `ALU_OP_RST_BIT: $write("0");
+        `ALU_OP_SET_BIT: $write("1");
         endcase
 
         if ((o_alu_op == `ALU_OP_COPY) && is_short_transfer) 
@@ -332,19 +356,25 @@ always @(posedge i_clk) begin
           else
             if (o_field_last < 9) $write("%1d", o_field_last+1);
             else $write("%2d", o_field_last+1);
-        end else begin
-          if (is_load_imm) begin
-            if (is_p_eq) begin
-              if (o_imm_value < 10) $write("\t%1d", o_imm_value);
-              else $write("\t%2d", o_imm_value);
-            end else begin
-              for(nibble_pos=o_mem_pos; nibble_pos!=31; nibble_pos=nibble_pos-1)
-                $write("%h", o_mem_load[nibble_pos*4+:4]);
-            end
-          end
-          else if (!p_is_dest)
-            $write("[%h:%h]", o_field_start, o_field_last);
         end
+        
+        // $write("@%b@", is_load_imm);
+        if (is_load_imm) begin
+          if (is_p_eq) begin
+            if (o_imm_value < 10) $write("%1d", o_imm_value);
+            else $write("%2d", o_imm_value);
+          end else begin
+            for(nibble_pos=(o_mem_pos - 1); nibble_pos!=31; nibble_pos=nibble_pos-1)
+              $write("%h", o_mem_load[nibble_pos*4+:4]);
+          end
+        end
+        else 
+          case (o_reg_dest)
+          `ALU_REG_P,
+          `ALU_REG_ST: begin end
+          default: $write("[%h:%h]", o_field_start, o_field_last);
+          endcase
+
         $display("\t(%d cycles)", inst_cycles);
       end
     end
@@ -374,9 +404,11 @@ reg   block_mem_transfer;
 reg   block_pointer_arith_const;
 reg   block_load_p;
 reg   block_load_c_hex;
-reg   block_jmp3_cry_set;
-reg   block_jmp3_cry_clr;
-reg   block_jmp4;
+reg   block_jmp2_cry_set;
+reg   block_jmp2_cry_clr;
+
+reg   block_8x;
+reg   block_80x;
 
 reg   go_fields_table;
 
@@ -407,9 +439,11 @@ wire  do_block_mem_transfer;
 wire  do_block_pointer_arith_const;
 wire  do_block_load_p;
 wire  do_block_load_c_hex;
-wire  do_block_jmp3_cry_set;
-wire  do_block_jmp3_cry_clr;
-wire  do_block_jmp4;
+wire  do_block_jmp2_cry_set;
+wire  do_block_jmp2_cry_clr;
+
+wire  do_block_8x;
+wire  do_block_80x;
 
 assign do_block_0x                  = do_on_other_nibbles && block_0x;
 assign do_block_0Efx                = do_on_other_nibbles && block_0Efx;
@@ -426,14 +460,25 @@ assign do_block_mem_transfer        = do_on_other_nibbles && block_mem_transfer;
 assign do_block_pointer_arith_const = do_on_other_nibbles && block_pointer_arith_const; 
 assign do_block_load_p              = do_on_other_nibbles && block_load_p;
 assign do_block_load_c_hex          = do_on_other_nibbles && block_load_c_hex;
-assign do_block_jmp3_cry_set        = do_on_other_nibbles && block_jmp3_cry_set;
-assign do_block_jmp3_cry_clr        = do_on_other_nibbles && block_jmp3_cry_clr;
-assign do_block_jmp4                = do_on_other_nibbles && block_jmp4;
+assign do_block_jmp2_cry_set        = do_on_other_nibbles && block_jmp2_cry_set;
+assign do_block_jmp2_cry_clr        = do_on_other_nibbles && block_jmp2_cry_clr;
 
+assign do_block_8x                  = do_on_other_nibbles && block_8x;
+assign do_block_80x                 = do_on_other_nibbles && block_80x;
+
+/*
+ * subroutines
+ */
 
 reg  block_load_reg_imm;
+reg  block_jmp;
+reg  block_sr_bit;
 wire do_load_reg_imm;
+wire do_block_jmp;
+wire do_block_sr_bit;
 assign do_load_reg_imm = do_on_other_nibbles && block_load_reg_imm;
+assign do_block_jmp    = do_on_other_nibbles && block_jmp;
+assign do_block_sr_bit = do_on_other_nibbles && block_sr_bit;
 
 wire in_fields_table;
 assign in_fields_table = go_fields_table && !fields_table_done;
@@ -459,6 +504,7 @@ always @(posedge i_clk) begin
     use_fields_tbl <= 0;
     o_inc_pc       <= 1;
     o_dec_error    <= 0;
+    o_alu_debug    <= 0;
     o_ins_decoded  <= 0;
     o_alu_op       <= 0;
   end
@@ -467,15 +513,17 @@ always @(posedge i_clk) begin
     /* 
       * stuff that is always done
       */
-    $display("DEC_RUN  2: nibble %h", i_nibble);
+    `ifdef SIM
+    // $display("DEC_RUN  2: nibble %h", i_nibble);
+    `endif
     o_inc_pc                          <= 1; // may be set to 0 later
     o_dbg_nibbles[dbg_write_pos*4+:4] <= i_nibble;
     o_dbg_nb_nbls                     <= o_dbg_nb_nbls + 1;
   end
 
-  if (decoder_stalled) begin
-    $display("DEC_STAL 2:");
-  end
+  // if (decoder_stalled) begin
+  //   $display("DEC_STAL 2:");
+  // end
 
   if (count_cycles) begin
     inst_cycles <= inst_cycles + 1;
@@ -488,6 +536,7 @@ always @(posedge i_clk) begin
     inst_cycles     <= 1;
     next_nibble     <= 1;
     use_fields_tbl  <= 0;
+    o_alu_debug     <= 0;
 
     o_push          <= 0;
     o_pop           <= 0;
@@ -496,7 +545,8 @@ always @(posedge i_clk) begin
     // store the address where the instruction starts
     o_ins_addr      <= i_pc;
 
-    // cleanup block variables
+    // decoder block states
+
     block_0x                   <= 0;
     block_0Efx                 <= 0;
     block_1x                   <= 0;
@@ -508,11 +558,17 @@ always @(posedge i_clk) begin
     block_pointer_arith_const  <= 0;
     block_load_p               <= 0;
     block_load_c_hex           <= 0;
-    block_jmp3_cry_set         <= 0;
-    block_jmp3_cry_clr         <= 0;
-    block_jmp4                 <= 0;
+    block_jmp2_cry_set         <= 0;
+    block_jmp2_cry_clr         <= 0;
+    
+    block_8x                   <= 0;
+    block_80x                  <= 0;
+
+    // decoder subroutine states
 
     block_load_reg_imm         <= 0;
+    block_jmp                  <= 0;
+    block_sr_bit               <= 0;
 
     // cleanup fields table variables
     go_fields_table <= 0;
@@ -550,15 +606,16 @@ always @(posedge i_clk) begin
     4'h1: block_1x            <= 1;
     4'h2: block_load_p        <= 1;
     4'h3: block_load_c_hex    <= 1;
-    4'h4: block_jmp3_cry_set  <= 1;
-    4'h5: block_jmp3_cry_clr  <= 1;
+    4'h4: block_jmp2_cry_set  <= 1;
+    4'h5: block_jmp2_cry_clr  <= 1;
     4'h6: begin
       o_alu_no_stall <= 1;
       o_alu_op       <= `ALU_OP_JMP_REL3;
       mem_load_max   <= 2;
-      o_mem_pos      <= 0;
-      block_jmp4     <= 1;
+      o_mem_pos      <= 0;  
+      block_jmp      <= 1;
     end
+    4'h8: block_8x   <= 1;
     default: begin
       `ifdef SIM
       $display("DEC_INIT 2: nibble %h not handled", i_nibble);
@@ -661,30 +718,34 @@ always @(posedge i_clk) begin
 
   if (do_block_1x) begin
     case (i_nibble)
-      4'h0: begin
+      4'h0:       // save     A/C to   Rn W
         block_save_to_R_W         <= 1;
-      end
-      4'h1: 
+      4'h1:       // restore  A/C from Rn W 
         block_rest_from_R_W       <= 1;
-      4'h2: 
+      4'h2:       // exchange A/C with Rn W
         block_exch_with_R_W       <= 1;
-      4'h3: 
+      4'h3:       // move/exch A/C with Dn A/[0:3]
         block_pointer_assign_exch <= 1;
-      4'h4, 4'h5: begin
+      4'h4, 4'h5: // DAT[01]=[AC] <field>
+      begin
         block_mem_transfer        <= 1;
         o_fields_table  <= i_nibble[0]?`FT_TABLE_value:`FT_TABLE_f;
         use_fields_tbl            <= i_nibble[0];
       end
-      4'h6, 4'h7, 4'h8, 4'hC: begin
+      4'h6, 4'h7, 
+      4'h8, 4'hC: // D[01]=D[01][+-]  n+1;
+      begin
         block_pointer_arith_const <= 1;
         o_ins_alu_op              <= 1;
         o_alu_op                  <= i_nibble[1]?`ALU_OP_ADD:`ALU_OP_SUB;
       end
-      4'h9, 4'hA, 4'hB, 4'hD, 4'hE, 4'hF: begin
+      4'h9, 4'hA, 
+      4'hB, 4'hD, 
+      4'hE, 4'hF: // D[0]=([245]) <stuff>    
+      begin
         mem_load_max              <= {1'b0, i_nibble[1], !i_nibble[1], i_nibble[1] && i_nibble[0]};
         o_mem_pos                 <= 0;
         block_load_reg_imm        <= 1;
-        // o_ins_alu_op              <= 1;
         o_alu_no_stall            <= 1;
         o_alu_op                  <= `ALU_OP_COPY;
       end
@@ -749,17 +810,62 @@ always @(posedge i_clk) begin
     block_load_c_hex   <= 0;
   end
 
-  if (do_block_jmp3_cry_clr) begin
+  if (do_block_jmp2_cry_clr) begin
 
   end
 
-  if (do_block_jmp4) begin
-    o_ins_alu_op  <= 1;
-    o_imm_value   <= i_nibble;
-    o_mem_pos     <= o_mem_pos + 1;
-    next_nibble   <= mem_load_max != o_mem_pos;
-    o_ins_decoded <= mem_load_max == o_mem_pos;
+
+  if (do_block_8x) begin
+    $display("block_8x %h | op %d", i_nibble, o_alu_op);
+    case (i_nibble)
+      4'h0:       // 
+        block_80x  <= 1;
+      4'h4, 4'h5: // ST=[01] n
+      begin 
+        o_alu_op       <= i_nibble[0]?`ALU_OP_SET_BIT:`ALU_OP_RST_BIT;
+        block_sr_bit   <= 1;
+      end
+      4'hC, 4'hD, 
+      4'hE, 4'hF: // GOLONG, GOVLNG, GOSUBL, GOSBVL
+      begin
+        o_alu_no_stall <= 1;
+        o_alu_op       <= i_nibble[0]?`ALU_OP_JMP_ABS5:`ALU_OP_JMP_REL4;
+        // is it a gosub ?
+        o_push         <= i_nibble[1];
+        o_alu_debug    <= i_nibble[1];
+        mem_load_max   <= i_nibble[0]?4:3;
+        o_mem_pos      <= 0;
+        block_jmp      <= 1;
+        // debug for cases not tested
+        o_alu_debug    <= i_nibble[1] || !i_nibble[0];     
+      end
+      default: begin
+        $display("block_8x %h error", i_nibble);
+        o_dec_error    <= 1;
+      end
+    endcase
+    block_8x           <= 0;
   end
+
+  if (do_block_80x) begin
+    $display("block_80x %h | op %d", i_nibble, o_alu_op);
+    case (i_nibble)
+      4'hC:       // C=P n
+      begin
+        o_ins_alu_op   <= 1;
+        o_alu_op       <= `ALU_OP_COPY;
+        o_alu_debug    <= 1;
+        next_nibble    <= 0;
+        o_ins_decoded  <= 1;
+      end
+      default: begin
+        $display("block_80x %h error", i_nibble);
+        o_dec_error    <= 1;
+      end
+    endcase
+    block_80x        <= 0;
+  end
+
 
   // utilities
 
@@ -771,9 +877,29 @@ always @(posedge i_clk) begin
     o_ins_alu_op               <= 1;
     o_imm_value                <= i_nibble;
     o_mem_load[o_mem_pos*4+:4] <= i_nibble;
-    o_mem_pos                  <= o_mem_pos + {3'b000, ((o_mem_pos+1) != mem_load_max)};
+    o_mem_pos                  <= o_mem_pos + 1;
     next_nibble                <= (o_mem_pos+1) != mem_load_max;
     o_ins_decoded              <= (o_mem_pos+1) == mem_load_max;
+  end
+
+  if (do_block_jmp) begin
+    $display("do_block_jmp %h", i_nibble);
+    o_ins_alu_op               <= 1;
+    o_imm_value                <= i_nibble;
+    o_mem_load[o_mem_pos*4+:4] <= i_nibble;
+    o_mem_pos                  <= o_mem_pos + 1;
+    next_nibble                <= mem_load_max != o_mem_pos;
+    o_ins_decoded              <= mem_load_max == o_mem_pos;
+  end
+
+  if (do_block_sr_bit) begin
+    $display("do_block_sr_bit %h", i_nibble);
+    o_ins_alu_op               <= 1;
+    o_imm_value                <= i_nibble;
+    o_mem_load[3:0]            <= i_nibble;
+    o_mem_pos                  <= 1;
+    next_nibble                <= 0;
+    o_ins_decoded              <= 1;
   end
 
 end
@@ -925,6 +1051,32 @@ always @(posedge i_clk) begin
     o_reg_dest <= `ALU_REG_C;
     o_reg_src1 <= `ALU_REG_IMM;
   end
+
+  if (do_block_8x) begin
+    case (i_nibble)
+      4'h4, 4'h5, 4'h6, 4'h7: begin
+        o_reg_dest        <= `ALU_REG_ST;
+        o_reg_src1        <= `ALU_REG_IMM;
+      end
+      4'hC, 4'hD, 4'hE, 4'hF: begin
+        o_reg_dest        <= 0;
+        o_reg_src1        <= `ALU_REG_IMM;
+        o_reg_src2        <= 0;
+      end
+    endcase
+  end
+
+  if (do_block_80x) begin
+    case (i_nibble)
+      4'hC: begin
+        o_reg_dest        <= `ALU_REG_C;
+        o_reg_src1        <= `ALU_REG_P;
+        o_reg_src2        <= 0;
+      end
+    endcase
+  end
+
+
 end
 
 
@@ -1067,6 +1219,24 @@ always @(posedge i_clk) begin
   if (do_block_load_c_hex) begin
     o_field_start <= i_reg_p;
     o_field_last  <= (i_nibble + i_reg_p) & 4'hF;
+  end
+
+  if (do_block_8x) begin
+    case (i_nibble)
+      4'hC, 4'hD, 4'hE, 4'hF: begin
+        o_field_start <= 0;
+        o_field_last  <= i_nibble[3]?4:3;
+      end
+    endcase
+  end
+
+  if (do_block_80x) begin
+    case (i_nibble)
+      4'hC: begin
+        o_field_start <= i_nibble;
+        o_field_last  <= i_nibble;
+      end
+    endcase
   end
 
   /******************************************************************************

@@ -85,7 +85,10 @@ saturn_decoder	m_decoder (
 	.i_reg_p        (reg_p),
 
 	.o_inc_pc       (inc_pc),
+  .o_push					(push),
+  .o_pop					(pop),
 	.o_dec_error    (inv_opcode),
+	.o_alu_debug		(alu_debug),
      
   .o_ins_addr     (ins_addr),
   .o_ins_decoded  (ins_decoded),
@@ -112,8 +115,11 @@ saturn_decoder	m_decoder (
   .o_ins_alu_op		(ins_alu_op)
 );
 
-wire            inc_pc;
-wire            inv_opcode;
+wire [0:0]      inc_pc;
+wire [0:0]			push;
+wire [0:0]			pop;
+wire [0:0]      inv_opcode;
+wire [0:0]		  alu_debug;
 
 wire [19:0]     ins_addr;
 wire            ins_decoded;
@@ -148,6 +154,10 @@ saturn_alu		m_alu (
 	.i_en_alu_calc	 (en_alu_calc),
 	.i_en_alu_init   (en_alu_init),
 	.i_en_alu_save 	 (en_alu_save),
+
+	.i_push					 (push),
+	.i_pop					 (pop),
+	.i_alu_debug		 (alu_debug),
 
   .o_alu_stall_dec (alu_stall),
 	.i_ins_decoded   (ins_decoded),
@@ -184,13 +194,14 @@ reg [3:0] rom [0:2**20];
 reg [3:0] rom [0:2**10];
 `endif
 
+// `define DEBUG_CLOCKS
+
 initial
 	begin
 
-		`ifndef SIM
+		`ifdef SIM
 		$readmemh("rom-gx-r.hex", rom);
-		`else
-		$readmemh( "testrom-2.hex", rom);
+		// $readmemh( "testrom-2.hex", rom);
 		`endif
 
 		clk_phase 		= 0;
@@ -207,8 +218,8 @@ initial
 		cycle_ctr			= 0;
 
 `ifdef DEBUG_CLOCKS
-		$monitor("RST %b | CLK %b | CLKP %d | CYCL %d | eRST %b | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
-				 reset, clk, clk_phase, cycle_ctr, en_reset, 
+		$monitor("RST %b | CLK %b | CLKP %d | CYCL %d | PC %5h | eRST %b | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
+				 reset, clk, clk_phase, cycle_ctr, reg_pc, en_reset, 
 				 en_debugger, en_bus_send,
 				 en_bus_recv, en_alu_prep, 
 				 en_alu_calc, en_inst_dec, 
@@ -222,13 +233,15 @@ initial
 //
 //--------------------------------------------------------------------------------------------------
 
+`define PH_BUS_RECV 1
+
 always @(posedge clk) begin
 	if (!reset) begin
 		clk_phase    <= clk_phase + 1;
 		en_alu_dump  <= clk_phase[1:0] == 0;
 		en_debugger  <= clk_phase[1:0] == 0;
 		en_bus_send  <= clk_phase[1:0] == 0;
-		en_bus_recv  <= clk_phase[1:0] == 1;
+		en_bus_recv  <= clk_phase[1:0] == `PH_BUS_RECV;
 		en_alu_prep  <= clk_phase[1:0] == 1;
 		en_alu_calc  <= clk_phase[1:0] == 2;
 		en_inst_dec  <= clk_phase[1:0] == 2;
@@ -253,7 +266,7 @@ always @(posedge clk) begin
 		en_inst_exec  <= 0;
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 1024;
+		max_cycle     <= 40;
 `ifndef SIM
 		led[7:0]      <= reg_pc[7:0];
 `endif
@@ -287,6 +300,7 @@ always @(posedge clk)
 	end
 	if (en_bus_recv) begin
 		if (!stalled) begin
+			$display("BUS_RECV %1d: [%d] %5h => %1h", `PH_BUS_RECV, cycle_ctr, reg_pc, rom[reg_pc]);
 			nibble_in <= rom[reg_pc];
 		end
 	end
