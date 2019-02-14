@@ -31,9 +31,11 @@
 // tests
 `define ALU_OP_TEST_EQ  13
 `define ALU_OP_TEST_NEQ 14
-// 15
-// 16
+// relative jump
+`define ALU_OP_JMP_REL2 15
+`define ALU_OP_JMP_REL3 16
 
+// registers
 
 `define ALU_REG_A        0
 `define ALU_REG_B        1

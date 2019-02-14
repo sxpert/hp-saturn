@@ -97,6 +97,7 @@ saturn_decoder	m_decoder (
 	.o_imm_value    (imm_value),
 
 	.o_alu_op				(alu_op),
+	.o_alu_no_stall (alu_no_stall),
 	.o_reg_dest			(reg_dest),
 	.o_reg_src1			(reg_src1),
 	.o_reg_src2			(reg_src2),
@@ -124,6 +125,7 @@ wire [3:0]      field_last;
 wire [3:0]			imm_value;
 
 wire [4:0]			alu_op;
+wire [0:0]			alu_no_stall;
 wire [4:0]			reg_dest;
 wire [4:0]			reg_src1;
 wire [4:0]			reg_src2;
@@ -155,6 +157,7 @@ saturn_alu		m_alu (
 	.i_imm_value     (imm_value),
 
 	.i_alu_op			 	 (alu_op),
+	.i_alu_no_stall  (alu_no_stall),
 	.i_reg_dest			 (reg_dest),
 	.i_reg_src1			 (reg_src1),
 	.i_reg_src2			 (reg_src2),
@@ -162,7 +165,7 @@ saturn_alu		m_alu (
   .i_ins_alu_op		 (ins_alu_op),
 
 	.o_reg_p				 (reg_p),
-	.i_pc			       (reg_pc)
+	.o_pc			       (reg_pc)
 );
 
 
@@ -170,6 +173,7 @@ saturn_alu		m_alu (
 
 wire [0:0]    alu_stall;
 wire [3:0]		reg_p;
+wire [19:0]		reg_pc;
 
 /*
  * test rom...
@@ -201,7 +205,6 @@ initial
 		en_inst_exec	= 0;	// phase 3
 		clock_end			= 0;
 		cycle_ctr			= 0;
-		reg_pc				= 0;
 
 `ifdef DEBUG_CLOCKS
 		$monitor("RST %b | CLK %b | CLKP %d | CYCL %d | eRST %b | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
@@ -250,7 +253,7 @@ always @(posedge clk) begin
 		en_inst_exec  <= 0;
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 4;
+		max_cycle     <= 1024;
 `ifndef SIM
 		led[7:0]      <= reg_pc[7:0];
 `endif
@@ -264,22 +267,23 @@ end
 //--------------------------------------------------------------------------------------------------
 
 reg [3:0]   nibble_in;
-reg [19:0]	reg_pc;
 wire			  stalled;
 assign stalled = alu_stall;
 
 always @(posedge clk)
   if (reset) begin
-		reg_pc  <= ~0;
+		//reg_pc  <= ~0;
 		// stalled <= 0;
   end else begin
 	if (en_bus_send) begin
-		if (inc_pc & !stalled)
-			reg_pc <= reg_pc + 1;
-		`ifdef SIM
-		else              
-			$write("PC_INC   0: not incrementing PC\n");
-		`endif
+	  // PC handled by ALU
+		// 
+		// if (inc_pc & !stalled)
+		// 	reg_pc <= reg_pc + 1;
+		// `ifdef SIM
+		// else              
+		// 	$write("PC_INC   0: not incrementing PC\n");
+		// `endif
 	end
 	if (en_bus_recv) begin
 		if (!stalled) begin

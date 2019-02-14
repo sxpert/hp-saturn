@@ -35,6 +35,7 @@ module saturn_decoder(
   o_imm_value,
 
   o_alu_op,
+  o_alu_no_stall,
   o_reg_dest,
   o_reg_src1,
   o_reg_src2,
@@ -86,7 +87,7 @@ output  reg [3:0]   o_field_last;
 output  reg [3:0]   o_imm_value;
 
 output  reg [4:0]   o_alu_op;
-
+output  reg [0:0]   o_alu_no_stall;
 output  reg [4:0]   o_reg_dest;
 output  reg [4:0]   o_reg_src1;
 output  reg [4:0]   o_reg_src2;
@@ -373,6 +374,9 @@ reg   block_mem_transfer;
 reg   block_pointer_arith_const;
 reg   block_load_p;
 reg   block_load_c_hex;
+reg   block_jmp3_cry_set;
+reg   block_jmp3_cry_clr;
+reg   block_jmp4;
 
 reg   go_fields_table;
 
@@ -403,6 +407,10 @@ wire  do_block_mem_transfer;
 wire  do_block_pointer_arith_const;
 wire  do_block_load_p;
 wire  do_block_load_c_hex;
+wire  do_block_jmp3_cry_set;
+wire  do_block_jmp3_cry_clr;
+wire  do_block_jmp4;
+
 assign do_block_0x                  = do_on_other_nibbles && block_0x;
 assign do_block_0Efx                = do_on_other_nibbles && block_0Efx;
 assign do_block_1x                  = do_on_other_nibbles && block_1x;
@@ -416,9 +424,12 @@ assign do_block_Rn_A_C              = do_on_other_nibbles &&
 assign do_block_pointer_assign_exch = do_on_other_nibbles && block_pointer_assign_exch; 
 assign do_block_mem_transfer        = do_on_other_nibbles && block_mem_transfer;        
 assign do_block_pointer_arith_const = do_on_other_nibbles && block_pointer_arith_const; 
-//assign do_block_load_pointer_imm    = do_on_other_nibbles && block_load_pointer_imm;    
 assign do_block_load_p              = do_on_other_nibbles && block_load_p;
 assign do_block_load_c_hex          = do_on_other_nibbles && block_load_c_hex;
+assign do_block_jmp3_cry_set        = do_on_other_nibbles && block_jmp3_cry_set;
+assign do_block_jmp3_cry_clr        = do_on_other_nibbles && block_jmp3_cry_clr;
+assign do_block_jmp4                = do_on_other_nibbles && block_jmp4;
+
 
 reg  block_load_reg_imm;
 wire do_load_reg_imm;
@@ -497,6 +508,9 @@ always @(posedge i_clk) begin
     block_pointer_arith_const  <= 0;
     block_load_p               <= 0;
     block_load_c_hex           <= 0;
+    block_jmp3_cry_set         <= 0;
+    block_jmp3_cry_clr         <= 0;
+    block_jmp4                 <= 0;
 
     block_load_reg_imm         <= 0;
 
@@ -508,6 +522,7 @@ always @(posedge i_clk) begin
     o_field_last    <= 0;
 
     o_alu_op        <= 0;
+    o_alu_no_stall  <= 0;
 
     // cleanup
     o_direction     <= 0;
@@ -531,10 +546,19 @@ always @(posedge i_clk) begin
 
     // assign block regs
     case (i_nibble) 
-    4'h0: block_0x         <= 1;
-    4'h1: block_1x         <= 1;
-    4'h2: block_load_p     <= 1;
-    4'h3: block_load_c_hex <= 1;
+    4'h0: block_0x            <= 1;
+    4'h1: block_1x            <= 1;
+    4'h2: block_load_p        <= 1;
+    4'h3: block_load_c_hex    <= 1;
+    4'h4: block_jmp3_cry_set  <= 1;
+    4'h5: block_jmp3_cry_clr  <= 1;
+    4'h6: begin
+      o_alu_no_stall <= 1;
+      o_alu_op       <= `ALU_OP_JMP_REL3;
+      mem_load_max   <= 2;
+      o_mem_pos      <= 0;
+      block_jmp4     <= 1;
+    end
     default: begin
       `ifdef SIM
       $display("DEC_INIT 2: nibble %h not handled", i_nibble);
@@ -660,7 +684,8 @@ always @(posedge i_clk) begin
         mem_load_max              <= {1'b0, i_nibble[1], !i_nibble[1], i_nibble[1] && i_nibble[0]};
         o_mem_pos                 <= 0;
         block_load_reg_imm        <= 1;
-        o_ins_alu_op              <= 1;
+        // o_ins_alu_op              <= 1;
+        o_alu_no_stall            <= 1;
         o_alu_op                  <= `ALU_OP_COPY;
       end
     endcase
@@ -670,7 +695,7 @@ always @(posedge i_clk) begin
   if (do_block_save_to_R_W || do_block_rest_from_R_W) begin
     o_ins_alu_op        <= 1;
     o_alu_op            <= `ALU_OP_COPY;
-    next_nibble            <= 0;
+    next_nibble         <= 0;
     o_ins_decoded       <= 1;
     block_save_to_R_W   <= 0;
     block_rest_from_R_W <= 0;
@@ -718,10 +743,22 @@ always @(posedge i_clk) begin
     // $write("block load C hex %h\n", i_nibble);
     mem_load_max       <= i_nibble + 1;
     o_mem_pos          <= 0;
-    o_ins_alu_op       <= 1;
+    o_alu_no_stall     <= 1;
     o_alu_op           <= `ALU_OP_COPY;
     block_load_reg_imm <= 1;
     block_load_c_hex   <= 0;
+  end
+
+  if (do_block_jmp3_cry_clr) begin
+
+  end
+
+  if (do_block_jmp4) begin
+    o_ins_alu_op  <= 1;
+    o_imm_value   <= i_nibble;
+    o_mem_pos     <= o_mem_pos + 1;
+    next_nibble   <= mem_load_max != o_mem_pos;
+    o_ins_decoded <= mem_load_max == o_mem_pos;
   end
 
   // utilities
@@ -731,6 +768,7 @@ always @(posedge i_clk) begin
     // $write("pos %d | max %d | ", o_mem_pos, mem_load_max);
     // $write("next %b | dec %b | ", (o_mem_pos+1) != mem_load_max, (o_mem_pos+1) == mem_load_max);
     // $write("\n");
+    o_ins_alu_op               <= 1;
     o_imm_value                <= i_nibble;
     o_mem_load[o_mem_pos*4+:4] <= i_nibble;
     o_mem_pos                  <= o_mem_pos + {3'b000, ((o_mem_pos+1) != mem_load_max)};
@@ -775,9 +813,18 @@ always @(posedge i_clk) begin
 
   if (do_on_first_nibble) begin
     // reset values on instruction decode start
-    o_reg_dest        <= 0;
-    o_reg_src1        <= 0;
-    o_reg_src2        <= 0;
+    case (i_nibble)
+    4'h6: begin
+      o_reg_dest        <= 0;
+      o_reg_src1        <= `ALU_REG_IMM;
+      o_reg_src2        <= 0;
+    end
+    default: begin
+      o_reg_dest        <= 0;
+      o_reg_src1        <= 0;
+      o_reg_src2        <= 0;
+    end
+    endcase
     inval_opcode_regs <= 0;
   end
 
@@ -940,8 +987,16 @@ always @(posedge i_clk) begin
     fields_table_done <= 0;
     o_field           <= 0;
     o_field_valid     <= 0;
-    o_field_start     <= 0;
-    o_field_last      <= 0;
+    case (i_nibble)
+    4'h6: begin 
+      o_field_start     <= 0;
+      o_field_last      <= 2;
+    end
+    default: begin
+      o_field_start     <= 0;
+      o_field_last      <= 0;
+    end
+    endcase
   end
 
   /******************************************************************************
@@ -963,6 +1018,21 @@ always @(posedge i_clk) begin
       o_field_last  <= 3;
     end
     default: begin end // don't care
+    endcase
+  end
+
+  if (do_block_1x) begin
+    o_field_start <= 0;
+    case (i_nibble)
+    4'h9, 4'hD: begin
+      o_field_last <= 1;
+    end
+    4'hA, 4'hE: begin
+      o_field_last <= 3;
+    end
+    4'hB, 4'hF: begin
+      o_field_last <= 4;
+    end
     endcase
   end
 
@@ -992,6 +1062,11 @@ always @(posedge i_clk) begin
   if (do_block_pointer_arith_const) begin
     o_field_start <= 0;
     o_field_last  <= 4;
+  end
+
+  if (do_block_load_c_hex) begin
+    o_field_start <= i_reg_p;
+    o_field_last  <= (i_nibble + i_reg_p) & 4'hF;
   end
 
   /******************************************************************************

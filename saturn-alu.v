@@ -3,6 +3,8 @@
 
 `include "def-alu.v"
 
+`define ALU_DEBUG
+
 module saturn_alu (
     i_clk,
     i_reset,
@@ -20,6 +22,7 @@ module saturn_alu (
     i_imm_value,
 
     i_alu_op,
+    i_alu_no_stall,
     i_reg_dest,
     i_reg_src1,
     i_reg_src2,
@@ -27,7 +30,7 @@ module saturn_alu (
     i_ins_alu_op,
 
     o_reg_p,
-    i_pc
+    o_pc
 );
 
 input   wire [0:0]  i_clk;
@@ -46,6 +49,7 @@ input   wire [3:0]  i_field_last;
 input   wire [3:0]  i_imm_value;
 
 input   wire [4:0]  i_alu_op;
+input   wire [0:0]  i_alu_no_stall;
 input   wire [4:0]  i_reg_dest;
 input   wire [4:0]  i_reg_src1;
 input   wire [4:0]  i_reg_src2;
@@ -53,12 +57,12 @@ input   wire [4:0]  i_reg_src2;
 input   wire        i_ins_alu_op;
 
 output  wire [3:0]  o_reg_p;
-input   wire [19:0] i_pc;
+output  wire [19:0] o_pc;
 
 assign o_reg_p = P;
+assign o_pc    = PC;
 
-wire [19:0]      PC;
-assign PC = i_pc + 1;
+reg  [19:0]      PC;
 
 reg  [19:0]      D0;
 reg  [19:0]      D1;
@@ -90,6 +94,8 @@ initial begin
   alu_done        = 0;
 //   o_alu_stall_dec = 0;
   // processor registers
+  PC              = 0;
+
   D0              = 0;
   D1              = 0;
 
@@ -126,17 +132,29 @@ wire do_alu_init;
 wire do_alu_prep;
 wire do_alu_calc;
 wire do_alu_save;
+wire do_alu_shpc;
+wire do_alu_pc;
 
 assign do_reg_dump = (!i_reset) && i_en_alu_dump && i_ins_decoded && !o_alu_stall_dec;
 assign do_alu_init = (!i_reset) && i_en_alu_init && i_ins_alu_op && !alu_run; 
-assign do_alu_prep = (!i_reset) && i_en_alu_prep;
-assign do_alu_calc = (!i_reset) && i_en_alu_calc;
-assign do_alu_save = (!i_reset) && i_en_alu_save;
+assign do_alu_prep = (!i_reset) && i_en_alu_prep && alu_run;
+assign do_alu_calc = (!i_reset) && i_en_alu_calc && alu_run;
+assign do_alu_save = (!i_reset) && i_en_alu_save && alu_run;
+assign do_alu_shpc = (!i_reset) && i_en_alu_dump;
+assign do_alu_pc   = (!i_reset) && i_en_alu_save;
 
-reg       alu_run;
-reg       alu_done;
+reg        alu_run;
+reg        alu_done;
+wire       test_finish;
+wire [3:0] f_next;
 
-assign o_alu_stall_dec = alu_run;
+assign test_finish = f_start == f_last;
+assign f_next      = (f_start + 1) & 4'hF;
+
+// the decoder may request the ALU to not stall it
+
+
+assign o_alu_stall_dec = alu_run && (!i_alu_no_stall || test_finish);
 
 reg [4:0] alu_op;
 reg [4:0] reg_dest;
@@ -184,10 +202,10 @@ end
 always @(posedge i_clk) begin
   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
   if (do_alu_init) begin
-    $display({"ALU_INIT 3: run %b | done %b | stall %b | i_alu %b |",
-              " op %d | dest %d | src1 %d | src2 %d | start %h | end %h"},
-             alu_run, alu_done, o_alu_stall_dec, i_ins_alu_op, i_alu_op, 
-             i_reg_dest, i_reg_src1, i_reg_src2, i_field_start, i_field_last);
+    $display({"ALU_INIT 3: run %b | done %b | stall %b | op %d | s %h | l %h ",
+              "| ialu %b | dest %d | src1 %d | src2 %d"},
+             alu_run, alu_done, o_alu_stall_dec, i_alu_op,i_field_start, i_field_last,  
+             i_ins_alu_op, i_reg_dest, i_reg_src1, i_reg_src2);
     alu_op   <= i_alu_op;
     reg_dest <= i_reg_dest;
     reg_src1 <= i_reg_src1;
@@ -200,10 +218,22 @@ end
 /*
  * handles alu_done
  */
+
 always @(posedge i_clk) begin
   if (do_alu_init) alu_run <= 1;
-  if (do_alu_prep && alu_run) alu_done <= 0;
-  if (do_alu_calc && alu_run && (f_start == f_last)) alu_done <= 1; 
+  if (do_alu_prep) begin
+    // $display("ALU_TEST 1: tf %b | nxt %h", test_finish, f_next);
+    alu_done <= 0;
+  end
+  if (do_alu_calc) begin
+    // $display("ALU_TEST 2: tf %b | nxt %h", test_finish, f_next);
+    alu_done <= test_finish; 
+    // f_next  <= (f_start + 1) & 4'hF;
+  end
+  if (do_alu_save) begin
+    // $display("ALU_TEST 3: tf %b | nxt %h", test_finish, f_next);    
+    f_start  <= f_next;
+  end    
   if (do_alu_save && alu_done) begin
     alu_run <= 0;
     alu_done <= 0;
@@ -213,10 +243,10 @@ end
 
 
 always @(posedge i_clk) begin
-  if (do_alu_prep && alu_run) begin
-    `ifdef SIM
-    $display("ALU_PREP 1: run %b | done %b | stall %b | op %b | alu_op %h | f_start %h | f_last %h", 
-             alu_run, alu_done, o_alu_stall_dec, alu_op, i_alu_op, f_start, f_last);
+  if (do_alu_prep) begin
+    `ifdef ALU_DEBUG
+    $display("ALU_PREP 1: run %b | done %b | stall %b | op %d | s %h | l %h", 
+             alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last);
     `endif
     
 
@@ -224,8 +254,15 @@ always @(posedge i_clk) begin
 
     case (alu_op)
     `ALU_OP_ZERO: begin end // no source required
-    `ALU_OP_COPY:
+    `ALU_OP_COPY,
+    `ALU_OP_JMP_REL3:
       case (reg_src1)
+      `ALU_REG_A:   p_src1 <= A [f_start*4+:4];
+      `ALU_REG_B:   p_src1 <= B [f_start*4+:4];
+      `ALU_REG_C:   p_src1 <= C [f_start*4+:4];
+      `ALU_REG_D:   p_src1 <= D [f_start*4+:4];
+      `ALU_REG_D0:  p_src1 <= D0[f_start*4+:4];
+      `ALU_REG_D1:  p_src1 <= D1[f_start*4+:4];
       `ALU_REG_P:   p_src1 <= P;
       `ALU_REG_IMM: p_src1 <= i_imm_value;
       endcase
@@ -238,8 +275,10 @@ end
 
 always @(posedge i_clk) begin
   if (do_alu_calc) begin
-    $display("ALU_CALC 2: run %b | done %b | stall %b | op %d | src1 %h | src2 %h | p_carry %b", 
-             alu_run, alu_done, o_alu_stall_dec, alu_op, p_src1, p_src2, p_carry);
+    `ifdef ALU_DEBUG
+    $display("ALU_CALC 2: run %b | done %b | stall %b | op %d | s %h | l %h | src1 %h | src2 %h | p_carry %b", 
+             alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last, p_src1, p_src2, p_carry);
+    `endif
 
     case (alu_op)
     `ALU_OP_ZERO: c_res1 <= 0;
@@ -250,19 +289,46 @@ end
 
 always @(posedge i_clk) begin
   if (do_alu_save) begin
-    $display("ALU_SAVE 3: run %b | done %b | stall %b | op %b | res1 %h | res2 %h | c_carry %b", 
-             alu_run, alu_done, o_alu_stall_dec, alu_op, c_res1, c_res2, c_carry);
+    `ifdef ALU_DEBUG
+    $display({"ALU_SAVE 3: run %b | done %b | stall %b | op %d | s %h | l %h |",
+             " res1 %h | res2 %h | c_carry %b"}, 
+             alu_run, alu_done, o_alu_stall_dec, alu_op, 
+             f_start, f_last, c_res1, c_res2, c_carry);
+    `endif
 
     case (alu_op)
     `ALU_OP_ZERO,
     `ALU_OP_COPY:
       case (reg_dest)
-      `ALU_REG_P: P <= c_res1;
+      `ALU_REG_C:  C [f_start*4+:4] <= c_res1;
+      `ALU_REG_D0: D0[f_start*4+:4] <= c_res1;
+      `ALU_REG_D1: D1[f_start*4+:4] <= c_res1;
+      `ALU_REG_P:  P <= c_res1;
       endcase
     endcase 
 
   end
-  
+end
+
+wire [19:0] next_pc;
+assign next_pc = PC + 1;
+always @(posedge i_clk) begin
+  if (i_reset)
+    PC <= ~0;
+
+  if (do_alu_shpc) begin
+    // if (!o_alu_stall_dec)
+    //   $display("ALU_SHPC 0: pc %5h", PC);
+    if (o_alu_stall_dec)
+      $display("ALU_SHPC 0: STALL");
+  end
+
+  if (do_alu_pc) begin
+    // if (!o_alu_stall_dec)
+    //   $display("ALU_PC   3: nx %5h", next_pc);
+    if (!o_alu_stall_dec)
+      PC <= next_pc;
+  end
 end
 
 endmodule
