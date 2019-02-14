@@ -251,8 +251,12 @@ always @(posedge clk) begin
 		en_inst_exec <= clk_phase[1:0] == 3;
 		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == 0) };
 		// stop after 50 clocks
-		if (cycle_ctr == (max_cycle + 1))
+		if (cycle_ctr == (max_cycle + 1)) begin
+		  $display(".-------------------.");
+			$display("|   OUT OF CYCLES   |");
+			$display("`-------------------´");
 			clock_end <= 1;
+		end
 	end else begin
 		clk_phase 	  <= ~0;
 		en_alu_dump   <= 0;
@@ -267,7 +271,7 @@ always @(posedge clk) begin
 		en_inst_exec  <= 0;
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 40;
+		max_cycle     <= 100;
 `ifndef SIM
 		led[7:0]      <= reg_pc[7:0];
 `endif

@@ -39,6 +39,7 @@
 `define ALU_OP_JMP_REL3 18
 `define ALU_OP_JMP_REL4 19
 `define ALU_OP_JMP_ABS5 20
+`define ALU_OP_CLR_MASK 21
 
 
 // registers

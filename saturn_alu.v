@@ -17,10 +17,10 @@ module saturn_alu (
     i_clk,
     i_reset,
     i_en_alu_dump,
-	i_en_alu_prep,
-	i_en_alu_calc,
+	  i_en_alu_prep,
+	  i_en_alu_calc,
     i_en_alu_init,
-	i_en_alu_save,
+	  i_en_alu_save,
 
     i_push,
     i_pop,
@@ -101,10 +101,11 @@ reg [3:0] f_last;
 
 reg [3:0] p_src1;
 reg [3:0] p_src2;
-reg       p_carry;
+reg [0:0] p_carry;
 reg [3:0] c_res1;
 reg [3:0] c_res2;
-reg       c_carry;
+reg [0:0] c_carry;
+reg [0:0] is_zero;
 
 /* alu status */
 
@@ -159,6 +160,14 @@ initial begin
 
   alu_run         = 0;
   alu_done        = 0;
+
+  p_src1          = 0;
+  p_src2          = 0;
+  p_carry         = 0;
+  c_res1          = 0;
+  c_res2          = 0;
+  c_carry         = 0;
+  is_zero         = 0;
 //   o_alu_stall_dec = 0;
   // processor registers
   PC              = 0;
@@ -271,7 +280,6 @@ always @(posedge i_clk) begin
 `endif
 end
 
-
 always @(posedge i_clk) begin
   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
   if (do_alu_init) begin
@@ -330,13 +338,12 @@ always @(posedge i_clk) begin
       `endif
     end
 
-    // setup value for src1
-
     case (alu_op)
     `ALU_OP_ZERO: begin end // no source required
     `ALU_OP_COPY,
     `ALU_OP_RST_BIT,
     `ALU_OP_SET_BIT,
+    `ALU_OP_2CMPL,
     `ALU_OP_JMP_REL3,
     `ALU_OP_JMP_REL4,
     `ALU_OP_JMP_ABS5:
@@ -349,10 +356,16 @@ always @(posedge i_clk) begin
       `ALU_REG_D1:  p_src1 <= D1[f_start*4+:4];
       `ALU_REG_P:   p_src1 <= P;
       `ALU_REG_IMM: p_src1 <= i_imm_value;
+      default: $display("####UNHANDLED REGISTER %0d", reg_src1);
       endcase
+    default: $display("####UNHANDLED OPERATION %0d", alu_op);
     endcase
 
     // setup p_carry
+    // $display("fs %h | fs=0 %b | cc %b | npc %b", f_start, (f_start == 0), c_carry, (f_start == 0)?1'b1:c_carry);
+    case (alu_op)
+    `ALU_OP_2CMPL: p_carry <= (f_start == 0)?1'b1:c_carry;
+    endcase
 
   end
 end
@@ -380,6 +393,11 @@ always @(posedge i_clk) begin
     `ALU_OP_COPY,
     `ALU_OP_RST_BIT,
     `ALU_OP_SET_BIT:    c_res1                 <= p_src1;
+    `ALU_OP_2CMPL:      begin 
+                        c_carry                <= (~p_src1 == 4'hf) && p_carry ;
+                        c_res1                 <= ~p_src1 + p_carry;
+                        is_zero                <= ((~p_src1 + p_carry) == 0) && (f_start == 0)?1:is_zero;
+                        end
     `ALU_OP_JMP_REL3,
     `ALU_OP_JMP_REL4,
     `ALU_OP_JMP_ABS5:   jump_off[f_start*4+:4] <= p_src1;
@@ -391,6 +409,11 @@ always @(posedge i_clk) begin
     `ALU_OP_JMP_REL4: if (alu_finish)
                         jump_off               <= { {4{p_src1[3]}}, p_src1, jump_off[11:0] };
     endcase
+
+    // $display("-------C- SRC1 %b %h | ~SRC1 %b %h | PC %b | RES1 %b %h | CC %b", 
+    //          p_src1, p_src1, ~p_src1, ~p_src1, p_carry, 
+    //          (~p_src1) + p_carry, (~p_src1) + p_carry, 
+    //          (~p_src1) == 4'hf );
   end
 end
 
@@ -407,11 +430,20 @@ always @(posedge i_clk) begin
                 alu_run, alu_done, o_alu_stall_dec, alu_op, f_start, f_last, jump_bse, jump_off, jump_pc, alu_finish);
     `endif
 
+    // $display("-------S- SRC1 %b %h | ~SRC1 %b %h | PC %b | RES1 %b %h | CC %b", 
+    //          p_src1, p_src1, ~p_src1, ~p_src1, p_carry, 
+    //          (~p_src1) + p_carry, (~p_src1) + p_carry, 
+    //          (~p_src1) == 4'hf );
+
     case (alu_op)
     `ALU_OP_ZERO,
-    `ALU_OP_COPY:
+    `ALU_OP_COPY,
+    `ALU_OP_2CMPL:
       case (reg_dest)
+      `ALU_REG_A:  A [f_start*4+:4] <= c_res1;
+      `ALU_REG_B:  B [f_start*4+:4] <= c_res1;
       `ALU_REG_C:  C [f_start*4+:4] <= c_res1;
+      `ALU_REG_D:  D [f_start*4+:4] <= c_res1;
       `ALU_REG_D0: D0[f_start*4+:4] <= c_res1;
       `ALU_REG_D1: D1[f_start*4+:4] <= c_res1;
       `ALU_REG_ST: ST[f_start*4+:4] <= c_res1;
@@ -426,11 +458,21 @@ always @(posedge i_clk) begin
       endcase
     endcase 
 
+    case (alu_op)
+    `ALU_OP_2CMPL: CARRY <= !is_zero;
+    endcase
+
   end
 end
 
 wire [19:0] next_pc;
-assign next_pc = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
+wire [0:0]  update_pc;
+wire [0:0]  push_pc;
+
+assign next_pc   = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
+assign update_pc = !o_alu_stall_dec || is_alu_op_jump;
+assign push_pc   = update_pc && i_push && alu_done;
+
 always @(posedge i_clk) begin
   if (i_reset)
     PC <= ~0;
@@ -454,8 +496,14 @@ always @(posedge i_clk) begin
       $display("ALU_PC   3: !stl %b | nx %5h | jmp %b | push %b",
                !o_alu_stall_dec,  next_pc, is_alu_op_jump, i_push);
 `endif
-    if (!o_alu_stall_dec || is_alu_op_jump) begin
+    if (update_pc) begin
       PC <= next_pc;
+    end
+
+    if (push_pc) begin
+      $display("PUSH PC %5h to RSTK[%0d]", PC, rstk_ptr);
+      RSTK[rstk_ptr] <= PC;
+      rstk_ptr       <= rstk_ptr + 1;
     end
   end
 end
