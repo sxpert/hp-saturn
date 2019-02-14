@@ -287,9 +287,9 @@ always @(posedge i_clk) begin
 `ifdef SIM
     if (alu_debug)
       $display({"ALU_INIT 3: run %b | done %b | stall %b | op %d | s %h | l %h ",
-                "| ialu %b | dest %d | src1 %d | src2 %d"},
+                "| ialu %b | dest %d | src1 %d | src2 %d | imm %h"},
                alu_run, alu_done, o_alu_stall_dec, i_alu_op,i_field_start, i_field_last,  
-               i_ins_alu_op, i_reg_dest, i_reg_src1, i_reg_src2);
+               i_ins_alu_op, i_reg_dest, i_reg_src1, i_reg_src2, i_imm_value);
 `endif
 
     jump_bse <= PC;
@@ -346,7 +346,8 @@ always @(posedge i_clk) begin
     `ALU_OP_2CMPL,
     `ALU_OP_JMP_REL3,
     `ALU_OP_JMP_REL4,
-    `ALU_OP_JMP_ABS5:
+    `ALU_OP_JMP_ABS5,
+    `ALU_OP_CLR_MASK:
       case (reg_src1)
       `ALU_REG_A:   p_src1 <= A [f_start*4+:4];
       `ALU_REG_B:   p_src1 <= B [f_start*4+:4];
@@ -355,10 +356,20 @@ always @(posedge i_clk) begin
       `ALU_REG_D0:  p_src1 <= D0[f_start*4+:4];
       `ALU_REG_D1:  p_src1 <= D1[f_start*4+:4];
       `ALU_REG_P:   p_src1 <= P;
+      `ALU_REG_HST: p_src1 <= HST;
       `ALU_REG_IMM: p_src1 <= i_imm_value;
-      default: $display("####UNHANDLED REGISTER %0d", reg_src1);
+      default: $display("#### SRC_1 UNHANDLED REGISTER %0d", reg_src1);
       endcase
-    default: $display("####UNHANDLED OPERATION %0d", alu_op);
+    default: $display("#### SRC_1 UNHANDLED OPERATION %0d", alu_op);
+    endcase
+
+    case (alu_op)
+    `ALU_OP_CLR_MASK:
+      case (reg_src2)
+      `ALU_REG_IMM: p_src2 <= i_imm_value;
+      default: $display("#### SRC_2 UNHANDLED REGISTER %0d", reg_src2);
+      endcase
+    default: $display("#### SRC_2 UNHANDLED OPERATION %0d", alu_op);
     endcase
 
     // setup p_carry
@@ -401,6 +412,7 @@ always @(posedge i_clk) begin
     `ALU_OP_JMP_REL3,
     `ALU_OP_JMP_REL4,
     `ALU_OP_JMP_ABS5:   jump_off[f_start*4+:4] <= p_src1;
+    `ALU_OP_CLR_MASK:   c_res1                 <= p_src1 & ~p_src2;
     endcase
 
     case (alu_op)
@@ -436,27 +448,31 @@ always @(posedge i_clk) begin
     //          (~p_src1) == 4'hf );
 
     case (alu_op)
-    `ALU_OP_ZERO,
-    `ALU_OP_COPY,
-    `ALU_OP_2CMPL:
-      case (reg_dest)
-      `ALU_REG_A:  A [f_start*4+:4] <= c_res1;
-      `ALU_REG_B:  B [f_start*4+:4] <= c_res1;
-      `ALU_REG_C:  C [f_start*4+:4] <= c_res1;
-      `ALU_REG_D:  D [f_start*4+:4] <= c_res1;
-      `ALU_REG_D0: D0[f_start*4+:4] <= c_res1;
-      `ALU_REG_D1: D1[f_start*4+:4] <= c_res1;
-      `ALU_REG_ST: ST[f_start*4+:4] <= c_res1;
-      `ALU_REG_P:  P <= c_res1;
-      endcase
-    `ALU_OP_RST_BIT,
-    `ALU_OP_SET_BIT:
-      case (reg_dest)
-      `ALU_REG_ST: ST[c_res1] <= alu_op==`ALU_OP_SET_BIT?1:0;
-      default:
-        $display("invalid register for op");
-      endcase
+      `ALU_OP_ZERO,
+      `ALU_OP_COPY,
+      `ALU_OP_2CMPL,
+      `ALU_OP_CLR_MASK:
+        case (reg_dest)
+        `ALU_REG_A:   A [f_start*4+:4] <= c_res1;
+        `ALU_REG_B:   B [f_start*4+:4] <= c_res1;
+        `ALU_REG_C:   C [f_start*4+:4] <= c_res1;
+        `ALU_REG_D:   D [f_start*4+:4] <= c_res1;
+        `ALU_REG_D0:  D0[f_start*4+:4] <= c_res1;
+        `ALU_REG_D1:  D1[f_start*4+:4] <= c_res1;
+        `ALU_REG_ST:  ST[f_start*4+:4] <= c_res1;
+        `ALU_REG_P:   P <=                c_res1;
+        `ALU_REG_HST: HST <=              c_res1;
+        endcase
+      `ALU_OP_RST_BIT,
+      `ALU_OP_SET_BIT:
+        case (reg_dest)
+        `ALU_REG_ST: ST[c_res1] <= alu_op==`ALU_OP_SET_BIT?1:0;
+        default: $display("#### ALU_SAVE invalid register %0d for op %0d", reg_dest, alu_op);
+        endcase
+      default: $display("#### ALU_SAVE UNHANDLED OP %0d", alu_op);
     endcase 
+
+
 
     case (alu_op)
     `ALU_OP_2CMPL: CARRY <= !is_zero;

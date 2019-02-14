@@ -214,31 +214,46 @@ always @(posedge i_clk) begin
       if (o_ins_alu_op) begin
         
         case (o_alu_op)
-        `ALU_OP_JMP_REL3:  $write("GOTO"); 
-        `ALU_OP_JMP_REL4:  $write("%s", o_push?"GOSUBL":"GOLONG");
-        `ALU_OP_JMP_ABS5:  $write("%s", o_push?"GOSBVL":"GOVLNG");  
-        default:
-          case (o_reg_dest)
-          `ALU_REG_A:      $write("A");
-          `ALU_REG_B:      $write("B");
-          `ALU_REG_C:    
-            if (is_lc_hex) $write("LCHEX");
-            else $write("C");
-          `ALU_REG_D:      $write("D");
-          `ALU_REG_D0:     $write("D0");
-          `ALU_REG_D1:     $write("D1");
-          `ALU_REG_RSTK:   $write("RSTK");
-          `ALU_REG_R0:     $write("R0");
-          `ALU_REG_R1:     $write("R1");
-          `ALU_REG_R2:     $write("R2");
-          `ALU_REG_R3:     $write("R3");
-          `ALU_REG_R4:     $write("R4");
-          `ALU_REG_DAT0:   $write("DAT0");
-          `ALU_REG_DAT1:   $write("DAT1");
-          `ALU_REG_ST:     if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
-          `ALU_REG_P:      $write("P");
-          default:         $write("[dest:%0d]", o_reg_dest);
-          endcase
+          `ALU_OP_JMP_REL3:  $write("GOTO"); 
+          `ALU_OP_JMP_REL4:  $write("%s", o_push?"GOSUBL":"GOLONG");
+          `ALU_OP_JMP_ABS5:  $write("%s", o_push?"GOSBVL":"GOVLNG");
+          `ALU_OP_CLR_MASK:
+            case (o_reg_dest)
+              `ALU_REG_HST:
+                case (o_imm_value)
+                  4'h1: $write("XM=0");
+                  4'h2: $write("SB=0");
+                  4'h4: $write("SR=0");
+                  4'h8: $write("MP=0");
+                  default: begin  
+                    $write("CLRHST");
+                    if (o_imm_value != 4'hF) $write("\t%1h", o_imm_value);
+                  end
+                endcase
+              default:         $write("[VLR_MASK dest:%0d]", o_reg_dest);
+            endcase  
+          default:
+            case (o_reg_dest)
+            `ALU_REG_A:      $write("A");
+            `ALU_REG_B:      $write("B");
+            `ALU_REG_C:    
+              if (is_lc_hex) $write("LCHEX");
+              else $write("C");
+            `ALU_REG_D:      $write("D");
+            `ALU_REG_D0:     $write("D0");
+            `ALU_REG_D1:     $write("D1");
+            `ALU_REG_RSTK:   $write("RSTK");
+            `ALU_REG_R0:     $write("R0");
+            `ALU_REG_R1:     $write("R1");
+            `ALU_REG_R2:     $write("R2");
+            `ALU_REG_R3:     $write("R3");
+            `ALU_REG_R4:     $write("R4");
+            `ALU_REG_DAT0:   $write("DAT0");
+            `ALU_REG_DAT1:   $write("DAT1");
+            `ALU_REG_ST:     if (o_alu_op!=`ALU_OP_ZERO) $write("ST");
+            `ALU_REG_P:      $write("P");
+            default:         $write("[dest:%0d]", o_reg_dest);
+            endcase
         endcase
 
         case (o_alu_op)
@@ -259,7 +274,8 @@ always @(posedge i_clk) begin
         `ALU_OP_EXCH,
         `ALU_OP_JMP_REL3,
         `ALU_OP_JMP_REL4,
-        `ALU_OP_JMP_ABS5: begin end
+        `ALU_OP_JMP_ABS5,
+        `ALU_OP_CLR_MASK: begin end
         default: $write("[op:%0d]", o_alu_op);
         endcase
         
@@ -365,7 +381,8 @@ always @(posedge i_clk) begin
           else 
             case (o_reg_dest)
             `ALU_REG_P,
-            `ALU_REG_ST: begin end
+            `ALU_REG_ST,
+            `ALU_REG_HST: begin end
             `ALU_REG_C:  
               if (o_reg_src1 == `ALU_REG_P)
                 $write("%0d", o_field_start);
@@ -898,6 +915,7 @@ always @(posedge i_clk) begin
   if (do_block_82x) begin
     o_ins_alu_op   <= 1;
     o_alu_op       <= `ALU_OP_CLR_MASK;
+    o_imm_value    <= i_nibble;
     next_nibble    <= 0;
     o_ins_decoded  <= 1;
   end
@@ -1125,6 +1143,12 @@ always @(posedge i_clk) begin
     o_reg_dest        <= `ALU_REG_C;
     o_reg_src1        <= `ALU_REG_P;
     o_reg_src2        <= 0;
+  end
+
+  if (do_block_82x) begin
+    o_reg_dest        <= `ALU_REG_HST;
+    o_reg_src1        <= `ALU_REG_HST;
+    o_reg_src2        <= `ALU_REG_IMM;
   end
 
   if (do_block_Fx) begin
