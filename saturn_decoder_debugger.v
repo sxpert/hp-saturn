@@ -68,8 +68,9 @@ always @(posedge i_clk) begin
       end
       if (o_ins_alu_op) begin
         
+        // reg dest...
         case (o_alu_op)
-          `ALU_OP_JMP_REL3:  $write("GOTO"); 
+          `ALU_OP_JMP_REL3:  $write("%s", o_push?"GOSUB":"GOTO"); 
           `ALU_OP_JMP_REL4:  $write("%s", o_push?"GOSUBL":"GOLONG");
           `ALU_OP_JMP_ABS5:  $write("%s", o_push?"GOSBVL":"GOVLNG");
           `ALU_OP_CLR_MASK:
@@ -111,6 +112,7 @@ always @(posedge i_clk) begin
             endcase
         endcase
 
+        // operation 1
         case (o_alu_op)
         `ALU_OP_ZERO:     if (o_reg_dest==`ALU_REG_ST) 
                             $write("CLRST"); 
@@ -133,10 +135,10 @@ always @(posedge i_clk) begin
         `ALU_OP_CLR_MASK: begin end
         default: $write("[op:%0d]", o_alu_op);
         endcase
-        
+ 
+        // src1
         case (o_alu_op)
         `ALU_OP_COPY,
-        `ALU_OP_EXCH,
         `ALU_OP_AND,
         `ALU_OP_OR,
         `ALU_OP_INC,
@@ -169,18 +171,16 @@ always @(posedge i_clk) begin
         `ALU_OP_RST_BIT: $write("0");
         `ALU_OP_SET_BIT: $write("1");
         endcase
+        // if ((o_alu_op == `ALU_OP_COPY) && is_short_transfer) 
+        //   $write("S");
 
-        if ((o_alu_op == `ALU_OP_COPY) && is_short_transfer) 
-          $write("S");
 
-        if (o_alu_op == `ALU_OP_EXCH)
-          $write("%s", is_short_transfer?"XS":"EX");
-
+        // SRC2
         case (o_alu_op)
         `ALU_OP_AND,
         `ALU_OP_OR,
         `ALU_OP_ADD,
-        `ALU_OP_SUB: begin
+        `ALU_OP_SUB:
           case (o_alu_op)
           `ALU_OP_AND: $write("&");
           `ALU_OP_OR:  $write("!");
@@ -188,7 +188,12 @@ always @(posedge i_clk) begin
           `ALU_OP_SUB:  $write("-");
           default: $write("[op:%0d]", o_alu_op);
           endcase
+        endcase
           
+        case (o_alu_op)
+        `ALU_OP_ZERO,
+        `ALU_OP_COPY: begin end
+        `ALU_OP_EXCH:
           case (o_reg_src2)
           `ALU_REG_A:    $write("A");
           `ALU_REG_B:    $write("B");
@@ -198,13 +203,12 @@ always @(posedge i_clk) begin
           `ALU_REG_IMM:  $write("\t%0d", o_imm_value+1);
           default:       $write("[src2:%0d]", o_reg_src2);
           endcase
-        end
         `ALU_OP_INC:  $write("+1");
         `ALU_OP_DEC:  $write("-1");
-        `ALU_OP_ZERO,
-        `ALU_OP_COPY,
-        `ALU_OP_EXCH: begin end
         endcase
+
+        if (o_alu_op == `ALU_OP_EXCH)
+          $write("%s", is_short_transfer?"XS":"EX");
         
         // if (!((o_reg_dest == `ALU_REG_RSTK) || (o_reg_src1 == `ALU_REG_RSTK) ||
         //       (o_reg_dest == `ALU_REG_ST)   || (o_reg_src1 == `ALU_REG_ST  ) ||

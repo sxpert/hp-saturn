@@ -17,7 +17,7 @@ wire [4:0]    reg_A_C;
 assign reg_ABCD     = { 3'b000,   i_nibble[1:0]};
 assign reg_BCAC     = { 3'b000,   i_nibble[0], !(i_nibble[1] ||   i_nibble[0])};
 assign reg_ABAC     = { 3'b000,   i_nibble[1] && i_nibble[0],   (!i_nibble[1]) && i_nibble[0]};
-assign reg_BCCD     = { 3'b000,   i_nibble[1] || i_nibble[0],   (!i_nibble[1]) ^  i_nibble[0]};
+assign reg_BCCD     = { 3'b000,   i_nibble[1] || i_nibble[0],  !( i_nibble[1]  ^  i_nibble[0])};
 // assign reg_D0D1 = { 4'b0010, (i_nibble[0] && i_nibble[1]) || (i_nibble[2]  && i_nibble[3])};
 assign reg_D0D1     = { 4'b0010,  i_nibble[0]};
 assign reg_DAT0DAT1 = { 4'b1000,  i_nibble[0]};
@@ -35,7 +35,7 @@ always @(posedge i_clk) begin
   if (do_on_first_nibble) begin
     // reset values on instruction decode start
     case (i_nibble)
-    4'h6: begin
+    4'h6, 4'h7: begin
       o_reg_dest        <= 0;
       o_reg_src1        <= `ALU_REG_IMM;
       o_reg_src2        <= 0;
@@ -173,26 +173,29 @@ always @(posedge i_clk) begin
     o_reg_src2        <= `ALU_REG_IMM;
   end
 
-  if (do_block_Abx) begin
+  if (do_block_Abx || do_block_Dx) begin
     case ({i_nibble[3],i_nibble[2]})
     2'b00: begin
       o_reg_dest      <= reg_ABCD;
       o_reg_src1      <= `ALU_REG_ZERO;
+      o_reg_src2        <= 0;
     end
     2'b01: begin
       o_reg_dest      <= reg_ABCD;
       o_reg_src1      <= reg_BCAC;
+      o_reg_src2        <= 0;
     end
     2'b10: begin
       o_reg_dest      <= reg_BCAC;
       o_reg_src1      <= reg_ABCD;
+      o_reg_src2        <= 0;
     end
-    2'b11: begin
+    2'b11: begin // exch
       o_reg_dest      <= reg_ABAC;
-      o_reg_src1      <= reg_BCCD;
+      o_reg_src1      <= reg_ABAC;
+      o_reg_src2      <= reg_BCCD;
     end
     endcase
-    o_reg_src2        <= 0;
   end
 
   if (do_block_Fx) begin
@@ -200,9 +203,9 @@ always @(posedge i_clk) begin
       4'h8, 4'h9, 4'hA, 4'hB: begin
         o_reg_dest        <= reg_ABCD;
         o_reg_src1        <= reg_ABCD;
-        o_reg_src2        <= 0;     
       end
     endcase
+    o_reg_src2        <= 0;     
   end
 
 end

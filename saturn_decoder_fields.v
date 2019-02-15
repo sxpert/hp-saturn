@@ -59,7 +59,7 @@ always @(posedge i_clk) begin
     o_field           <= 0;
     o_field_valid     <= 0;
     case (i_nibble)
-    4'h6: begin 
+    4'h6, 4'h7: begin // GOTO / GOSUB
       o_field_start     <= 0;
       o_field_last      <= 2;
     end
@@ -154,15 +154,11 @@ always @(posedge i_clk) begin
     o_field_last  <= i_nibble;
   end
 
-  if (do_block_Fx) begin
-    case (i_nibble)
-      4'h8, 4'h9, 4'hA, 4'hB: begin
-        o_field        <= `FT_FIELD_A;
-        o_field_start  <= 0;
-        o_field_last   <= 4;
-        o_field_valid  <= 1;
-      end
-    endcase
+  if (do_block_Dx || do_block_Fx) begin
+    o_field        <= `FT_FIELD_A;
+    o_field_start  <= 0;
+    o_field_last   <= 4;
+    o_field_valid  <= 1;
   end
 
   /******************************************************************************

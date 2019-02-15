@@ -253,6 +253,7 @@ always @(posedge i_clk) begin
     if (block_jmp) $display("block_jmp   NOT CLEAN");
     if (block_sr_bit) $display("block_sr_bit   NOT CLEAN");
 
+    if (o_ins_rtn) $display("o_ins_rtn   STILL ASSERTED");
 `endif
     // decoder subroutine states
 
@@ -361,8 +362,8 @@ always @(posedge i_clk) begin
         o_ins_rtn      <= 1;
         o_pop          <= 1;
         o_set_xm       <=  i_nibble == 4'h0;
-        o_set_carry    <= !i_nibble[3] && i_nibble[1];
-        o_carry_val    <=  i_nibble[1] && i_nibble[0];
+        o_set_carry    <= !i_nibble[3] &&  i_nibble[1];
+        o_carry_val    <=  i_nibble[1] && !i_nibble[0];
         o_en_intr      <=  i_nibble[3];
 `ifdef SIM
         o_unimplemented <= i_nibble[3];
@@ -569,7 +570,17 @@ always @(posedge i_clk) begin
     block_Abx       <= 0;
   end
 
-  if (do_block_Fx) begin
+  if (do_block_Dx) begin
+    $display("block_Dx %h", i_nibble);
+    o_fields_table  <= `FT_TABLE_f;
+    o_ins_alu_op    <= 1;
+    o_alu_op        <= (i_nibble[3] && i_nibble[2])?`ALU_OP_EXCH:`ALU_OP_COPY;
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
+`ifdef SIM
+    // o_unimplemented <= 0;
+`endif
+    block_Dx       <= 0;   
   end
 
   if (do_block_Fx) begin
@@ -613,6 +624,7 @@ always @(posedge i_clk) begin
     o_mem_pos                  <= o_mem_pos + 1;
     next_nibble                <= mem_load_max != o_mem_pos;
     o_ins_decoded              <= mem_load_max == o_mem_pos;
+
   end
 
   if (do_block_sr_bit) begin
