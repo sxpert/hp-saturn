@@ -23,8 +23,9 @@ module saturn_decoder(
   o_push,
   o_pop,
   o_dec_error,
+  o_unimplemented,
   o_alu_debug,
-  
+
   o_ins_addr,
   o_ins_decoded,
 
@@ -76,6 +77,9 @@ output  reg         o_inc_pc;
 output  reg         o_push;
 output  reg         o_pop;
 output  reg         o_dec_error;
+`ifdef SIM
+output  reg  [0:0]  o_unimplemented;
+`endif
 output  reg         o_alu_debug;
 
 // instructions related outputs
@@ -307,7 +311,7 @@ always @(posedge i_clk) begin
           `ALU_REG_ST:   $write("ST");
           `ALU_REG_P:    $write("P");
           `ALU_REG_IMM: 
-            if (disp_nb_nibbles) $write("(%0d)", o_mem_pos+1);
+            if (disp_nb_nibbles) $write("(%0d)", o_mem_pos);
           default: $write("[src1:%0d]", o_reg_src1);
           endcase
         `ALU_OP_RST_BIT: $write("0");
@@ -390,7 +394,10 @@ always @(posedge i_clk) begin
             endcase
         end
       end
-      $display("\t(%0d cycles)", inst_cycles);
+      $write("\t(%0d cycles)", inst_cycles);
+      if (o_unimplemented)
+        $write("\t%C[1,31mUNIMPLEMENTED%C[0m", 27, 27);
+      $write("\n");
     end
     // $display("new [%5h]--------------------------------------------------------------------", new_pc);  
     `endif
@@ -425,6 +432,10 @@ reg   block_8x;
 reg   block_80x;
 reg   block_80Cx;
 reg   block_82x;
+
+reg   block_Ax;
+reg   block_Aax;
+reg   block_Abx;
 
 reg   block_Fx;
 
@@ -462,6 +473,11 @@ wire  do_block_8x;
 wire  do_block_80x;
 wire  do_block_80Cx;
 wire  do_block_82x;
+
+wire  do_block_Ax;
+wire  do_block_Aax;
+wire  do_block_Abx;
+
 wire  do_block_Fx;
 
 assign do_block_0x                  = do_on_other_nibbles && block_0x;
@@ -484,6 +500,10 @@ assign do_block_8x                  = do_on_other_nibbles && block_8x;
 assign do_block_80x                 = do_on_other_nibbles && block_80x;
 assign do_block_80Cx                = do_on_other_nibbles && block_80Cx;
 assign do_block_82x                 = do_on_other_nibbles && block_82x;
+
+assign do_block_Ax                  = do_on_other_nibbles && block_Ax;
+assign do_block_Aax                 = do_on_other_nibbles && block_Aax;
+assign do_block_Abx                 = do_on_other_nibbles && block_Abx;
 
 assign do_block_Fx                  = do_on_other_nibbles && block_Fx;
 
@@ -520,15 +540,18 @@ assign dbg_write_pos = (!next_nibble?0:o_dbg_nb_nbls);
 
 always @(posedge i_clk) begin
   if (i_reset) begin
-    inst_cycles    <= 0;
-    inst_counter   <= 0;
-    next_nibble    <= 0;
-    use_fields_tbl <= 0;
-    o_inc_pc       <= 1;
-    o_dec_error    <= 0;
-    o_alu_debug    <= 0;
-    o_ins_decoded  <= 0;
-    o_alu_op       <= 0;
+    inst_cycles     <= 0;
+    inst_counter    <= 0;
+    next_nibble     <= 0;
+    use_fields_tbl  <= 0;
+    o_inc_pc        <= 1;
+    o_dec_error     <= 0;
+    o_unimplemented <= 0;
+    o_alu_debug     <= 0;
+    o_ins_decoded   <= 0;
+    o_alu_op        <= 0;
+    o_push          <= 0;
+    o_pop           <= 0;
   end
   
   if (decoder_active) begin
@@ -565,6 +588,9 @@ always @(posedge i_clk) begin
     o_pop           <= 0;
 
     o_ins_decoded   <= 0;
+    `ifdef SIM
+    o_unimplemented <= 1;
+    `endif
     // store the address where the instruction starts
     o_ins_addr      <= i_pc;
 
@@ -586,6 +612,9 @@ always @(posedge i_clk) begin
     block_80x                  <= 0;
     block_80Cx                 <= 0;
     block_82x                  <= 0;
+
+    block_Ax                   <= 0;
+
     block_Fx                   <= 0;
 
     // decoder subroutine states
@@ -645,14 +674,26 @@ always @(posedge i_clk) begin
       block_jmp      <= 1;
     end
     4'h6, 4'h7: begin
+      // 6xxx GOTO
+      // 7xxx GOSUB
       o_alu_no_stall <= 1;
       o_alu_op       <= `ALU_OP_JMP_REL3;
       mem_load_max   <= 2;
       o_mem_pos      <= 0;
       o_push         <= i_nibble[0];  
       block_jmp      <= 1;
+      `ifdef SIM
+      o_unimplemented <= 0;
+      `endif
     end
     4'h8: block_8x   <= 1;
+    4'hA: begin
+      go_fields_table <= 1;
+      // we don't know, safe bet is table a, but could be table b, 
+      // works either way, table is fixed on the next nibble
+      o_fields_table  <= `FT_TABLE_a;
+      block_Ax        <= 1;
+    end
     4'hF: block_Fx   <= 1;
     default: begin
       `ifdef SIM
@@ -681,53 +722,57 @@ always @(posedge i_clk) begin
 
   if (do_block_0x) begin
     case (i_nibble)
-    4'h0, 4'h1, 4'h2, 4'h3, 4'hF: begin
-      o_ins_rtn      <= 1;
-      o_set_xm       <=  i_nibble == 4'h0;
-      o_set_carry    <= !i_nibble[3] && i_nibble[1];
-      o_carry_val    <=  i_nibble[1] && i_nibble[0];
-      o_en_intr      <=  i_nibble[3];
-    end
-    4'h4, 4'h5: begin
-      o_ins_set_mode <= 1;
-      o_mode_dec     <= (i_nibble[0]);
-    end
-    /* RSTK=C
-    * C=RSTK
-    * those 2 are alu copy ops between RSTK and C
-    */
-    4'h6, 4'h7: begin 
-      o_ins_alu_op   <= 1;
-      o_alu_op       <= `ALU_OP_COPY;
-      o_push         <= !i_nibble[0];
-      o_pop          <=  i_nibble[0];
-    end
-    4'h8: begin
-      o_ins_alu_op <= 1;
-      o_alu_op     <= `ALU_OP_ZERO;
-    end
-    4'h9, 4'hA: begin
-      o_ins_alu_op <= 1;
-      o_alu_op     <= `ALU_OP_COPY;
-    end
-    4'hB: begin
-      o_ins_alu_op <= 1;
-      o_alu_op     <= `ALU_OP_EXCH;
-    end
-    4'hC, 4'hD: begin
-      o_ins_alu_op <= 1;
-      o_alu_op     <= i_nibble[0]?`ALU_OP_DEC:`ALU_OP_INC;
-    end
-    4'hE: begin
-      block_0x <= 0;
-      o_fields_table <= `FT_TABLE_f;
-    end
-    default: begin
-      `ifdef SIM
-      $display("block_0x: nibble %h not handled", i_nibble);
-      `endif
-      o_dec_error <= 1;
-    end
+      4'h0, 4'h1, 4'h2, 4'h3, 4'hF: begin
+        o_ins_rtn      <= 1;
+        o_pop          <= 1;
+        o_set_xm       <=  i_nibble == 4'h0;
+        o_set_carry    <= !i_nibble[3] && i_nibble[1];
+        o_carry_val    <=  i_nibble[1] && i_nibble[0];
+        o_en_intr      <=  i_nibble[3];
+        o_unimplemented <= i_nibble[3];
+      end
+      4'h4, 4'h5: begin
+        // 04 SETHEX
+        // 05 SETDEC
+        o_ins_set_mode  <= 1;
+        o_mode_dec      <= (i_nibble[0]);
+        o_unimplemented <= 0;
+      end
+      4'h6, 4'h7: begin 
+        // 06 RSTK=C
+        // 07 C=RSTK
+        // those 2 are alu copy ops between RSTK and C
+        o_ins_alu_op   <= 1;
+        o_alu_op       <= `ALU_OP_COPY;
+        o_push         <= !i_nibble[0];
+        o_pop          <=  i_nibble[0];
+      end
+      4'h8: begin
+        o_ins_alu_op <= 1;
+        o_alu_op     <= `ALU_OP_ZERO;
+      end
+      4'h9, 4'hA: begin
+        o_ins_alu_op <= 1;
+        o_alu_op     <= `ALU_OP_COPY;
+      end
+      4'hB: begin
+        o_ins_alu_op <= 1;
+        o_alu_op     <= `ALU_OP_EXCH;
+      end
+      4'hC, 4'hD: begin
+        o_ins_alu_op <= 1;
+        o_alu_op     <= i_nibble[0]?`ALU_OP_DEC:`ALU_OP_INC;
+      end
+      4'hE: begin
+        block_0x <= 0;
+        o_fields_table <= `FT_TABLE_f;
+      end
+      default: begin
+        `ifdef SIM
+        $display("block_0x: nibble %h not handled", i_nibble);
+        `endif
+        o_dec_error <= 1;
+      end
     endcase
     next_nibble     <= (i_nibble == 4'hE);
     block_0Efx      <= (i_nibble == 4'hE);
@@ -786,6 +831,7 @@ always @(posedge i_clk) begin
         block_load_reg_imm        <= 1;
         o_alu_no_stall            <= 1;
         o_alu_op                  <= `ALU_OP_COPY;
+        o_unimplemented           <= 0;
       end
     endcase
     block_1x <= 0;
@@ -836,6 +882,9 @@ always @(posedge i_clk) begin
     o_imm_value   <= i_nibble;
     next_nibble   <= 0;
     o_ins_decoded <= 1;
+    `ifdef SIM
+    o_unimplemented <= 0;
+    `endif
   end
 
   if (do_block_load_c_hex) begin
@@ -846,6 +895,7 @@ always @(posedge i_clk) begin
     o_alu_op           <= `ALU_OP_COPY;
     block_load_reg_imm <= 1;
     block_load_c_hex   <= 0;
+    o_unimplemented    <= 0;
   end
 
 
@@ -860,6 +910,9 @@ always @(posedge i_clk) begin
       begin 
         o_alu_op       <= i_nibble[0]?`ALU_OP_SET_BIT:`ALU_OP_RST_BIT;
         block_sr_bit   <= 1;
+        `ifdef SIM
+        o_unimplemented <= 0;
+        `endif
       end
       4'hC, 4'hD, 
       4'hE, 4'hF: // GOLONG, GOVLNG, GOSUBL, GOSBVL
@@ -873,7 +926,10 @@ always @(posedge i_clk) begin
         o_mem_pos      <= 0;
         block_jmp      <= 1;
         // debug for cases not tested
-        o_alu_debug    <= !i_nibble[0];     
+        o_alu_debug    <= !i_nibble[0];  
+        `ifdef SIM
+        o_unimplemented <= 0;
+        `endif   
       end
       default: begin
         $display("block_8x %h error", i_nibble);
@@ -886,6 +942,10 @@ always @(posedge i_clk) begin
   if (do_block_80x) begin
     $display("block_80x %h | op %d", i_nibble, o_alu_op);
     case (i_nibble)
+      4'h5: begin // CONFIG
+        next_nibble   <= 0;
+        o_ins_decoded <= 1;
+      end
       4'hA: begin // RESET
         next_nibble   <= 0;
         o_ins_decoded <= 1;
@@ -918,8 +978,29 @@ always @(posedge i_clk) begin
     o_imm_value    <= i_nibble;
     next_nibble    <= 0;
     o_ins_decoded  <= 1;
+    `ifdef SIM
+    o_unimplemented <= 0;
+    `endif
   end
 
+  if (do_block_Ax) begin
+    $display("block_Ax %h", i_nibble);
+    o_fields_table <= i_nibble[3]?`FT_TABLE_b:`FT_TABLE_a;
+    block_Aax <= !i_nibble[3];
+    block_Abx <=  i_nibble[3];
+    block_Ax  <= 0;
+  end
+
+  if (do_block_Aax) begin
+    $display("block_Aax %h", i_nibble);
+    o_dec_error <= 1;
+  end
+
+  if (do_block_Abx) begin
+    $display("block_Abx %h", i_nibble);
+    
+    o_dec_error <= 1;
+  end
 
   if (do_block_Fx) begin
     case (i_nibble)
@@ -1171,7 +1252,7 @@ end
 *****************************************************************************/
 
 `ifdef SIM
-// `define DEBUG_FIELDS_TABLE
+`define DEBUG_FIELDS_TABLE
 `endif
 
 reg fields_table_done;
