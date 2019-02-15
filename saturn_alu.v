@@ -40,6 +40,13 @@ module saturn_alu (
     i_reg_src2,
 
     i_ins_alu_op,
+    i_ins_set_mode,
+    i_ins_rtn,
+
+    i_mode_dec,
+    i_set_xm,
+    i_set_carry,
+    i_carry_val,
 
     o_reg_p,
     o_pc
@@ -79,7 +86,14 @@ input   wire [4:0]  i_reg_dest;
 input   wire [4:0]  i_reg_src1;
 input   wire [4:0]  i_reg_src2;
 
-input   wire        i_ins_alu_op;
+input   wire [0:0]  i_ins_alu_op;
+input   wire [0:0]  i_ins_set_mode; 
+input   wire [0:0]  i_ins_rtn;
+
+input   wire [0:0]  i_mode_dec;
+input   wire [0:0]  i_set_xm;
+input   wire [0:0]  i_set_carry;
+input   wire [0:0]  i_carry_val;
 
 output  wire [3:0]  o_reg_p;
 output  wire [19:0] o_pc;
@@ -215,12 +229,14 @@ wire do_alu_prep;
 wire do_alu_calc;
 wire do_alu_save;
 wire do_alu_pc;
+wire do_alu_mode;
 
-assign do_alu_init = (!i_reset) && i_en_alu_init && i_ins_alu_op && !alu_run; 
-assign do_alu_prep = (!i_reset) && i_en_alu_prep && alu_run;
-assign do_alu_calc = (!i_reset) && i_en_alu_calc && alu_run;
-assign do_alu_save = (!i_reset) && i_en_alu_save && alu_run;
-assign do_alu_pc   = (!i_reset) && i_en_alu_save;
+assign do_alu_init = !i_reset && i_en_alu_init && i_ins_alu_op && !alu_run; 
+assign do_alu_prep = !i_reset && i_en_alu_prep && alu_run;
+assign do_alu_calc = !i_reset && i_en_alu_calc && alu_run;
+assign do_alu_save = !i_reset && i_en_alu_save && alu_run;
+assign do_alu_pc   = !i_reset && i_en_alu_save;
+assign do_alu_mode = !i_reset && i_en_alu_save && i_ins_set_mode;
 
 // the decoder may request the ALU to not stall it
 
@@ -243,11 +259,11 @@ assign is_alu_op_jump = ((alu_op == `ALU_OP_JMP_REL3) ||
                          (alu_op == `ALU_OP_JMP_REL4) ||
                          (alu_op == `ALU_OP_JMP_ABS5));
 
-/*
- * dump all registers 
- * this only reads things...
+/*****************************************************************************
  *
- */ 
+ * Dump all registers at the end of each instruction's execution cycle
+ *
+ ****************************************************************************/
 
 always @(posedge i_clk) begin
 `ifdef ALU_DEBUG_DBG
@@ -279,6 +295,12 @@ always @(posedge i_clk) begin
   end
 `endif
 end
+
+/*****************************************************************************
+ *
+ * Initialize the ALU, to prepare it to execute the instruction 
+ *
+ ****************************************************************************/
 
 always @(posedge i_clk) begin
   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
@@ -369,6 +391,14 @@ always @(posedge i_clk) begin
       `ALU_REG_IMM: p_src2 <= i_imm_value;
       default: $display("#### SRC_2 UNHANDLED REGISTER %0d", reg_src2);
       endcase
+    `ALU_OP_ZERO: begin end // no source required
+    `ALU_OP_COPY,
+    `ALU_OP_RST_BIT,
+    `ALU_OP_SET_BIT,
+    `ALU_OP_2CMPL,
+    `ALU_OP_JMP_REL3,
+    `ALU_OP_JMP_REL4,
+    `ALU_OP_JMP_ABS5: begin end // no need for a 2nd operand
     default: $display("#### SRC_2 UNHANDLED OPERATION %0d", alu_op);
     endcase
 
@@ -430,6 +460,7 @@ always @(posedge i_clk) begin
 end
 
 always @(posedge i_clk) begin
+
   if (do_alu_save) begin
     `ifdef ALU_DEBUG
     if (alu_debug)
@@ -469,17 +500,38 @@ always @(posedge i_clk) begin
         `ALU_REG_ST: ST[c_res1] <= alu_op==`ALU_OP_SET_BIT?1:0;
         default: $display("#### ALU_SAVE invalid register %0d for op %0d", reg_dest, alu_op);
         endcase
+      `ALU_OP_JMP_REL3,
+      `ALU_OP_JMP_REL4,
+      `ALU_OP_JMP_ABS5: begin end // nothing to save, handled by PC management below      
       default: $display("#### ALU_SAVE UNHANDLED OP %0d", alu_op);
     endcase 
+  end
 
 
-
+  if (do_alu_save) begin
     case (alu_op)
     `ALU_OP_2CMPL: CARRY <= !is_zero;
     endcase
+  end
+
+  // do whatever is requested by the RTN instruction
+  if (i_ins_rtn) begin
+
+    if (i_set_xm)
+      HST[`ALU_HST_XM] <= 1;
+
+    if (i_set_carry)
+      CARRY <= i_carry_val;
 
   end
+
 end
+
+/*****************************************************************************
+ *
+ * Handles all changes to PC 
+ *
+ ****************************************************************************/
 
 wire [19:0] next_pc;
 wire [0:0]  update_pc;
@@ -493,6 +545,10 @@ always @(posedge i_clk) begin
   if (i_reset)
     PC <= ~0;
 
+  /*
+   * some debug information
+   */
+
 `ifdef SIM
   if (do_alu_shpc && alu_debug_pc) begin
     if (!o_alu_stall_dec)
@@ -503,8 +559,7 @@ always @(posedge i_clk) begin
 `endif
 
   /*
-   * updates the PC on phase 3 to be ready for the next 
-   * thing to do...
+   * updates the PC
    */
   if (do_alu_pc) begin
 `ifdef SIM
@@ -513,7 +568,12 @@ always @(posedge i_clk) begin
                !o_alu_stall_dec,  next_pc, is_alu_op_jump, i_push);
 `endif
     if (update_pc) begin
-      PC <= next_pc;
+      PC <= i_pop ? RSTK[rstk_ptr-1] : next_pc;
+    end
+
+    if (i_pop) begin
+      RSTK[rstk_ptr - 1] <= 0;
+      rstk_ptr <= rstk_ptr - 1;
     end
 
     if (push_pc) begin
@@ -523,6 +583,20 @@ always @(posedge i_clk) begin
     end
   end
 end
+
+/*****************************************************************************
+ *
+ * execute SETHEX and SETDEC 
+ *
+ ****************************************************************************/
+
+always @(posedge i_clk)
+  // changing calculation modes
+  if (i_ins_set_mode) begin
+    $display("SETTING MODE TO %s", i_mode_dec?"DEC":"HEX");
+    DEC <= i_mode_dec;
+  end
+
 
 endmodule
 
