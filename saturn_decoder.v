@@ -23,7 +23,9 @@ module saturn_decoder(
   o_push,
   o_pop,
   o_dec_error,
+`ifdef SIM
   o_unimplemented,
+`endif
   o_alu_debug,
 
   o_ins_addr,
@@ -312,6 +314,7 @@ always @(posedge i_clk) begin
           `ALU_REG_P:    $write("P");
           `ALU_REG_IMM: 
             if (disp_nb_nibbles) $write("(%0d)", o_mem_pos);
+          `ALU_REG_ZERO: $write("0");
           default: $write("[src1:%0d]", o_reg_src1);
           endcase
         `ALU_OP_RST_BIT: $write("0");
@@ -539,6 +542,7 @@ wire [4:0]   dbg_write_pos;
 assign dbg_write_pos = (!next_nibble?0:o_dbg_nb_nbls);
 
 always @(posedge i_clk) begin
+
   if (i_reset) begin
     inst_cycles     <= 0;
     inst_counter    <= 0;
@@ -546,10 +550,13 @@ always @(posedge i_clk) begin
     use_fields_tbl  <= 0;
     o_inc_pc        <= 1;
     o_dec_error     <= 0;
+`ifdef SIM
     o_unimplemented <= 0;
+`endif
     o_alu_debug     <= 0;
     o_ins_decoded   <= 0;
     o_alu_op        <= 0;
+    o_ins_rtn       <= 0;
     o_push          <= 0;
     o_pop           <= 0;
   end
@@ -729,14 +736,18 @@ always @(posedge i_clk) begin
         o_set_carry    <= !i_nibble[3] && i_nibble[1];
         o_carry_val    <=  i_nibble[1] && i_nibble[0];
         o_en_intr      <=  i_nibble[3];
+`ifdef SIM
         o_unimplemented <= i_nibble[3];
+`endif
       end
       4'h4, 4'h5: begin
         // 04 SETHEX
         // 05 SETDEC
         o_ins_set_mode  <= 1;
         o_mode_dec      <= (i_nibble[0]);
+`ifdef SIM
         o_unimplemented <= 0;
+`endif
       end
       4'h6, 4'h7: begin 
         // 06 RSTK=C
@@ -811,8 +822,9 @@ always @(posedge i_clk) begin
         block_pointer_assign_exch <= 1;
       4'h4, 4'h5: // DAT[01]=[AC] <field>
       begin
+        $display("block_1x %h", i_nibble);
         block_mem_transfer        <= 1;
-        o_fields_table  <= i_nibble[0]?`FT_TABLE_value:`FT_TABLE_f;
+        o_fields_table            <= i_nibble[0]?`FT_TABLE_value:`FT_TABLE_f;
         use_fields_tbl            <= i_nibble[0];
       end
       4'h6, 4'h7, 
@@ -831,7 +843,9 @@ always @(posedge i_clk) begin
         block_load_reg_imm        <= 1;
         o_alu_no_stall            <= 1;
         o_alu_op                  <= `ALU_OP_COPY;
+`ifdef SIM
         o_unimplemented           <= 0;
+`endif
       end
     endcase
     block_1x <= 0;
@@ -861,7 +875,9 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_mem_transfer) begin
+    $display("block_mem_transfer nibble %h | use_tbl %b", i_nibble, use_fields_tbl);
     o_ins_alu_op    <= 1;
+    o_alu_debug     <= 1;
     o_alu_op        <= `ALU_OP_COPY;
     // we next_nibble if we need the fields table (nibble2 was 5)
     go_fields_table <= use_fields_tbl;
@@ -895,7 +911,9 @@ always @(posedge i_clk) begin
     o_alu_op           <= `ALU_OP_COPY;
     block_load_reg_imm <= 1;
     block_load_c_hex   <= 0;
+`ifdef SIM
     o_unimplemented    <= 0;
+`endif
   end
 
 
@@ -964,6 +982,7 @@ always @(posedge i_clk) begin
     o_alu_op       <= `ALU_OP_COPY;
     next_nibble    <= 0;
     o_ins_decoded  <= 1;
+    block_80Cx     <= 0;
   end
 
   // 821 XM=0
@@ -973,22 +992,22 @@ always @(posedge i_clk) begin
   // 82F CLRHST
   // 82x CLRHST     x
   if (do_block_82x) begin
-    o_ins_alu_op   <= 1;
-    o_alu_op       <= `ALU_OP_CLR_MASK;
-    o_imm_value    <= i_nibble;
-    next_nibble    <= 0;
-    o_ins_decoded  <= 1;
+    o_ins_alu_op    <= 1;
+    o_alu_op        <= `ALU_OP_CLR_MASK;
+    o_imm_value     <= i_nibble;
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
     `ifdef SIM
     o_unimplemented <= 0;
     `endif
+    block_82x       <= 0;
   end
 
   if (do_block_Ax) begin
-    $display("block_Ax %h", i_nibble);
     o_fields_table <= i_nibble[3]?`FT_TABLE_b:`FT_TABLE_a;
-    block_Aax <= !i_nibble[3];
-    block_Abx <=  i_nibble[3];
-    block_Ax  <= 0;
+    block_Aax      <= !i_nibble[3];
+    block_Abx      <=  i_nibble[3];
+    block_Ax       <= 0;
   end
 
   if (do_block_Aax) begin
@@ -997,9 +1016,14 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_Abx) begin
-    $display("block_Abx %h", i_nibble);
-    
-    o_dec_error <= 1;
+    o_ins_alu_op    <= 1;
+    o_alu_op        <= (i_nibble[3] && i_nibble[2])?`ALU_OP_EXCH:`ALU_OP_COPY;
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
+`ifdef SIM
+    o_unimplemented <= 0;
+`endif
+    block_Abx       <= 0;
   end
 
   if (do_block_Fx) begin
@@ -1037,7 +1061,6 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_jmp) begin
-    $display("do_block_jmp %h", i_nibble);
     o_ins_alu_op               <= 1;
     o_imm_value                <= i_nibble;
     o_mem_load[o_mem_pos*4+:4] <= i_nibble;
@@ -1047,7 +1070,6 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_sr_bit) begin
-    $display("do_block_sr_bit %h", i_nibble);
     o_ins_alu_op               <= 1;
     o_imm_value                <= i_nibble;
     o_mem_load[3:0]            <= i_nibble;
@@ -1232,6 +1254,28 @@ always @(posedge i_clk) begin
     o_reg_src2        <= `ALU_REG_IMM;
   end
 
+  if (do_block_Abx) begin
+    case ({i_nibble[3],i_nibble[2]})
+    2'b00: begin
+      o_reg_dest      <= reg_ABCD;
+      o_reg_src1      <= `ALU_REG_ZERO;
+    end
+    2'b01: begin
+      o_reg_dest      <= reg_ABCD;
+      o_reg_src1      <= reg_BCAC;
+    end
+    2'b10: begin
+      o_reg_dest      <= reg_BCAC;
+      o_reg_src1      <= reg_ABCD;
+    end
+    2'b11: begin
+      o_reg_dest      <= reg_ABAC;
+      o_reg_src1      <= reg_BCCD;
+    end
+    endcase
+    o_reg_src2        <= 0;
+  end
+
   if (do_block_Fx) begin
     case (i_nibble)
       4'h8, 4'h9, 4'hA, 4'hB: begin
@@ -1252,7 +1296,7 @@ end
 *****************************************************************************/
 
 `ifdef SIM
-`define DEBUG_FIELDS_TABLE
+// `define DEBUG_FIELDS_TABLE
 `endif
 
 reg fields_table_done;
