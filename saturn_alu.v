@@ -257,7 +257,8 @@ assign f_next     = (f_start + 1) & 4'hF;
 wire is_alu_op_jump;
 assign is_alu_op_jump = ((alu_op == `ALU_OP_JMP_REL3) ||
                          (alu_op == `ALU_OP_JMP_REL4) ||
-                         (alu_op == `ALU_OP_JMP_ABS5));
+                         (alu_op == `ALU_OP_JMP_ABS5) ||
+                         i_ins_rtn);
 
 /*****************************************************************************
  *
@@ -302,6 +303,15 @@ end
  *
  ****************************************************************************/
 
+wire [0:0] is_mem_read; 
+wire [0:0] is_mem_write;
+wire [0:0] is_mem_xfer;
+wire [4:0] mem_reg;
+assign is_mem_read  = (i_reg_src1 == `ALU_REG_DAT0) || (i_reg_src1 == `ALU_REG_DAT1);
+assign is_mem_write = (i_reg_dest == `ALU_REG_DAT0) || (i_reg_dest == `ALU_REG_DAT1);
+assign is_mem_xfer  = is_mem_read || is_mem_write;
+assign mem_reg      = is_mem_read?i_reg_src1:i_reg_dest; 
+
 always @(posedge i_clk) begin
   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
   if (do_alu_init) begin
@@ -321,6 +331,19 @@ always @(posedge i_clk) begin
     reg_src2 <= i_reg_src2;
     f_start  <= i_field_start;
     f_last   <= i_field_last;
+
+    if (is_mem_xfer) begin
+`ifdef SIM
+      $display("ALU_XFER 3: read %b | write %b | mem_reg DAT%b",
+               is_mem_read, is_mem_write, mem_reg[0]);
+      $display(".------------------------------------.");
+      $display("| SHOULD TELL THE BUS CONTROLLER TO  |");
+      $display("| LOAD D0 OR D1 INTO MODULES' DP REG |");
+      $display("`------------------------------------´");
+`endif
+      // DO SOMETHING TO GET THE BUS CONTROLLER TO SEND OUT 
+      // THE CONTENTS OF D0 OR D1 AS THE DP 
+    end
   end
 end
 
@@ -371,15 +394,16 @@ always @(posedge i_clk) begin
     `ALU_OP_JMP_ABS5,
     `ALU_OP_CLR_MASK:
       case (reg_src1)
-      `ALU_REG_A:   p_src1 <= A [f_start*4+:4];
-      `ALU_REG_B:   p_src1 <= B [f_start*4+:4];
-      `ALU_REG_C:   p_src1 <= C [f_start*4+:4];
-      `ALU_REG_D:   p_src1 <= D [f_start*4+:4];
-      `ALU_REG_D0:  p_src1 <= D0[f_start*4+:4];
-      `ALU_REG_D1:  p_src1 <= D1[f_start*4+:4];
-      `ALU_REG_P:   p_src1 <= P;
-      `ALU_REG_HST: p_src1 <= HST;
-      `ALU_REG_IMM: p_src1 <= i_imm_value;
+      `ALU_REG_A:    p_src1 <= A [f_start*4+:4];
+      `ALU_REG_B:    p_src1 <= B [f_start*4+:4];
+      `ALU_REG_C:    p_src1 <= C [f_start*4+:4];
+      `ALU_REG_D:    p_src1 <= D [f_start*4+:4];
+      `ALU_REG_D0:   p_src1 <= D0[f_start*4+:4];
+      `ALU_REG_D1:   p_src1 <= D1[f_start*4+:4];
+      `ALU_REG_P:    p_src1 <= P;
+      `ALU_REG_HST:  p_src1 <= HST;
+      `ALU_REG_IMM:  p_src1 <= i_imm_value;
+      `ALU_REG_ZERO: p_src1 <= 0;
       default: $display("#### SRC_1 UNHANDLED REGISTER %0d", reg_src1);
       endcase
     default: $display("#### SRC_1 UNHANDLED OPERATION %0d", alu_op);
@@ -566,7 +590,14 @@ always @(posedge i_clk) begin
     if (alu_debug_pc)
       $display("ALU_PC   3: !stl %b | nx %5h | jmp %b | push %b",
                !o_alu_stall_dec,  next_pc, is_alu_op_jump, i_push);
+      if ((is_alu_op_jump && alu_done) || i_ins_rtn) begin
+        $display(".---------------------------------.");
+        $display("| SHOULD TELL THE BUS CONTROLLER  |");
+        $display("| TO LOAD PC INTO MODULES' PC REG |");
+        $display("`---------------------------------´");
+      end
 `endif
+    // this may do wierd things with C=RSTK...
     if (update_pc) begin
       PC <= i_pop ? RSTK[rstk_ptr-1] : next_pc;
     end
@@ -592,7 +623,7 @@ end
 
 always @(posedge i_clk)
   // changing calculation modes
-  if (i_ins_set_mode) begin
+  if (do_alu_mode) begin
     $display("SETTING MODE TO %s", i_mode_dec?"DEC":"HEX");
     DEC <= i_mode_dec;
   end
