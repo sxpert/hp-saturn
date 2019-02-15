@@ -264,9 +264,6 @@ always @(posedge i_clk) begin
     // cleanup fields table variables
     go_fields_table <= 0;
     o_fields_table  <= 3;
-    o_field         <= 0;
-    o_field_start   <= 0;
-    o_field_last    <= 0;
 
     o_alu_op        <= 0;
     o_alu_no_stall  <= 0;
