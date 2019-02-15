@@ -68,4 +68,10 @@
 `define ALU_REG_M       21
 `define ALU_REG_IMM     22
 
+// specific bits
+`define ALU_HST_XM       0
+`define ALU_HST_SB       1
+`define ALU_HST_SR       2
+`define ALU_HST_MP       3
+
 `endif
