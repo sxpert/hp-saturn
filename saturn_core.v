@@ -105,7 +105,6 @@ saturn_decoder	m_decoder (
 	.o_reg_src1			(reg_src1),
 	.o_reg_src2			(reg_src2),
 
-  .o_direction    (direction),
   .o_ins_rtn      (ins_rtn),
   .o_set_xm       (set_xm),
   .o_set_carry    (set_carry),
@@ -136,7 +135,6 @@ wire [4:0]			reg_dest;
 wire [4:0]			reg_src1;
 wire [4:0]			reg_src2;
 
-wire            direction;
 wire            ins_rtn;
 wire            set_xm;
 wire            set_carry;
@@ -278,7 +276,7 @@ always @(posedge clk) begin
 		en_inst_exec  <= 0;
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 100;
+		max_cycle     <= 140;
 `ifndef SIM
 		led[7:0]      <= reg_pc[7:0];
 `endif
