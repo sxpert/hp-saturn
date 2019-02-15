@@ -1,3 +1,6 @@
+first delay is <async> -> posedge $glbnet$clk
+second delay is posedge $glbnet$clk -> <async>
+
                     cells       speed 1     delay (a) 1 delay 1     arcs    speed 2     delay (a) 2 delay 2
 2019-02-12 07:37    29          490.92MHz                2.68ns             330.14MHz               1.99ns
 2019-02-12 07:48    29          490.92MHz   14.34ns      2.20ns             350.39MHz    4.14ns     1.77ns
@@ -26,3 +29,4 @@
 2019-02-14 09:00    353         118.23MHz   26.00ns     12.28ns     3334    119.40MHz   10.08ns     3.84ns
 2019-02-14 22:11    403         115.09MHz   27.38ns     11.32ns     2430    111.51MHz   12.62ns     3.57ns
 2019-02-15 07:14    535          97.16MHz   26.57ns      9.16ns     3073     96.10MHz   13.38ns     3.13ns
+2019-02-15 11:07    577         102.13MHz   28.63ns     11.09ns     3270    101.77MHz   13.65ns     3.67ns

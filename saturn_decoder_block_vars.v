@@ -51,23 +51,23 @@ reg   block_mem_transfer;
 wire  do_block_mem_transfer;
 assign do_block_mem_transfer = do_on_other_nibbles && block_mem_transfer;        
 
-reg   block_pointer_arith_const;
-wire  do_block_pointer_arith_const;
+reg    block_pointer_arith_const;
+wire   do_block_pointer_arith_const;
 assign do_block_pointer_arith_const = do_on_other_nibbles && block_pointer_arith_const; 
 
-reg   block_load_p;
-wire  do_block_load_p;
-assign do_block_load_p = do_on_other_nibbles && block_load_p;
+reg   block_2x;
+wire  do_block_2x;
+assign do_block_2x = do_on_other_nibbles && block_2x;
 
-reg   block_load_c_hex;
-wire  do_block_load_c_hex;
-assign do_block_load_c_hex = do_on_other_nibbles && block_load_c_hex;
+reg    block_3x;
+wire   do_block_3x;
+assign do_block_3x = do_on_other_nibbles && block_3x;
 
-reg   block_jmp2_cry_set;
-reg   block_jmp2_cry_clr;
+// reg   block_jmp2_cry_set;
+// reg   block_jmp2_cry_clr;
 
-reg   block_8x;
-wire  do_block_8x;
+reg    block_8x;
+wire   do_block_8x;
 assign do_block_8x = do_on_other_nibbles && block_8x;
 
 reg   block_80x;
@@ -93,6 +93,10 @@ assign do_block_Aax = do_on_other_nibbles && block_Aax;
 reg   block_Abx;
 wire  do_block_Abx;
 assign do_block_Abx = do_on_other_nibbles && block_Abx;
+
+reg   block_Dx;
+wire  do_block_Dx;
+assign do_block_Dx = do_on_other_nibbles && block_Dx;
 
 reg   block_Fx;
 wire  do_block_Fx;

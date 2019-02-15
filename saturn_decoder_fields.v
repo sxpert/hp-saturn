@@ -135,7 +135,7 @@ always @(posedge i_clk) begin
     o_field_last  <= 4;
   end
 
-  if (do_block_load_c_hex) begin
+  if (do_block_3x) begin
     o_field_start <= i_reg_p;
     o_field_last  <= (i_nibble + i_reg_p) & 4'hF;
   end

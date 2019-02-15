@@ -137,12 +137,12 @@ always @(posedge i_clk) begin
     o_reg_src2 <= `ALU_REG_IMM;
   end
 
-  if (do_block_load_p) begin
+  if (do_block_2x) begin
     o_reg_dest <= `ALU_REG_P;
     o_reg_src1 <= `ALU_REG_IMM;
   end
 
-  if (do_block_load_c_hex) begin
+  if (do_block_3x) begin
     o_reg_dest <= `ALU_REG_C;
     o_reg_src1 <= `ALU_REG_IMM;
   end

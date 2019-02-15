@@ -224,27 +224,36 @@ always @(posedge i_clk) begin
 
     // decoder block states
 
-    block_0x                   <= 0;
-    block_0Efx                 <= 0;
-    block_1x                   <= 0;
-    block_save_to_R_W          <= 0;
-    block_rest_from_R_W        <= 0;
-    block_exch_with_R_W        <= 0;
-    block_pointer_assign_exch  <= 0;
-    block_mem_transfer         <= 0;
-    block_pointer_arith_const  <= 0;
-    block_load_p               <= 0;
-    block_load_c_hex           <= 0;
+    // complain if blocks are not clean
+`ifdef SIM
+    if (block_0x)   $display("block_0x NOT CLEAN");
+    if (block_0Efx) $display("block_0Efx NOT CLEAN");
+    if (block_1x)   $display("block_1x NOT CLEAN");
+    if (block_save_to_R_W)         $display("block_save_to_R_W NOT CLEAN");
+    if (block_rest_from_R_W)       $display("block_rest_from_R_W NOT CLEAN");
+    if (block_exch_with_R_W)       $display("block_exch_with_R_W NOT CLEAN");
+    if (block_pointer_assign_exch) $display("block_pointer_assign_exch NOT CLEAN");
+    if (block_mem_transfer)        $display("block_mem_transfer NOT CLEAN");
+    if (block_pointer_arith_const) $display("block_pointer_arith_const NOT CLEAN");
+    if (block_2x)   $display("block_2x NOT CLEAN");
+    if (block_3x)   $display("block_load_c_hex NOT CLEAN");
 
-    block_8x                   <= 0;
-    block_80x                  <= 0;
-    block_80Cx                 <= 0;
-    block_82x                  <= 0;
+    if (block_8x)   $display("block_8x   NOT CLEAN");
+    if (block_80x)  $display("block_80x  NOT CLEAN");
+    if (block_80Cx) $display("block_80Cx NOT CLEAN");
+    if (block_82x)  $display("block_82x  NOT CLEAN");
 
-    block_Ax                   <= 0;
+    if (block_Ax)   $display("block_Ax   NOT CLEAN");
 
-    block_Fx                   <= 0;
+    if (block_Dx)   $display("block_Dx   NOT CLEAN");
 
+    if (block_Fx)   
+
+    if (block_load_reg_imm) $display("block_load_reg_imm   NOT CLEAN");
+    if (block_jmp) $display("block_jmp   NOT CLEAN");
+    if (block_sr_bit) $display("block_sr_bit   NOT CLEAN");
+
+`endif
     // decoder subroutine states
 
     block_load_reg_imm         <= 0;
@@ -280,10 +289,10 @@ always @(posedge i_clk) begin
 
     // assign block regs
     case (i_nibble) 
-    4'h0: block_0x            <= 1;
-    4'h1: block_1x            <= 1;
-    4'h2: block_load_p        <= 1;
-    4'h3: block_load_c_hex    <= 1;
+    4'h0: block_0x <= 1;
+    4'h1: block_1x <= 1;
+    4'h2: block_2x <= 1;
+    4'h3: block_3x <= 1;
     4'h4, 4'h5: begin 
       // 400 RTNC
       // 420 NOP3
@@ -301,12 +310,12 @@ always @(posedge i_clk) begin
     4'h6, 4'h7: begin
       // 6xxx GOTO
       // 7xxx GOSUB
-      o_alu_no_stall <= 1;
-      o_alu_op       <= `ALU_OP_JMP_REL3;
-      mem_load_max   <= 2;
-      o_mem_pos      <= 0;
-      o_push         <= i_nibble[0];  
-      block_jmp      <= 1;
+      o_alu_no_stall  <= 1;
+      o_alu_op        <= `ALU_OP_JMP_REL3;
+      mem_load_max    <= 2;
+      o_mem_pos       <= 0;
+      o_push          <= i_nibble[0];  
+      block_jmp       <= 1;
       `ifdef SIM
       o_unimplemented <= 0;
       `endif
@@ -319,6 +328,7 @@ always @(posedge i_clk) begin
       o_fields_table  <= `FT_TABLE_a;
       block_Ax        <= 1;
     end
+    4'hD: block_Dx   <= 1;
     4'hF: block_Fx   <= 1;
     default: begin
       `ifdef SIM
@@ -392,10 +402,7 @@ always @(posedge i_clk) begin
         o_ins_alu_op <= 1;
         o_alu_op     <= i_nibble[0]?`ALU_OP_DEC:`ALU_OP_INC;
       end
-      4'hE: begin
-        block_0x <= 0;
-        o_fields_table <= `FT_TABLE_f;
-      end
+      4'hE: o_fields_table <= `FT_TABLE_f;
       default: begin
         `ifdef SIM
         $display("block_0x: nibble %h not handled", i_nibble);
@@ -407,6 +414,7 @@ always @(posedge i_clk) begin
     block_0Efx      <= (i_nibble == 4'hE);
     go_fields_table <= (i_nibble == 4'hE);
     o_ins_decoded   <= (i_nibble != 4'hE);
+    block_0x        <= 0;
   end 
 
   /******************************************************************************
@@ -502,6 +510,7 @@ always @(posedge i_clk) begin
     next_nibble     <= use_fields_tbl;
     use_fields_tbl  <= 0;
     o_ins_decoded   <= !(use_fields_tbl);
+    block_mem_transfer <= use_fields_tbl;
   end
 
   if (do_block_pointer_arith_const) begin
@@ -510,25 +519,26 @@ always @(posedge i_clk) begin
     o_ins_decoded   <= 1;
   end
 
-  if (do_block_load_p) begin
+  if (do_block_2x) begin
     o_ins_alu_op    <= 1;
     o_alu_op        <= `ALU_OP_COPY;
-    o_imm_value   <= i_nibble;
-    next_nibble   <= 0;
-    o_ins_decoded <= 1;
+    o_imm_value     <= i_nibble;
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
     `ifdef SIM
     o_unimplemented <= 0;
     `endif
+    block_2x        <= 0;
   end
 
-  if (do_block_load_c_hex) begin
+  if (do_block_3x) begin
     // $write("block load C hex %h\n", i_nibble);
     mem_load_max       <= i_nibble + 1;
     o_mem_pos          <= 0;
     o_alu_no_stall     <= 1;
     o_alu_op           <= `ALU_OP_COPY;
     block_load_reg_imm <= 1;
-    block_load_c_hex   <= 0;
+    block_3x           <= 0;
 `ifdef SIM
     o_unimplemented    <= 0;
 `endif
@@ -557,6 +567,9 @@ always @(posedge i_clk) begin
     o_unimplemented <= 0;
 `endif
     block_Abx       <= 0;
+  end
+
+  if (do_block_Fx) begin
   end
 
   if (do_block_Fx) begin
