@@ -173,7 +173,14 @@ saturn_alu		m_alu (
 	.i_reg_src2			 (reg_src2),
 
   .i_ins_alu_op		 (ins_alu_op),
+	.i_ins_set_mode	 (ins_set_mode),
+	.i_ins_rtn			 (ins_rtn),
 
+  .i_mode_dec			 (mode_dec),
+  .i_set_xm        (set_xm),
+  .i_set_carry     (set_carry),
+  .i_carry_val     (carry_val),
+	
 	.o_reg_p				 (reg_p),
 	.o_pc			       (reg_pc)
 );
