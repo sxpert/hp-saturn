@@ -126,6 +126,7 @@ reg [0:0] is_zero;
 
 reg        alu_run;
 reg        alu_done;
+reg        alu_go_test;
 
 /*
  * next PC in case of jump 
@@ -242,7 +243,7 @@ assign do_alu_mode = !i_reset && i_en_alu_save && i_ins_set_mode;
 
 // the decoder may request the ALU to not stall it
 
-assign o_alu_stall_dec = alu_run && (!i_alu_no_stall || alu_finish);
+assign o_alu_stall_dec = alu_run && (!i_alu_no_stall || alu_finish || alu_go_test);
 
 wire       alu_start;
 wire       alu_finish;
@@ -261,6 +262,9 @@ assign is_alu_op_jump = ((alu_op == `ALU_OP_JMP_REL3) ||
                          (alu_op == `ALU_OP_JMP_REL4) ||
                          (alu_op == `ALU_OP_JMP_ABS5) ||
                          i_ins_rtn);
+wire is_alu_op_test;
+assign is_alu_op_test = ((alu_op == `ALU_OP_TEST_EQ) ||
+                         (alu_op == `ALU_OP_TEST_NEQ));
 
 /*****************************************************************************
  *
@@ -357,6 +361,8 @@ always @(posedge i_clk) begin
     alu_run <= 1;
     f_first <= i_field_start;
     f_cur   <= i_field_start;
+
+    alu_go_test <= is_alu_op_test;
   end
 
   if (do_alu_prep) begin
@@ -379,6 +385,18 @@ always @(posedge i_clk) begin
     alu_run <= 0;
     alu_done <= 0;
   end
+
+
+  if (do_alu_save && alu_done)
+    case (alu_op)
+      `ALU_OP_TEST_EQ,
+      `ALU_OP_TEST_NEQ:
+        begin
+          $display("#### UNBLOCK THE DECODER");
+          alu_go_test <= 1;
+        end
+    endcase
+
 end
 
 
@@ -399,6 +417,7 @@ always @(posedge i_clk) begin
     `ALU_OP_RST_BIT,
     `ALU_OP_SET_BIT,
     `ALU_OP_2CMPL,
+    `ALU_OP_ADD,
     `ALU_OP_JMP_REL3,
     `ALU_OP_JMP_REL4,
     `ALU_OP_JMP_ABS5,
@@ -429,6 +448,7 @@ always @(posedge i_clk) begin
       `ALU_OP_JMP_REL4,
       `ALU_OP_JMP_ABS5: begin end // no need for a 2nd operand
       `ALU_OP_EXCH, 
+      `ALU_OP_ADD,
       `ALU_OP_CLR_MASK: begin
         case (reg_src2)
         `ALU_REG_A:    p_src2 <= A [f_cur*4+:4];
@@ -450,7 +470,8 @@ always @(posedge i_clk) begin
     // setup p_carry
     // $display("fs %h | fs=0 %b | cc %b | npc %b", f_start, (f_start == 0), c_carry, (f_start == 0)?1'b1:c_carry);
     case (alu_op)
-    `ALU_OP_2CMPL: p_carry <= (alu_start)?1'b1:c_carry;
+    `ALU_OP_2CMPL: p_carry <= alu_start?1'b1:c_carry;
+    `ALU_OP_ADD: p_carry <= alu_start?0:c_carry;
     endcase
 
     // prepare jump base
@@ -506,6 +527,9 @@ always @(posedge i_clk) begin
           c_res1  <= ~p_src1 + p_carry;
           is_zero <= ((~p_src1 + p_carry) == 0) && alu_start?1:is_zero;
         end
+      `ALU_OP_ADD: begin
+        {c_carry, c_res1} <= p_src1 + p_src2 + p_carry;
+      end
       `ALU_OP_JMP_REL3,
       `ALU_OP_JMP_REL4,
       `ALU_OP_JMP_ABS5: jump_off[f_cur*4+:4] <= p_src1;
@@ -551,6 +575,7 @@ always @(posedge i_clk) begin
       `ALU_OP_COPY,
       `ALU_OP_EXCH, // does the first assign
       `ALU_OP_2CMPL,
+      `ALU_OP_ADD,
       `ALU_OP_CLR_MASK:
         case (reg_dest)
         `ALU_REG_A:   A[f_cur*4+:4] <= c_res1;
@@ -589,7 +614,6 @@ always @(posedge i_clk) begin
           // `ALU_REG_HST: HST <=              c_res2;
         endcase    
     endcase
-
   end
 
 

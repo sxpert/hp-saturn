@@ -232,8 +232,8 @@ always @(posedge i_clk) begin
     if (block_save_to_R_W)         $display("block_save_to_R_W NOT CLEAN");
     if (block_rest_from_R_W)       $display("block_rest_from_R_W NOT CLEAN");
     if (block_exch_with_R_W)       $display("block_exch_with_R_W NOT CLEAN");
-    if (block_pointer_assign_exch) $display("block_pointer_assign_exch NOT CLEAN");
-    if (block_mem_transfer)        $display("block_mem_transfer NOT CLEAN");
+    if (block_13x) $display("block_13x NOT CLEAN");
+    if (block_14x_15xx)        $display("block_14x_15xx NOT CLEAN");
     if (block_pointer_arith_const) $display("block_pointer_arith_const NOT CLEAN");
     if (block_2x)   $display("block_2x NOT CLEAN");
     if (block_3x)   $display("block_load_c_hex NOT CLEAN");
@@ -284,59 +284,71 @@ always @(posedge i_clk) begin
     /*
       * x first nibble
       */
-
-    // assign block regs
-    case (i_nibble) 
-    4'h0: block_0x <= 1;
-    4'h1: block_1x <= 1;
-    4'h2: block_2x <= 1;
-    4'h3: block_3x <= 1;
-    4'h4, 4'h5: begin 
-      // 400 RTNC
-      // 420 NOP3
-      // 4xy GOC
-      // 500 RTNNC
-      // 5xy GONC
-      o_alu_no_stall <= 1;
-      o_alu_op       <= `ALU_OP_JMP_REL2;
-      mem_load_max   <= 1;
-      o_mem_pos      <= 0;
-      o_test_carry   <= 1;
-      o_carry_val    <= !i_nibble[0];
-      block_jmp      <= 1;
+    if (block_jump_test) begin
+      $display("BLOCK JUMP_TEST ON %h", i_nibble);
+        block_jump_test2 <= 1;
+        block_jump_test  <= 0;
+    end else begin
+      // assign block regs
+      case (i_nibble) 
+      4'h0: block_0x <= 1;
+      4'h1: block_1x <= 1;
+      4'h2: block_2x <= 1;
+      4'h3: block_3x <= 1;
+      4'h4, 4'h5: begin 
+        // 400 RTNC
+        // 420 NOP3
+        // 4xy GOC
+        // 500 RTNNC
+        // 5xy GONC
+        o_alu_no_stall <= 1;
+        o_alu_op       <= `ALU_OP_JMP_REL2;
+        mem_load_max   <= 1;
+        o_mem_pos      <= 0;
+        o_test_carry   <= 1;
+        o_carry_val    <= !i_nibble[0];
+        block_jmp      <= 1;
+      end
+      4'h6, 4'h7: begin
+        // 6xxx GOTO
+        // 7xxx GOSUB
+        o_alu_no_stall  <= 1;
+        o_alu_op        <= `ALU_OP_JMP_REL3;
+        mem_load_max    <= 2;
+        o_mem_pos       <= 0;
+        o_push          <= i_nibble[0];  
+        block_jmp       <= 1;
+        `ifdef SIM
+        o_unimplemented <= 0;
+        `endif
+      end
+      4'h8: block_8x   <= 1;
+      4'hA: begin
+        go_fields_table <= 1;
+        // we don't know, safe bet is table a, but could be table b, 
+        // works either way, table is fixed on the next nibble
+        o_fields_table  <= `FT_TABLE_a;
+        block_Ax        <= 1;
+      end
+      4'hC: block_Cx   <= 1;
+      4'hD: block_Dx   <= 1;
+      4'hF: block_Fx   <= 1;
+      default: begin
+        `ifdef SIM
+        $display("DEC_INIT 2: nibble %h not handled", i_nibble);
+        `endif
+        o_dec_error <= 1;
+      end
+      endcase
     end
-    4'h6, 4'h7: begin
-      // 6xxx GOTO
-      // 7xxx GOSUB
-      o_alu_no_stall  <= 1;
-      o_alu_op        <= `ALU_OP_JMP_REL3;
-      mem_load_max    <= 2;
-      o_mem_pos       <= 0;
-      o_push          <= i_nibble[0];  
-      block_jmp       <= 1;
-      `ifdef SIM
-      o_unimplemented <= 0;
-      `endif
-    end
-    4'h8: block_8x   <= 1;
-    4'hA: begin
-      go_fields_table <= 1;
-      // we don't know, safe bet is table a, but could be table b, 
-      // works either way, table is fixed on the next nibble
-      o_fields_table  <= `FT_TABLE_a;
-      block_Ax        <= 1;
-    end
-    4'hD: block_Dx   <= 1;
-    4'hF: block_Fx   <= 1;
-    default: begin
-      `ifdef SIM
-      $display("DEC_INIT 2: nibble %h not handled", i_nibble);
-      `endif
-      o_dec_error <= 1;
-    end
-    endcase
   end
 
+  if (do_block_jump_test2) begin
+    $display("BLOCK_JUMP_TEST_2 %h", i_nibble);
+    block_jump_test2 <= 0;
+    next_nibble <= 0;
+    o_ins_decoded <= 1;
+  end 
 
   /******************************************************************************
   *
@@ -443,13 +455,12 @@ always @(posedge i_clk) begin
       4'h2:       // exchange A/C with Rn W
         block_exch_with_R_W       <= 1;
       4'h3:       // move/exch A/C with Dn A/[0:3]
-        block_pointer_assign_exch <= 1;
+        block_13x <= 1;
       4'h4, 4'h5: // DAT[01]=[AC] <field>
       begin
-        $display("block_1x %h", i_nibble);
-        block_mem_transfer        <= 1;
-        o_fields_table            <= i_nibble[0]?`FT_TABLE_value:`FT_TABLE_f;
-        use_fields_tbl            <= i_nibble[0];
+        $display("block_1x %h | use table <= %b", i_nibble, i_nibble[0]);
+        block_14x_15xx <= 1;
+        use_fields_tbl <= i_nibble[0];
       end
       4'h6, 4'h7, 
       4'h8, 4'hC: // D[01]=D[01][+-]  n+1;
@@ -491,24 +502,38 @@ always @(posedge i_clk) begin
     o_ins_decoded <= 1;
   end
 
-  if (do_block_pointer_assign_exch) begin
+  if (do_block_13x) begin
     o_ins_alu_op  <= 1;
     o_alu_op      <= i_nibble[1]?`ALU_OP_EXCH:`ALU_OP_COPY;
-    next_nibble      <= 0;
+    next_nibble   <= 0;
     o_ins_decoded <= 1;
+    block_13x     <= 0;
   end
 
-  if (do_block_mem_transfer) begin
-    $display("block_mem_transfer nibble %h | use_tbl %b", i_nibble, use_fields_tbl);
-    o_ins_alu_op    <= 1;
-    o_alu_debug     <= 1;
+  if (do_block_14x_15xx) begin
+    $display("block_14x_15xx nibble %h | use_tbl %b", i_nibble, use_fields_tbl);
+    // o_alu_debug     <= 1;
+    $display("fields_table %d",i_nibble[3]?`FT_TABLE_value:`FT_TABLE_a);
+    o_fields_table  <= i_nibble[3]?`FT_TABLE_value:`FT_TABLE_a;
     o_alu_op        <= `ALU_OP_COPY;
-    // we next_nibble if we need the fields table (nibble2 was 5)
     go_fields_table <= use_fields_tbl;
-    next_nibble     <= use_fields_tbl;
     use_fields_tbl  <= 0;
+
+    block_15xx      <= use_fields_tbl;
+
+    o_ins_alu_op    <= !(use_fields_tbl);
+    next_nibble     <= use_fields_tbl;
     o_ins_decoded   <= !(use_fields_tbl);
-    block_mem_transfer <= use_fields_tbl;
+    block_14x_15xx  <= 0;
+  end
+
+  if (do_block_15xx) begin
+    $display("block_15xx %h", i_nibble);
+    o_alu_debug   <= 1;
+    o_ins_alu_op  <= 1;
+    o_ins_decoded <= 1;
+    next_nibble   <= 0;
+    block_15xx    <= 0;
   end
 
   if (do_block_pointer_arith_const) begin
@@ -566,6 +591,20 @@ always @(posedge i_clk) begin
 `endif
     block_Abx       <= 0;
   end
+
+  if (do_block_Cx) begin
+    $display("block_Cx %h", i_nibble);
+    o_fields_table  <= `FT_TABLE_f;
+    o_ins_alu_op    <= 1;
+    o_alu_op        <= (i_nibble[3] && i_nibble[2])?`ALU_OP_DEC:`ALU_OP_ADD;
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
+    o_alu_debug <= 1;
+`ifdef SIM
+    // o_unimplemented <= 0;
+`endif
+    block_Cx       <= 0;   
+  end    
 
   if (do_block_Dx) begin
     $display("block_Dx %h", i_nibble);

@@ -276,7 +276,7 @@ always @(posedge clk) begin
 		en_inst_exec  <= 0;
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 220;
+		max_cycle     <= 280;
 `ifndef SIM
 		led[7:0]      <= reg_pc[7:0];
 `endif

@@ -193,7 +193,8 @@ always @(posedge i_clk) begin
         case (o_alu_op)
         `ALU_OP_ZERO,
         `ALU_OP_COPY: begin end
-        `ALU_OP_EXCH:
+        `ALU_OP_EXCH,
+        `ALU_OP_ADD:
           case (o_reg_src2)
           `ALU_REG_A:    $write("A");
           `ALU_REG_B:    $write("B");

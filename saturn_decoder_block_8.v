@@ -15,6 +15,7 @@
         o_unimplemented <= 0;
         `endif
       end
+      4'ha: block_8Ax <= 1;
       4'hC, 4'hD, 
       4'hE, 4'hF: // GOLONG, GOVLNG, GOSUBL, GOSBVL
       begin
@@ -84,4 +85,16 @@
     o_unimplemented <= 0;
     `endif
     block_82x       <= 0;
+  end
+
+  if (do_block_8Ax) begin
+    o_ins_alu_op <= 1;
+    o_alu_op <= i_nibble[2]?`ALU_OP_TEST_NEQ:`ALU_OP_TEST_EQ;
+    o_alu_debug <= 1;
+    o_mem_pos <= 0;
+    mem_load_max <= 1;
+    o_ins_decoded <= 1;
+    next_nibble <= 0;
+    block_jump_test <= 1;
+    block_8Ax <= 0;
   end

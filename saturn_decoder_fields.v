@@ -6,7 +6,7 @@
 *****************************************************************************/
 
 `ifdef SIM
-// `define DEBUG_FIELDS_TABLE
+`define DEBUG_FIELDS_TABLE
 `endif
 
 reg fields_table_done;
@@ -112,19 +112,19 @@ always @(posedge i_clk) begin
     o_field_last  <= 15;
   end
 
-  if (do_block_pointer_assign_exch) begin
+  if (do_block_13x) begin
     o_field_start <= 0;
     o_field_last  <= i_nibble[3]?3:4;
   end
 
-  if (do_block_mem_transfer && !do_fields_table) begin
+  if (do_block_14x_15xx && !do_fields_table) begin
     o_field       <= i_nibble[3]?`FT_FIELD_B:`FT_FIELD_A;
     o_field_start <= 0;
     o_field_last  <= i_nibble[3]?1:4;
     o_field_valid <= 1;
   end
 
-  if (do_block_mem_transfer && do_fields_table && table_value) begin
+  if (do_block_14x_15xx && do_fields_table && table_value) begin
     o_field_start <= 0;
     o_field_last  <= i_nibble;
     o_field_valid <= 1;
@@ -154,11 +154,16 @@ always @(posedge i_clk) begin
     o_field_last  <= i_nibble;
   end
 
-  if (do_block_Dx || do_block_Fx) begin
+  if (do_block_8Ax || do_block_Cx || do_block_Dx || do_block_Fx) begin
     o_field        <= `FT_FIELD_A;
     o_field_start  <= 0;
     o_field_last   <= 4;
     o_field_valid  <= 1;
+  end
+
+  if (do_block_jump_test) begin
+    o_field_start <= 0;
+    o_field_last <= 1;
   end
 
   /******************************************************************************

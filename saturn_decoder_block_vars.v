@@ -43,13 +43,17 @@ assign do_block_Rn_A_C = do_on_other_nibbles &&
                            block_rest_from_R_W ||
                            block_exch_with_R_W );
 
-reg   block_pointer_assign_exch;
-wire  do_block_pointer_assign_exch;
-assign do_block_pointer_assign_exch = do_on_other_nibbles && block_pointer_assign_exch; 
+reg   block_13x;
+wire  do_block_13x;
+assign do_block_13x = do_on_other_nibbles && block_13x; 
 
-reg   block_mem_transfer;
-wire  do_block_mem_transfer;
-assign do_block_mem_transfer = do_on_other_nibbles && block_mem_transfer;        
+reg   block_14x_15xx;
+wire  do_block_14x_15xx;
+assign do_block_14x_15xx = do_on_other_nibbles && block_14x_15xx;        
+
+reg   block_15xx;
+wire  do_block_15xx;
+assign do_block_15xx = do_on_other_nibbles && block_15xx;        
 
 reg    block_pointer_arith_const;
 wire   do_block_pointer_arith_const;
@@ -82,8 +86,19 @@ reg   block_82x;
 wire  do_block_82x;
 assign do_block_82x = do_on_other_nibbles && block_82x;
 
-reg   block_Ax;
-wire  do_block_Ax;
+reg    block_8Ax;
+wire   do_block_8Ax;
+assign do_block_8Ax = do_on_other_nibbles && block_8Ax;
+
+reg    block_jump_test;
+reg    block_jump_test2;
+wire   do_block_jump_test;
+wire   do_block_jump_test2;
+assign do_block_jump_test = do_on_other_nibbles && block_jump_test;
+assign do_block_jump_test2 = do_on_other_nibbles && block_jump_test2;
+
+reg    block_Ax;
+wire   do_block_Ax;
 assign do_block_Ax = do_on_other_nibbles && block_Ax;
 
 reg   block_Aax;
@@ -93,6 +108,10 @@ assign do_block_Aax = do_on_other_nibbles && block_Aax;
 reg   block_Abx;
 wire  do_block_Abx;
 assign do_block_Abx = do_on_other_nibbles && block_Abx;
+
+reg   block_Cx;
+wire  do_block_Cx;
+assign do_block_Cx = do_on_other_nibbles && block_Cx;
 
 reg   block_Dx;
 wire  do_block_Dx;
