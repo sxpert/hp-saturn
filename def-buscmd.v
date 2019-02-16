@@ -7,8 +7,8 @@
  *
  */
 
-`ifndef _BUS_COMMANDS
-`define _BUS_COMMANDS
+`ifndef _BUSCMD
+`define _BUSCMD
 
 `define BUSCMD_NOP			0
 `define BUSCMD_ID			1

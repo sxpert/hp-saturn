@@ -18,12 +18,16 @@ reg fields_table_done;
 wire do_fields_table;
 assign do_fields_table = decoder_active && go_fields_table && !fields_table_done;
 
+`ifdef SIM
 wire table_a;
 wire table_b;
+`endif
 wire table_f;
 wire table_value;
+`ifdef SIM
 assign table_a     = (o_fields_table == `FT_TABLE_a);
 assign table_b     = (o_fields_table == `FT_TABLE_b);
+`endif
 assign table_f     = (o_fields_table == `FT_TABLE_f);
 assign table_value = (o_fields_table == `FT_TABLE_value);
 
@@ -38,16 +42,16 @@ assign table_a_f_b_case_value = {table_f_bit_3, i_nibble[2:0]};
 /* value generation for debug
  */
 
+`ifdef SIM
 wire table_a_nb_ok;
 wire table_b_nb_ok;
 wire table_f_cond;
 wire table_f_nb_ok;
-wire table_a_f_b_nb_ok;
 assign table_a_nb_ok = table_a && !i_nibble[3];   
 assign table_b_nb_ok = table_b &&  i_nibble[3];
 assign table_f_cond  = !i_nibble[3] || (i_nibble == 4'hF);
 assign table_f_nb_ok = table_f && table_f_cond;
-assign table_a_f_b_nb_ok = table_a_nb_ok || table_b_nb_ok || table_f_nb_ok;
+`endif
 
 /* here we go
  */ 

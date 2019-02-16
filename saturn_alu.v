@@ -21,6 +21,12 @@ module saturn_alu (
 	  i_en_alu_calc,
     i_en_alu_init,
 	  i_en_alu_save,
+    i_stalled,
+
+    o_bus_address,
+    o_bus_load_pc,
+    o_bus_load_dp,
+    o_bus_nibble_out,
 
     i_push,
     i_pop,
@@ -60,6 +66,12 @@ input   wire [0:0]  i_en_alu_prep;
 input   wire [0:0]  i_en_alu_calc;
 input   wire [0:0]  i_en_alu_init;
 input   wire [0:0]  i_en_alu_save;
+input   wire [0:0]  i_stalled;
+
+output  reg  [19:0] o_bus_address;
+output  reg  [0:0]  o_bus_load_pc;
+output  reg  [0:0]  o_bus_load_dp;
+output  reg  [3:0]  o_bus_nibble_out;
 
 input   wire [0:0]  i_push;
 input   wire [0:0]  i_pop;
@@ -222,13 +234,24 @@ initial begin
   // RSTK[7]         = 0;
 end
 
+/*
+ * can the alu function ?
+ */
+wire alu_active;
+
+assign alu_active = !i_reset && !i_stalled;
+
+/*
+ * simulation only states, when alu is active
+ */
 `ifdef SIM
 wire do_reg_dump;
 wire do_alu_shpc;
-assign do_reg_dump = (!i_reset) && i_en_alu_dump && i_ins_decoded && !o_alu_stall_dec;
-assign do_alu_shpc = (!i_reset) && i_en_alu_dump;
+assign do_reg_dump = alu_active && i_en_alu_dump && i_ins_decoded && !o_alu_stall_dec;
+assign do_alu_shpc = alu_active && i_en_alu_dump;
 `endif
 
+wire do_busclean;
 wire do_alu_init;
 wire do_alu_prep;
 wire do_alu_calc;
@@ -236,19 +259,20 @@ wire do_alu_save;
 wire do_alu_pc;
 wire do_alu_mode;
 
-assign do_alu_init = !i_reset && i_en_alu_init && i_ins_alu_op && !alu_run; 
-assign do_alu_prep = !i_reset && i_en_alu_prep && alu_run;
-assign do_alu_calc = !i_reset && i_en_alu_calc && alu_run;
-assign do_alu_save = !i_reset && i_en_alu_save && alu_run;
-assign do_alu_pc   = !i_reset && i_en_alu_save;
-assign do_alu_mode = !i_reset && i_en_alu_save && i_ins_set_mode;
+assign do_busclean = alu_active && i_en_alu_dump;
+assign do_alu_init = alu_active && i_en_alu_init && i_ins_alu_op && !alu_run; 
+assign do_alu_prep = alu_active && i_en_alu_prep && alu_run;
+assign do_alu_calc = alu_active && i_en_alu_calc && alu_run;
+assign do_alu_save = alu_active && i_en_alu_save && alu_run;
+assign do_alu_pc   = alu_active && i_en_alu_save;
+assign do_alu_mode = alu_active && i_en_alu_save && i_ins_set_mode;
 
 wire do_go_init;
 wire do_go_prep;
 wire do_go_calc;
 
-assign do_go_init  = !i_reset && i_en_alu_save && i_ins_test_go;
-assign do_go_prep  = !i_reset && i_en_alu_prep && i_ins_test_go;
+assign do_go_init  = alu_active && i_en_alu_save && i_ins_test_go;
+assign do_go_prep  = alu_active && i_en_alu_prep && i_ins_test_go;
 
 // the decoder may request the ALU to not stall it
 
@@ -282,6 +306,12 @@ assign is_alu_op_test = ((alu_op == `ALU_OP_TEST_EQ) ||
  ****************************************************************************/
 
 always @(posedge i_clk) begin
+
+`ifdef SIM
+  if (i_stalled && i_en_alu_dump) 
+    $display("ALU STALLED");
+`endif
+
 `ifdef ALU_DEBUG_DBG
   $display("iad %b | AD %b | ad %b | ADD %b | add %b | ADJ %b | adj %b | ADP %b | adp %b",
            i_alu_debug, 
@@ -515,7 +545,6 @@ end
 always @(posedge i_clk) begin
   
   if (i_reset) begin
-    $display("initializing c_carry to 0");
     c_carry <= 0;
   end
 
@@ -551,11 +580,11 @@ always @(posedge i_clk) begin
       `ALU_OP_2CMPL: 
         begin 
           c_carry <= (~p_src1 == 4'hf) && p_carry ;
-          c_res1  <= ~p_src1 + p_carry;
-          is_zero <= ((~p_src1 + p_carry) == 0) && alu_start?1:is_zero;
+          c_res1  <= ~p_src1 + {3'b000, p_carry};
+          is_zero <= ((~p_src1 + {3'b000, p_carry}) == 0) && alu_start?1:is_zero;
         end
       `ALU_OP_ADD:
-        {c_carry, c_res1} <= p_src1 + p_src2 + p_carry;
+        {c_carry, c_res1} <= p_src1 + p_src2 + {4'b0000, p_carry};
       `ALU_OP_TEST_NEQ: 
         c_carry <= !(p_src1 == p_src2) || p_carry;
       `ALU_OP_JMP_REL3,
@@ -675,7 +704,7 @@ always @(posedge i_clk) begin
   end
 
   // do whatever is requested by the RTN instruction
-  if (i_ins_rtn) begin
+  if (alu_active && i_ins_rtn) begin
 
     if (i_set_xm)
       HST[`ALU_HST_XM] <= 1;
@@ -693,6 +722,7 @@ end
  *
  ****************************************************************************/
 
+reg  [0:0]  just_reset;
 wire [19:0] next_pc;
 wire [19:0] goyes_off;
 wire [19:0] goyes_pc;
@@ -706,17 +736,20 @@ assign next_pc   = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
 assign goyes_off = {{12{i_imm_value[3]}}, i_imm_value, jump_off[3:0]};
 assign goyes_pc  = jump_bse + goyes_off;
 
-assign update_pc  = !o_alu_stall_dec || is_alu_op_jump;
+assign update_pc  = !o_alu_stall_dec || is_alu_op_jump || just_reset;
 assign uncond_jmp = is_alu_op_jump && alu_done;
 assign pop_pc     = i_pop && i_ins_rtn && 
                     ((!i_ins_test_go) ||
                      (i_ins_test_go && c_carry));
-assign reload_pc  = uncond_jmp || pop_pc;
+assign reload_pc  = uncond_jmp || pop_pc || just_reset;
 assign push_pc    = update_pc && i_push && alu_finish;
 
 always @(posedge i_clk) begin
-  if (i_reset)
-    PC <= ~0;
+  if (i_reset) begin
+    PC         <= ~0;
+    just_reset <= 1;
+  end
+
 
   /*
    * some debug information
@@ -735,6 +768,7 @@ always @(posedge i_clk) begin
    * updates the PC
    */
   if (do_alu_pc) begin
+    // $display("DO ALU PC");
 `ifdef SIM
     if (alu_debug_pc)
       $display({"ALU_PC   3: !stl %b | nx %5h | done %b | fin %b | ",
@@ -750,11 +784,24 @@ always @(posedge i_clk) begin
         $display("`---------------------------------´");
       end
 `endif
+
+    // if we just came out of reset, simulate a long jump to 0
+    if (just_reset) begin
+      $display("ALU_RSET 3: simulating GOVLNG to PC");
+      // cancel this signal for good once reset is gone
+      just_reset <= 0;
+    end
+
     // this may do wierd things with C=RSTK...
     if (update_pc) begin
       PC <= pop_pc ? RSTK[rstk_ptr-1] : next_pc;
     end
 
+    if (reload_pc) begin
+      $display("ALU_PC   3: $$$$ RELOADING PC $$$$");
+      o_bus_address <= pop_pc ? RSTK[rstk_ptr-1] : next_pc;
+      o_bus_load_pc <= 1;
+    end
 
     // $display("pop %b && rtn %b && ((!go %b) || (go %b && c %b))", 
     //          i_pop, i_ins_rtn, !i_ins_test_go, i_ins_test_go, c_carry);
@@ -770,6 +817,11 @@ always @(posedge i_clk) begin
       rstk_ptr       <= rstk_ptr + 1;
     end
   end
+
+  // deactivate o_load_pc
+  if (do_busclean && o_bus_load_pc)
+    o_bus_load_pc <= 0;
+
 end
 
 /*****************************************************************************

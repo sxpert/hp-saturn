@@ -136,13 +136,13 @@ reg   use_fields_tbl;
 
 wire  count_cycles;
 wire  decoder_active;
-wire  decoder_stalled;
+// wire  decoder_stalled;
 wire  do_on_first_nibble;
 wire  do_on_other_nibbles;
 
 assign count_cycles        = !i_reset && i_en_dec && (next_nibble || i_stalled);
 assign decoder_active      = !i_reset && i_en_dec && !i_stalled;
-assign decoder_stalled     = !i_reset && i_en_dec &&  i_stalled;
+// assign decoder_stalled     = !i_reset && i_en_dec &&  i_stalled;
 assign do_on_first_nibble  = decoder_active && !next_nibble;
 assign do_on_other_nibbles = decoder_active && next_nibble;
 
@@ -223,43 +223,10 @@ always @(posedge i_clk) begin
     // store the address where the instruction starts
     o_ins_addr      <= i_pc;
 
-    // decoder block states
-
-    // complain if blocks are not clean
-`ifdef SIM
-    if (block_0x)   $display("block_0x NOT CLEAN");
-    if (block_0Efx) $display("block_0Efx NOT CLEAN");
-    if (block_1x)   $display("block_1x NOT CLEAN");
-    if (block_save_to_R_W)         $display("block_save_to_R_W NOT CLEAN");
-    if (block_rest_from_R_W)       $display("block_rest_from_R_W NOT CLEAN");
-    if (block_exch_with_R_W)       $display("block_exch_with_R_W NOT CLEAN");
-    if (block_13x) $display("block_13x NOT CLEAN");
-    if (block_14x_15xx)        $display("block_14x_15xx NOT CLEAN");
-    if (block_pointer_arith_const) $display("block_pointer_arith_const NOT CLEAN");
-    if (block_2x)   $display("block_2x NOT CLEAN");
-    if (block_3x)   $display("block_load_c_hex NOT CLEAN");
-
-    if (block_8x)   $display("block_8x   NOT CLEAN");
-    if (block_80x)  $display("block_80x  NOT CLEAN");
-    if (block_80Cx) $display("block_80Cx NOT CLEAN");
-    if (block_82x)  $display("block_82x  NOT CLEAN");
-
-    if (block_Ax)   $display("block_Ax   NOT CLEAN");
-
-    if (block_Dx)   $display("block_Dx   NOT CLEAN");
-
-    if (block_Fx)   
-
-    if (block_load_reg_imm) $display("block_load_reg_imm   NOT CLEAN");
-    if (block_jmp) $display("block_jmp   NOT CLEAN");
-    if (block_sr_bit) $display("block_sr_bit   NOT CLEAN");
-
-`endif
     // decoder subroutine states
 
     block_load_reg_imm <= 0;
-    block_jmp          <= 0;
-    block_sr_bit       <= 0;
+    
 
     // cleanup fields table variables
     go_fields_table <= 0;
@@ -674,6 +641,7 @@ always @(posedge i_clk) begin
     o_mem_pos                  <= o_mem_pos + 1;
     next_nibble                <= (o_mem_pos+1) != mem_load_max;
     o_ins_decoded              <= (o_mem_pos+1) == mem_load_max;
+    block_load_reg_imm         <= (o_mem_pos+1) != mem_load_max;
   end
 
   if (do_block_jmp) begin
@@ -683,16 +651,17 @@ always @(posedge i_clk) begin
     o_mem_pos                  <= o_mem_pos + 1;
     next_nibble                <= mem_load_max != o_mem_pos;
     o_ins_decoded              <= mem_load_max == o_mem_pos;
-
+    block_jmp                  <= mem_load_max != o_mem_pos;
   end
 
   if (do_block_sr_bit) begin
-    o_ins_alu_op               <= 1;
-    o_imm_value                <= i_nibble;
-    o_mem_load[3:0]            <= i_nibble;
-    o_mem_pos                  <= 1;
-    next_nibble                <= 0;
-    o_ins_decoded              <= 1;
+    o_ins_alu_op    <= 1;
+    o_imm_value     <= i_nibble;
+    o_mem_load[3:0] <= i_nibble;
+    o_mem_pos       <= 1;
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
+    block_sr_bit    <= 0;
   end
 
 end

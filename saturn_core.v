@@ -4,11 +4,13 @@
 
 `default_nettype none //
 
+`include "def-clocks.v"
 // `include "bus_commands.v"
 // `include "hp48_00_bus.v"
 // `include "dbg_module.v"
 `include "saturn_decoder.v"
 `include "saturn_alu.v"
+`include "saturn_bus_ctrl.v"
 
 /**************************************************************************************************
  *
@@ -34,7 +36,6 @@ module saturn_core (
 );
 wire 		clk;
 wire 		reset;
-reg			clk2;
 
 assign clk			= clk_25mhz;
 assign reset		= btn[1];
@@ -42,24 +43,29 @@ assign reset		= btn[1];
 `endif
 
 // clocks
-reg	 [1:0]      clk_phase;
-reg				en_reset;
-reg				en_alu_dump;	// phase 0
-reg				en_debugger;	// phase 0
-reg				en_bus_send;	// phase 0
-reg				en_bus_recv;	// phase 1
-reg				en_alu_prep;	// phase 1
-reg				en_alu_calc;	// phase 2
-reg				en_inst_dec;	// phase 2
-reg				en_alu_init;	// phase 3
-reg				en_alu_save;	// phase 3
-reg				en_inst_exec;	// phase 3
-reg				clock_end;
-reg	 [31:0]	    cycle_ctr;
-reg	 [31:0]     max_cycle;
+reg	[1:0]  clk_phase;
+reg	[0:0]  en_reset;
+
+reg	[0:0]	 en_debugger;	 // phase 0
+
+reg	[0:0]	 en_bus_send;	 // phase 0
+reg	[0:0]	 en_bus_recv;	 // phase 1
+
+reg	[0:0]	 en_inst_dec;	 // phase 2
+reg [0:0]  en_inst_exe;  // phase 3
+
+reg	[0:0]	 en_alu_dump;	 // phase 0
+reg	[0:0]	 en_alu_init;	 // phase 3
+reg	[0:0]	 en_alu_prep;	 // phase 1
+reg	[0:0]	 en_alu_calc;	 // phase 2
+reg	[0:0]	 en_alu_save;	 // phase 3
+
+reg	[0:0]	 clock_end;
+reg	[31:0] cycle_ctr;
+reg	[31:0] max_cycle;
 
 // state machine stuff
-wire			halt;
+wire [0:0] halt;
 
 
 // hp48_bus bus_ctrl (
@@ -79,8 +85,8 @@ saturn_decoder	m_decoder (
 	.i_en_dbg       (en_debugger),
 	.i_en_dec		    (en_inst_dec),
 	.i_pc			      (reg_pc),
-	.i_stalled      (stalled),
-	.i_nibble		    (nibble_in),
+	.i_stalled      (dec_stalled),
+	.i_nibble		    (bus_nibble_in),
 
 	.i_reg_p        (reg_p),
 
@@ -122,7 +128,7 @@ wire [0:0]      inv_opcode;
 wire [0:0]		  alu_debug;
 
 wire [19:0]     ins_addr;
-wire            ins_decoded;
+wire [0:0]      ins_decoded;
 
 wire [1:0]      fields_table;
 wire [3:0]      field;
@@ -154,12 +160,18 @@ saturn_alu		m_alu (
 	.i_en_alu_calc	 (en_alu_calc),
 	.i_en_alu_init   (en_alu_init),
 	.i_en_alu_save 	 (en_alu_save),
+	.i_stalled			 (alu_stalled),
+
+	.o_bus_address    (bus_address),
+	.o_bus_load_pc    (bus_load_pc),
+	.o_bus_load_dp    (bus_load_dp),
+	.o_bus_nibble_out (bus_nibble_out),
 
 	.i_push					 (push),
 	.i_pop					 (pop),
 	.i_alu_debug		 (alu_debug),
 
-  .o_alu_stall_dec (alu_stall),
+  .o_alu_stall_dec (alu_stalls_dec),
 	.i_ins_decoded   (ins_decoded),
 
   .i_field_start   (field_start),
@@ -188,43 +200,80 @@ saturn_alu		m_alu (
 
 
 // interconnections
+wire [19:0]   bus_address;
+wire [0:0]    bus_load_pc;
+wire [0:0]    bus_load_dp;
 
-wire [0:0]    alu_stall;
+wire [3:0]    bus_nibble_in;
+wire [3:0]    bus_nibble_out;
+
+wire [0:0]    alu_stalls_dec;
 wire [3:0]		reg_p;
 wire [19:0]		reg_pc;
 
 /*
- * test rom...
+ *
+ * Bus controller module
+ *
  */
-`ifdef SIM
-`define ROMBITS 20
-`else 
-`define ROMBITS 10
-`endif
-reg [3:0] rom [0:2**`ROMBITS-1];
+
+saturn_bus_ctrl m_bus_ctrl (
+  // basic stuff
+	.i_clk              (clk),
+  .i_reset            (reset),
+	.i_cycle_ctr        (cycle_ctr),
+  .i_en_bus_send      (en_bus_send),
+  .i_en_bus_recv      (en_bus_recv),
+  .i_stalled          (mem_ctrl_stall),
+	.i_read_stall       (dec_stalled),
+  .o_stalled_by_bus   (bus_stalls_core),
+
+  //bus i/o
+  .i_bus_data         (bus_data_in),
+  .o_bus_data         (bus_data_out),
+  .o_bus_strobe       (bus_strobe),
+  .o_bus_cmd_data     (bus_cmd_data),
+
+  // interface to the rest of the machine
+	.i_alu_pc           (reg_pc),
+  .i_address          (bus_address),
+  .i_load_pc          (bus_load_pc),
+  .i_load_dp          (bus_load_dp),
+  .i_nibble           (bus_nibble_out),
+  .o_nibble           (bus_nibble_in)
+);
+
+reg  [0:0] mem_ctrl_stall;
+wire [0:0] bus_stalls_core;
+
+reg  [3:0] bus_data_in;
+wire [3:0] bus_data_out;
+wire [0:0] bus_strobe;
+wire [0:0] bus_cmd_data;
 
 // `define DEBUG_CLOCKS
 
-initial
-	begin
-
-		`ifdef SIM
-		$readmemh("rom-gx-r.hex", rom);
-		// $readmemh( "testrom-2.hex", rom);
-		`endif
-
+initial	begin
 		clk_phase 		= 0;
+
 		en_debugger 	= 0;	// phase 0
+
 		en_bus_send 	= 0;	// phase 0
 		en_bus_recv 	= 0;	// phase 1
+
+		en_inst_dec 	= 0;	// phase 2
+		en_inst_exe   = 0;  // phase 3
+
+		en_alu_dump   = 0;
 		en_alu_prep 	= 0;	// phase 1
 		en_alu_calc 	= 0;	// phase 2
-		en_inst_dec 	= 0;	// phase 2
 		en_alu_init   = 0;  // phase 0
 		en_alu_save 	= 0;	// phase 3
-		en_inst_exec	= 0;	// phase 3
+
 		clock_end			= 0;
 		cycle_ctr			= 0;
+
+		mem_ctrl_stall = 0;
 
 `ifdef DEBUG_CLOCKS
 		$monitor("RST %b | CLK %b | CLKP %d | CYCL %d | PC %5h | eRST %b | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
@@ -242,22 +291,24 @@ initial
 //
 //--------------------------------------------------------------------------------------------------
 
-`define PH_BUS_RECV 1
-
 always @(posedge clk) begin
 	if (!reset) begin
 		clk_phase    <= clk_phase + 1;
-		en_alu_dump  <= clk_phase[1:0] == 0;
-		en_debugger  <= clk_phase[1:0] == 0;
-		en_bus_send  <= clk_phase[1:0] == 0;
+		en_debugger  <= clk_phase[1:0] == `PH_DEBUGGER;
+
+		en_bus_send  <= clk_phase[1:0] == `PH_BUS_SEND;
 		en_bus_recv  <= clk_phase[1:0] == `PH_BUS_RECV;
-		en_alu_prep  <= clk_phase[1:0] == 1;
-		en_alu_calc  <= clk_phase[1:0] == 2;
-		en_inst_dec  <= clk_phase[1:0] == 2;
-		en_alu_init  <= clk_phase[1:0] == 3;
-		en_alu_save  <= clk_phase[1:0] == 3;
-		en_inst_exec <= clk_phase[1:0] == 3;
-		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == 0) };
+
+		en_inst_dec  <= clk_phase[1:0] == `PH_INST_DEC;
+		en_inst_exe  <= clk_phase[1:0] == `PH_INST_EXE;
+
+		en_alu_dump  <= clk_phase[1:0] == `PH_ALU_DUMP;
+		en_alu_init  <= clk_phase[1:0] == `PH_ALU_INIT;
+		en_alu_prep  <= clk_phase[1:0] == `PH_ALU_PREP;
+		en_alu_calc  <= clk_phase[1:0] == `PH_ALU_CALC;
+		en_alu_save  <= clk_phase[1:0] == `PH_ALU_SAVE;
+
+		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == `PH_BUS_SEND) };
 		// stop after 50 clocks
 		if (cycle_ctr == (max_cycle + 1)) begin
 		  $display(".-------------------.");
@@ -267,19 +318,26 @@ always @(posedge clk) begin
 		end
 	end else begin
 		clk_phase 	  <= ~0;
-		en_alu_dump   <= 0;
+
 		en_debugger   <= 0;
+
 		en_bus_send   <= 0;
 		en_bus_recv   <= 0;
+
+		en_inst_dec   <= 0;
+		en_inst_exe   <= 0;
+
+		en_alu_dump   <= 0;
+		en_alu_init   <= 0;
 		en_alu_prep   <= 0;
 		en_alu_calc   <= 0;
-		en_inst_dec   <= 0;
-		en_alu_init   <= 0;
 		en_alu_save   <= 0;
-		en_inst_exec  <= 0;
+
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 280;
+		max_cycle     <= 20;
+
+		mem_ctrl_stall <= 0;
 `ifndef SIM
 		led[7:0]      <= reg_pc[7:0];
 `endif
@@ -292,39 +350,17 @@ end
 //
 //--------------------------------------------------------------------------------------------------
 
-reg [3:0]   nibble_in;
-wire			  stalled;
-assign stalled = alu_stall;
+wire	 dec_stalled;
+wire	 alu_stalled;
+assign dec_stalled = alu_stalls_dec || bus_stalls_core;
+assign alu_stalled = bus_stalls_core;
 
-always @(posedge clk)
-  if (reset) begin
-		//reg_pc  <= ~0;
-		// stalled <= 0;
-  end else begin
-	if (en_bus_send) begin
-	  // PC handled by ALU
-		// 
-		// if (inc_pc & !stalled)
-		// 	reg_pc <= reg_pc + 1;
-		// `ifdef SIM
-		// else              
-		// 	$write("PC_INC   0: not incrementing PC\n");
-		// `endif
-	end
-	if (en_bus_recv) begin
-		if (!stalled) begin
-`ifdef SIM
-			$display("BUS_RECV %1d: [%d] %5h => %1h", `PH_BUS_RECV, cycle_ctr, reg_pc, rom[reg_pc[`ROMBITS-1:0]]);
-`endif
-			nibble_in <= rom[reg_pc[`ROMBITS-1:0]];
-
-		end
-	end
-	// if (en_inst_exec) begin
-	// 	if (cycle_ctr == 5) stalled <= 1;
-	// 	if (cycle_ctr == 10) stalled <= 0;
-	// end
-  end
+wire   read_nibble_to_dec;
+assign read_nibble_to_dec = en_bus_recv && !dec_stalled;
+wire   dec_stalled_no_read;
+assign dec_stalled_no_read = en_bus_recv && !bus_stalls_core && dec_stalled;
+wire   bus_is_stalled;
+assign bus_is_stalled = en_bus_recv && bus_stalls_core;
 
 assign halt = clock_end || inv_opcode;
 
