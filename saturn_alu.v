@@ -10,7 +10,7 @@
 
 `define ALU_DEBUG       1'b0
 `define ALU_DEBUG_DUMP  1'b1     
-`define ALU_DEBUG_JUMP  1'b1
+`define ALU_DEBUG_JUMP  1'b0
 `define ALU_DEBUG_PC    1'b0  
 
 module saturn_alu (
@@ -419,6 +419,9 @@ always @(posedge i_clk) begin
       `endif
     end
 
+    /*
+     * source 1
+     */
     case (alu_op)
     `ALU_OP_ZERO: begin end // no source required
     `ALU_OP_COPY,
@@ -427,6 +430,8 @@ always @(posedge i_clk) begin
     `ALU_OP_SET_BIT,
     `ALU_OP_2CMPL,
     `ALU_OP_ADD,
+    `ALU_OP_TEST_EQ,
+    `ALU_OP_TEST_NEQ,
     `ALU_OP_JMP_REL3,
     `ALU_OP_JMP_REL4,
     `ALU_OP_JMP_ABS5,
@@ -447,6 +452,10 @@ always @(posedge i_clk) begin
     default: $display("#### SRC_1 UNHANDLED OPERATION %0d", alu_op);
     endcase
 
+
+    /*
+     * source 2
+     */
     case (alu_op)
       `ALU_OP_ZERO,
       `ALU_OP_COPY,
@@ -458,6 +467,8 @@ always @(posedge i_clk) begin
       `ALU_OP_JMP_ABS5: begin end // no need for a 2nd operand
       `ALU_OP_EXCH, 
       `ALU_OP_ADD,
+      `ALU_OP_TEST_EQ,
+      `ALU_OP_TEST_NEQ,
       `ALU_OP_CLR_MASK: begin
         case (reg_src2)
         `ALU_REG_A:    p_src2 <= A [f_cur*4+:4];
@@ -481,6 +492,7 @@ always @(posedge i_clk) begin
     case (alu_op)
     `ALU_OP_2CMPL: p_carry <= alu_start?1'b1:c_carry;
     `ALU_OP_ADD: p_carry <= alu_start?0:c_carry;
+    `ALU_OP_TEST_NEQ: p_carry <= alu_start?0:c_carry;
     endcase
 
     // prepare jump base
@@ -501,6 +513,12 @@ always @(posedge i_clk) begin
 end
 
 always @(posedge i_clk) begin
+  
+  if (i_reset) begin
+    $display("initializing c_carry to 0");
+    c_carry <= 0;
+  end
+
   if (do_alu_calc) begin
     `ifdef SIM
     if (alu_debug)
@@ -536,9 +554,10 @@ always @(posedge i_clk) begin
           c_res1  <= ~p_src1 + p_carry;
           is_zero <= ((~p_src1 + p_carry) == 0) && alu_start?1:is_zero;
         end
-      `ALU_OP_ADD: begin
+      `ALU_OP_ADD:
         {c_carry, c_res1} <= p_src1 + p_src2 + p_carry;
-      end
+      `ALU_OP_TEST_NEQ: 
+        c_carry <= !(p_src1 == p_src2) || p_carry;
       `ALU_OP_JMP_REL3,
       `ALU_OP_JMP_REL4,
       `ALU_OP_JMP_ABS5: jump_off[f_cur*4+:4] <= p_src1;
@@ -560,7 +579,7 @@ always @(posedge i_clk) begin
   end
 
   if (do_go_init) begin
-    $display("GO_INIT  3: imm %h", i_imm_value);
+    // $display("GO_INIT  3: imm %h", i_imm_value);
     jump_off <= { {16{1'b0}}, i_imm_value};
   end
 end
@@ -581,10 +600,10 @@ always @(posedge i_clk) begin
   if (do_alu_save) begin
     `ifdef SIM
     if (alu_debug) begin
-      // $display({"ALU_SAVE 3: run %b | done %b | stall %b | op %d | f %h | c %h | l %h |",
-      //           " dest %d | cres1 %h | cres2 %h | psrc1 %h | psrc2 %h | c_carry %b"}, 
-      //           alu_run, alu_done, o_alu_stall_dec, alu_op, 
-      //           f_first, f_cur, f_last, reg_dest, c_res1, c_res2, p_src1, p_src2, c_carry);
+      $display({"ALU_SAVE 3: run %b | done %b | stall %b | op %d | f %h | c %h | l %h |",
+                " dest %d | cres1 %h | cres2 %h | psrc1 %h | psrc2 %h | c_carry %b"}, 
+                alu_run, alu_done, o_alu_stall_dec, alu_op, 
+                f_first, f_cur, f_last, reg_dest, c_res1, c_res2, p_src1, p_src2, c_carry);
 
     // $display("-------S- SRC1 %b %h | ~SRC1 %b %h | PC %b | RES1 %b %h | CC %b", 
     //          p_src1, p_src1, ~p_src1, ~p_src1, p_carry, 
@@ -617,12 +636,17 @@ always @(posedge i_clk) begin
         `ALU_REG_ST: ST[c_res1] <= alu_op==`ALU_OP_SET_BIT?1:0;
         default: $display("#### ALU_SAVE invalid register %0d for op %0d", reg_dest, alu_op);
         endcase
+      `ALU_OP_TEST_EQ,
+      `ALU_OP_TEST_NEQ,
       `ALU_OP_JMP_REL3,
       `ALU_OP_JMP_REL4,
       `ALU_OP_JMP_ABS5: begin end // nothing to save, handled by PC management below      
       default: $display("#### ALU_SAVE UNHANDLED OP %0d", alu_op);
     endcase 
 
+    /*
+     * in case of exch, we need to update src2 to finish the exchange
+     */
     case (alu_op)
       `ALU_OP_EXCH: // 2nd assign, with src2
           case (reg_src2)
@@ -639,11 +663,14 @@ always @(posedge i_clk) begin
     endcase
   end
 
-
-
+  /*
+   * update carry
+   */
   if (do_alu_save) begin
     case (alu_op)
     `ALU_OP_2CMPL: CARRY <= !is_zero;
+    `ALU_OP_TEST_EQ,
+    `ALU_OP_TEST_NEQ: CARRY <= c_carry;
     endcase
   end
 
@@ -670,18 +697,22 @@ wire [19:0] next_pc;
 wire [19:0] goyes_off;
 wire [19:0] goyes_pc;
 wire [0:0]  update_pc;
+wire [0:0]  uncond_jmp;
 wire [0:0]  pop_pc;
+wire [0:0]  reload_pc;
 wire [0:0]  push_pc;
 
 assign next_pc   = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
 assign goyes_off = {{12{i_imm_value[3]}}, i_imm_value, jump_off[3:0]};
 assign goyes_pc  = jump_bse + goyes_off;
 
-assign update_pc = !o_alu_stall_dec || is_alu_op_jump;
-assign pop_pc    = i_pop && i_ins_rtn && 
-                   ((!i_ins_test_go) ||
-                    (i_ins_test_go && CARRY));
-assign push_pc   = update_pc && i_push && alu_finish;
+assign update_pc  = !o_alu_stall_dec || is_alu_op_jump;
+assign uncond_jmp = is_alu_op_jump && alu_done;
+assign pop_pc     = i_pop && i_ins_rtn && 
+                    ((!i_ins_test_go) ||
+                     (i_ins_test_go && c_carry));
+assign reload_pc  = uncond_jmp || pop_pc;
+assign push_pc    = update_pc && i_push && alu_finish;
 
 always @(posedge i_clk) begin
   if (i_reset)
@@ -712,7 +743,7 @@ always @(posedge i_clk) begin
                 !o_alu_stall_dec,  next_pc, alu_done, alu_finish, 
                 is_alu_op_jump, i_ins_rtn, i_push, 
                 i_imm_value, jump_bse, goyes_off, goyes_pc);
-      if (is_alu_op_jump && alu_done) begin
+      if (reload_pc) begin
         $display(".---------------------------------.");
         $display("| SHOULD TELL THE BUS CONTROLLER  |");
         $display("| TO LOAD PC INTO MODULES' PC REG |");
@@ -724,8 +755,9 @@ always @(posedge i_clk) begin
       PC <= pop_pc ? RSTK[rstk_ptr-1] : next_pc;
     end
 
-    $display("pop %b && rtn %b && ((!go %b) || (go %b && c %b))", 
-             i_pop, i_ins_rtn, !i_ins_test_go, i_ins_test_go, CARRY);
+
+    // $display("pop %b && rtn %b && ((!go %b) || (go %b && c %b))", 
+    //          i_pop, i_ins_rtn, !i_ins_test_go, i_ins_test_go, c_carry);
     if (pop_pc) begin
       $display("POP RSTK[%0d] to PC %5h", rstk_ptr-1, RSTK[rstk_ptr - 1]);
       RSTK[rstk_ptr - 1] <= 0;

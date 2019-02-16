@@ -286,14 +286,14 @@ always @(posedge i_clk) begin
       * x first nibble
       */
     if (block_jump_test) begin
-      $display("BLOCK JUMP_TEST ON %h", i_nibble);
-        o_pop            <= i_nibble == 0;
-        o_alu_no_stall   <= 1;
-        o_alu_debug      <= 1;
-        o_ins_test_go    <= 1;
-        o_imm_value      <= i_nibble;
-        block_jump_test2 <= 1;
-        block_jump_test  <= 0;
+      // $display("BLOCK JUMP_TEST ON %h", i_nibble);
+      o_pop            <= i_nibble == 0;
+      o_alu_no_stall   <= 1;
+      // o_alu_debug      <= 1;
+      o_ins_test_go    <= 1;
+      o_imm_value      <= i_nibble;
+      block_jump_test2 <= 1;
+      block_jump_test  <= 0;
     end else begin
       // assign block regs
       case (i_nibble) 
@@ -350,7 +350,7 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_jump_test2) begin
-    $display("BLOCK_JUMP_TEST_2 %h | pop %b | pop-nxt %b", i_nibble, o_pop, (i_nibble == 0) && o_pop);
+    // $display("BLOCK_JUMP_TEST_2 %h | pop %b | pop-nxt %b", i_nibble, o_pop, (i_nibble == 0) && o_pop);
     o_alu_op  <= `ALU_OP_TEST_GO;
     o_imm_value <= i_nibble;
     o_ins_rtn <= (i_nibble == 0) && o_pop;

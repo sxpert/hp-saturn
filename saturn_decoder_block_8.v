@@ -91,7 +91,7 @@
     o_fields_table <= `FT_TABLE_f;
     o_ins_alu_op <= 1;
     o_alu_op <= i_nibble[2]?`ALU_OP_TEST_NEQ:`ALU_OP_TEST_EQ;
-    o_alu_debug <= 1;
+   // o_alu_debug <= 1;
     o_mem_pos <= 0;
     mem_load_max <= 1;
     o_ins_decoded <= 1;
