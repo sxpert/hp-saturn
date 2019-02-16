@@ -1,7 +1,9 @@
 
 
   if (do_block_8x) begin
+`ifdef SIM
     $display("block_8x %h | op %d", i_nibble, o_alu_op);
+`endif
     case (i_nibble)
       4'h0:       // 
         block_80x  <= 1;
@@ -34,7 +36,9 @@
         `endif   
       end
       default: begin
+`ifdef SIM
         $display("block_8x %h error", i_nibble);
+`endif
         o_dec_error    <= 1;
       end
     endcase
@@ -42,7 +46,9 @@
   end
 
   if (do_block_80x) begin
+`ifdef SIM
     $display("block_80x %h | op %d", i_nibble, o_alu_op);
+`endif
     case (i_nibble)
       4'h5: begin // CONFIG
         next_nibble   <= 0;
@@ -54,7 +60,9 @@
       end
       4'hC: block_80Cx <= 1;
       default: begin
+`ifdef SIM
         $display("block_80x %h error", i_nibble);
+`endif
         o_dec_error    <= 1;
       end
     endcase

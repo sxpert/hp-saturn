@@ -467,7 +467,9 @@ always @(posedge i_clk) begin
         block_13x <= 1;
       4'h4, 4'h5: // DAT[01]=[AC] <field>
       begin
+`ifdef SIM
         $display("block_1x %h | use table <= %b", i_nibble, i_nibble[0]);
+`endif
         block_14x_15xx <= 1;
         use_fields_tbl <= i_nibble[0];
       end
@@ -520,9 +522,11 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_14x_15xx) begin
+`ifdef SIM
     $display("block_14x_15xx nibble %h | use_tbl %b", i_nibble, use_fields_tbl);
-    // o_alu_debug     <= 1;
     $display("fields_table %d",i_nibble[3]?`FT_TABLE_value:`FT_TABLE_a);
+`endif
+    // o_alu_debug     <= 1;
     o_fields_table  <= i_nibble[3]?`FT_TABLE_value:`FT_TABLE_a;
     o_alu_op        <= `ALU_OP_COPY;
     go_fields_table <= use_fields_tbl;
@@ -537,7 +541,9 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_15xx) begin
+`ifdef SIM
     $display("block_15xx %h", i_nibble);
+`endif
     o_alu_debug   <= 1;
     o_ins_alu_op  <= 1;
     o_ins_decoded <= 1;
@@ -586,7 +592,9 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_Aax) begin
+`ifdef SIM
     $display("block_Aax %h", i_nibble);
+`endif
     o_dec_error <= 1;
   end
 
@@ -602,7 +610,9 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_Cx) begin
+`ifdef SIM
     $display("block_Cx %h", i_nibble);
+`endif
     o_fields_table  <= `FT_TABLE_f;
     o_ins_alu_op    <= 1;
     o_alu_op        <= (i_nibble[3] && i_nibble[2])?`ALU_OP_DEC:`ALU_OP_ADD;
@@ -616,7 +626,9 @@ always @(posedge i_clk) begin
   end    
 
   if (do_block_Dx) begin
+`ifdef SIM
     $display("block_Dx %h", i_nibble);
+`endif
     o_fields_table  <= `FT_TABLE_f;
     o_ins_alu_op    <= 1;
     o_alu_op        <= (i_nibble[3] && i_nibble[2])?`ALU_OP_EXCH:`ALU_OP_COPY;
@@ -640,7 +652,9 @@ always @(posedge i_clk) begin
         o_ins_decoded  <= 1;      
       end
       default: begin
+`ifdef SIM
         $display("block_Fx %h error", i_nibble);
+`endif
         o_dec_error    <= 1;
       end
     endcase
