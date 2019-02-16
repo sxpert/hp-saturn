@@ -173,6 +173,12 @@ always @(posedge i_clk) begin
     o_reg_src2        <= `ALU_REG_IMM;
   end
 
+  if (do_block_8Ax) begin
+    o_reg_dest <= 0;
+    o_reg_src1 <= i_nibble[3]?reg_ABCD:reg_BCAC;
+    o_reg_src2 <= i_nibble[3]?`ALU_REG_ZERO:reg_ABCD;
+  end
+
   if (do_block_Abx || do_block_Dx) begin
     case ({i_nibble[3],i_nibble[2]})
     2'b00: begin

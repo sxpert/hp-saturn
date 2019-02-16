@@ -111,7 +111,8 @@ saturn_decoder	m_decoder (
   .o_carry_val    (carry_val),
   .o_ins_set_mode (ins_set_mode),
 	.o_mode_dec     (mode_dec),
-  .o_ins_alu_op		(ins_alu_op)
+  .o_ins_alu_op		(ins_alu_op),
+	.o_ins_test_go  (ins_test_go)
 );
 
 wire [0:0]      inc_pc;
@@ -135,13 +136,14 @@ wire [4:0]			reg_dest;
 wire [4:0]			reg_src1;
 wire [4:0]			reg_src2;
 
-wire            ins_rtn;
-wire            set_xm;
-wire            set_carry;
-wire            carry_val;
-wire            ins_set_mode;
-wire		        mode_dec;
-wire						ins_alu_op;
+wire [0:0]      ins_rtn;
+wire [0:0]      set_xm;
+wire [0:0]      set_carry;
+wire [0:0]      carry_val;
+wire [0:0]      ins_set_mode;
+wire [0:0]      mode_dec;
+wire [0:0]      ins_alu_op;
+wire [0:0]      ins_test_go;
 
 
 saturn_alu		m_alu (
@@ -171,6 +173,7 @@ saturn_alu		m_alu (
 	.i_reg_src2			 (reg_src2),
 
   .i_ins_alu_op		 (ins_alu_op),
+	.i_ins_test_go	 (ins_test_go),
 	.i_ins_set_mode	 (ins_set_mode),
 	.i_ins_rtn			 (ins_rtn),
 

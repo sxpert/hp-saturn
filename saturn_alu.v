@@ -10,7 +10,7 @@
 
 `define ALU_DEBUG       1'b0
 `define ALU_DEBUG_DUMP  1'b1     
-`define ALU_DEBUG_JUMP  1'b0
+`define ALU_DEBUG_JUMP  1'b1
 `define ALU_DEBUG_PC    1'b0  
 
 module saturn_alu (
@@ -40,6 +40,7 @@ module saturn_alu (
     i_reg_src2,
 
     i_ins_alu_op,
+    i_ins_test_go,
     i_ins_set_mode,
     i_ins_rtn,
 
@@ -87,6 +88,7 @@ input   wire [4:0]  i_reg_src1;
 input   wire [4:0]  i_reg_src2;
 
 input   wire [0:0]  i_ins_alu_op;
+input   wire [0:0]  i_ins_test_go;
 input   wire [0:0]  i_ins_set_mode; 
 input   wire [0:0]  i_ins_rtn;
 
@@ -189,35 +191,35 @@ initial begin
   // processor registers
   PC              = 0;
 
-  D0              = 0;
-  D1              = 0;
+  // D0              = 0;
+  // D1              = 0;
 
-  A               = 0;
-  B               = 0;
-  C               = 0;
-  D               = 0;
+  // A               = 0;
+  // B               = 0;
+  // C               = 0;
+  // D               = 0;
   
-  R0              = 0;
-  R1              = 0;
-  R2              = 0;
-  R3              = 0;
-  R4              = 0;
+  // R0              = 0;
+  // R1              = 0;
+  // R2              = 0;
+  // R3              = 0;
+  // R4              = 0;
 
-  CARRY           = 0;
-  DEC             = 0;
-  P               = 0;
-  HST             = 0;
-  ST              = 0;
+  // CARRY           = 0;
+  // DEC             = 0;
+  // P               = 0;
+  // HST             = 0;
+  // ST              = 0;
 
   rstk_ptr        = 0;
-  RSTK[0]         = 0;
-  RSTK[1]         = 0;
-  RSTK[2]         = 0;
-  RSTK[3]         = 0;
-  RSTK[4]         = 0;
-  RSTK[5]         = 0;
-  RSTK[6]         = 0;
-  RSTK[7]         = 0;
+  // RSTK[0]         = 0;
+  // RSTK[1]         = 0;
+  // RSTK[2]         = 0;
+  // RSTK[3]         = 0;
+  // RSTK[4]         = 0;
+  // RSTK[5]         = 0;
+  // RSTK[6]         = 0;
+  // RSTK[7]         = 0;
 end
 
 `ifdef SIM
@@ -240,6 +242,13 @@ assign do_alu_calc = !i_reset && i_en_alu_calc && alu_run;
 assign do_alu_save = !i_reset && i_en_alu_save && alu_run;
 assign do_alu_pc   = !i_reset && i_en_alu_save;
 assign do_alu_mode = !i_reset && i_en_alu_save && i_ins_set_mode;
+
+wire do_go_init;
+wire do_go_prep;
+wire do_go_calc;
+
+assign do_go_init  = !i_reset && i_en_alu_save && i_ins_test_go;
+assign do_go_prep  = !i_reset && i_en_alu_prep && i_ins_test_go;
 
 // the decoder may request the ALU to not stall it
 
@@ -387,15 +396,15 @@ always @(posedge i_clk) begin
   end
 
 
-  if (do_alu_save && alu_done)
-    case (alu_op)
-      `ALU_OP_TEST_EQ,
-      `ALU_OP_TEST_NEQ:
-        begin
-          $display("#### UNBLOCK THE DECODER");
-          alu_go_test <= 1;
-        end
-    endcase
+  // if (do_alu_save && alu_done)
+  //   case (alu_op)
+  //     `ALU_OP_TEST_EQ,
+  //     `ALU_OP_TEST_NEQ:
+  //       begin
+  //         $display("#### UNBLOCK THE DECODER");
+  //         alu_go_test <= 1;
+  //       end
+  //   endcase
 
 end
 
@@ -405,8 +414,8 @@ always @(posedge i_clk) begin
   if (do_alu_prep) begin
     if (alu_debug) begin
       `ifdef SIM
-      $display("ALU_PREP 1: run %b | done %b | stall %b | op %d | f %h | c %h | l %h", 
-               alu_run, alu_done, o_alu_stall_dec, alu_op, f_first, f_cur, f_last);
+      $display("ALU_PREP 1: run %b | done %b | stall %b | op %d | f %h | c %h | l %h | imm %h", 
+               alu_run, alu_done, o_alu_stall_dec, alu_op, f_first, f_cur, f_last, i_imm_value);
       `endif
     end
 
@@ -549,26 +558,40 @@ always @(posedge i_clk) begin
     //          (~p_src1) + p_carry, (~p_src1) + p_carry, 
     //          (~p_src1) == 4'hf );
   end
+
+  if (do_go_init) begin
+    $display("GO_INIT  3: imm %h", i_imm_value);
+    jump_off <= { {16{1'b0}}, i_imm_value};
+  end
 end
 
 always @(posedge i_clk) begin
 
-  if (do_alu_save) begin
-    `ifdef ALU_DEBUG
-    if (alu_debug)
-      $display({"ALU_SAVE 3: run %b | done %b | stall %b | op %d | f %h | c %h | l %h |",
-                " dest %d | cres1 %h | cres2 %h | psrc1 %h | psrc2 %h | c_carry %b"}, 
-                alu_run, alu_done, o_alu_stall_dec, alu_op, 
-                f_first, f_cur, f_last, reg_dest, c_res1, c_res2, p_src1, p_src2, c_carry);
-    if (alu_debug_jump)
-      $display( "ALU_JUMP 3: run %b | done %b | stall %b | op %d | f %h | c %h | l %h | bse %5h | jof %5h | jpc %5h | fin %b",
-                alu_run, alu_done, o_alu_stall_dec, alu_op, f_first, f_cur, f_last, jump_bse, jump_off, jump_pc, alu_finish);
+  if (do_alu_save || do_go_prep) begin
+    if (alu_debug_jump) begin
+    `ifdef SIM
+      $display({"ALU_JUMP 3: run %b | done %b | stall %b | op %d | f %h | ",
+                "c %h | l %h | bse %5h | jof %5h | jpc %5h | fin %b"},
+                alu_run, alu_done, o_alu_stall_dec, alu_op, f_first, f_cur, 
+                f_last, jump_bse, jump_off, jump_pc, alu_finish);
     `endif
+    end
+  end
+
+  if (do_alu_save) begin
+    `ifdef SIM
+    if (alu_debug) begin
+      // $display({"ALU_SAVE 3: run %b | done %b | stall %b | op %d | f %h | c %h | l %h |",
+      //           " dest %d | cres1 %h | cres2 %h | psrc1 %h | psrc2 %h | c_carry %b"}, 
+      //           alu_run, alu_done, o_alu_stall_dec, alu_op, 
+      //           f_first, f_cur, f_last, reg_dest, c_res1, c_res2, p_src1, p_src2, c_carry);
 
     // $display("-------S- SRC1 %b %h | ~SRC1 %b %h | PC %b | RES1 %b %h | CC %b", 
     //          p_src1, p_src1, ~p_src1, ~p_src1, p_carry, 
     //          (~p_src1) + p_carry, (~p_src1) + p_carry, 
     //          (~p_src1) == 4'hf );
+    end
+    `endif
 
     case (alu_op)
       `ALU_OP_ZERO,
@@ -644,11 +667,20 @@ end
  ****************************************************************************/
 
 wire [19:0] next_pc;
+wire [19:0] goyes_off;
+wire [19:0] goyes_pc;
 wire [0:0]  update_pc;
+wire [0:0]  pop_pc;
 wire [0:0]  push_pc;
 
 assign next_pc   = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
+assign goyes_off = {{12{i_imm_value[3]}}, i_imm_value, jump_off[3:0]};
+assign goyes_pc  = jump_bse + goyes_off;
+
 assign update_pc = !o_alu_stall_dec || is_alu_op_jump;
+assign pop_pc    = i_pop && i_ins_rtn && 
+                   ((!i_ins_test_go) ||
+                    (i_ins_test_go && CARRY));
 assign push_pc   = update_pc && i_push && alu_finish;
 
 always @(posedge i_clk) begin
@@ -674,8 +706,12 @@ always @(posedge i_clk) begin
   if (do_alu_pc) begin
 `ifdef SIM
     if (alu_debug_pc)
-      $display("ALU_PC   3: !stl %b | nx %5h | done %b | fin %b | jmp %b | ins_rtn %b | push %b",
-               !o_alu_stall_dec,  next_pc, alu_done, alu_finish, is_alu_op_jump, i_ins_rtn, i_push);
+      $display({"ALU_PC   3: !stl %b | nx %5h | done %b | fin %b | ",
+                "jmp %b | ins_rtn %b | push %b | ",
+                "imm %h | j_bs %h | go_off %h | go_pc %h"},
+                !o_alu_stall_dec,  next_pc, alu_done, alu_finish, 
+                is_alu_op_jump, i_ins_rtn, i_push, 
+                i_imm_value, jump_bse, goyes_off, goyes_pc);
       if (is_alu_op_jump && alu_done) begin
         $display(".---------------------------------.");
         $display("| SHOULD TELL THE BUS CONTROLLER  |");
@@ -685,10 +721,13 @@ always @(posedge i_clk) begin
 `endif
     // this may do wierd things with C=RSTK...
     if (update_pc) begin
-      PC <= i_pop ? RSTK[rstk_ptr-1] : next_pc;
+      PC <= pop_pc ? RSTK[rstk_ptr-1] : next_pc;
     end
 
-    if (i_pop) begin
+    $display("pop %b && rtn %b && ((!go %b) || (go %b && c %b))", 
+             i_pop, i_ins_rtn, !i_ins_test_go, i_ins_test_go, CARRY);
+    if (pop_pc) begin
+      $display("POP RSTK[%0d] to PC %5h", rstk_ptr-1, RSTK[rstk_ptr - 1]);
       RSTK[rstk_ptr - 1] <= 0;
       rstk_ptr <= rstk_ptr - 1;
     end

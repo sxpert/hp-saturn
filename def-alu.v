@@ -41,6 +41,8 @@
 `define ALU_OP_JMP_ABS5 20
 `define ALU_OP_CLR_MASK 21
 
+`define ALU_OP_TEST_GO  31
+
 
 // registers
 

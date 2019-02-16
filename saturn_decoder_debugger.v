@@ -60,6 +60,7 @@ always @(posedge i_clk) begin
       // display decoded instruction
       if (o_ins_rtn) begin
         $write("RT%s", o_en_intr?"I":"N");
+        if (o_alu_op == `ALU_OP_TEST_GO) $write("YES");
         if (o_set_xm) $write("SXM");
         if (o_set_carry) $write("%sC", o_carry_val?"S":"C");
       end
@@ -67,7 +68,12 @@ always @(posedge i_clk) begin
         $write("SET%s", o_mode_dec?"DEC":"HEX");
       end
       if (o_ins_alu_op) begin
-        
+
+        case (o_alu_op)
+          `ALU_OP_TEST_EQ,
+          `ALU_OP_TEST_NEQ: $write("?");
+        endcase
+
         // reg dest...
         case (o_alu_op)
           `ALU_OP_JMP_REL3:  $write("%s", o_push?"GOSUB":"GOTO"); 
@@ -87,7 +93,9 @@ always @(posedge i_clk) begin
                   end
                 endcase
               default:         $write("[VLR_MASK dest:%0d]", o_reg_dest);
-            endcase  
+            endcase 
+          `ALU_OP_TEST_EQ,
+          `ALU_OP_TEST_NEQ: begin end 
           default:
             case (o_reg_dest)
             `ALU_REG_A:      $write("A");
@@ -120,15 +128,18 @@ always @(posedge i_clk) begin
         `ALU_OP_COPY,
         `ALU_OP_AND,
         `ALU_OP_OR,
+        `ALU_OP_RST_BIT,
+        `ALU_OP_SET_BIT,
         `ALU_OP_INC,
         `ALU_OP_DEC,
         `ALU_OP_ADD,
-        `ALU_OP_SUB,
-        `ALU_OP_RST_BIT,
-        `ALU_OP_SET_BIT:  if (!is_lc_hex) 
-                            $write("=");
+        `ALU_OP_SUB:
+          if (!is_lc_hex) 
+            $write("=");
         `ALU_OP_2CMPL:    $write("=-");
         `ALU_OP_EXCH,
+        `ALU_OP_TEST_EQ,
+        `ALU_OP_TEST_NEQ,
         `ALU_OP_JMP_REL3,
         `ALU_OP_JMP_REL4,
         `ALU_OP_JMP_ABS5,
@@ -141,11 +152,13 @@ always @(posedge i_clk) begin
         `ALU_OP_COPY,
         `ALU_OP_AND,
         `ALU_OP_OR,
+        `ALU_OP_2CMPL,
         `ALU_OP_INC,
         `ALU_OP_DEC,
         `ALU_OP_ADD,
         `ALU_OP_SUB,
-        `ALU_OP_2CMPL:
+        `ALU_OP_TEST_EQ,
+        `ALU_OP_TEST_NEQ:
           case (o_reg_src1)
           `ALU_REG_A:    $write("A");
           `ALU_REG_B:    $write("B");
@@ -175,7 +188,7 @@ always @(posedge i_clk) begin
         //   $write("S");
 
 
-        // SRC2
+        // operation 2
         case (o_alu_op)
         `ALU_OP_AND,
         `ALU_OP_OR,
@@ -188,13 +201,19 @@ always @(posedge i_clk) begin
           `ALU_OP_SUB:  $write("-");
           default: $write("[op:%0d]", o_alu_op);
           endcase
+        `ALU_OP_TEST_EQ: $write("=");
+        `ALU_OP_TEST_NEQ: $write("#");
+        default: begin end
         endcase
           
+        // source 2
         case (o_alu_op)
         `ALU_OP_ZERO,
         `ALU_OP_COPY: begin end
         `ALU_OP_EXCH,
-        `ALU_OP_ADD:
+        `ALU_OP_ADD,
+        `ALU_OP_TEST_EQ,
+        `ALU_OP_TEST_NEQ:
           case (o_reg_src2)
           `ALU_REG_A:    $write("A");
           `ALU_REG_B:    $write("B");

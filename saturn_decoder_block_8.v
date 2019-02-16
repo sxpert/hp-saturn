@@ -15,7 +15,7 @@
         o_unimplemented <= 0;
         `endif
       end
-      4'ha: block_8Ax <= 1;
+      4'hA: block_8Ax <= 1;
       4'hC, 4'hD, 
       4'hE, 4'hF: // GOLONG, GOVLNG, GOSUBL, GOSBVL
       begin
@@ -88,6 +88,7 @@
   end
 
   if (do_block_8Ax) begin
+    o_fields_table <= `FT_TABLE_f;
     o_ins_alu_op <= 1;
     o_alu_op <= i_nibble[2]?`ALU_OP_TEST_NEQ:`ALU_OP_TEST_EQ;
     o_alu_debug <= 1;
@@ -96,5 +97,8 @@
     o_ins_decoded <= 1;
     next_nibble <= 0;
     block_jump_test <= 1;
+    
+    // lauch the ALU into test_go mode
+    o_ins_test_go    <= 1;
     block_8Ax <= 0;
   end
