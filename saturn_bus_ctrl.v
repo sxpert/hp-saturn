@@ -199,7 +199,7 @@ always @(posedge i_clk) begin
       end
     endcase
     send_addr <= 0;
-    o_stalled_by_bus = 0;
+    o_stalled_by_bus <= 0;
   end
 
   /*

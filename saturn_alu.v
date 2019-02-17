@@ -319,7 +319,7 @@ always @(posedge i_clk) begin
 `ifdef SIM
 //   if (i_stalled && i_en_alu_dump) 
 //     $display("ALU STALLED");
-// `endif
+`endif
 
 `ifdef ALU_DEBUG_DBG
   $display("iad %b | AD %b | ad %b | ADD %b | add %b | ADJ %b | adj %b | ADP %b | adp %b",
@@ -717,13 +717,106 @@ always @(posedge i_clk) begin
 
 end
 
+/******************************************************************************
+ *
+ * facility to detect that we just came out of reset 
+ *
+ *****************************************************************************/
+
+reg  [0:0]  just_reset;
+
+always @(posedge i_clk) begin
+
+  if (i_reset)
+    just_reset     <= 1;
+
+  if (just_reset)
+    just_reset    <= 0;
+
+end
+
+/******************************************************************************
+ *
+ * WRITE TO MEMORY
+ *
+ *
+ * Request the D0 or D1 pointers to be loaded to other 
+ * modules through the bus
+ *
+ *
+ *
+ *
+ *****************************************************************************/
+
+reg  [0:0]  write_done;
+reg  [1:0]  extra_cycles;
+
+wire [0:0]  setup_load_dp;
+wire [0:0]  no_extra_cycles;
+wire [1:0]  cycles_to_go;
+
+assign setup_load_dp   = do_alu_init && is_mem_xfer && !write_done;
+assign no_extra_cycles = (extra_cycles == 0);
+assign cycles_to_go    = extra_cycles - 1;
+
+always @(posedge i_clk) begin
+
+  // reset stuff
+  if (i_reset) begin
+    extra_cycles   <= 0;
+    o_bus_load_dp  <= 0;
+    o_bus_write_dp <= 0;
+  end
+
+  // just reset is managed below
+  if (just_reset)
+    o_bus_read_pc <= 1;
+
+  // setup the order to load DP in time
+  if (setup_load_dp) begin
+    o_bus_load_dp <= 1;
+  end
+
+  // tell the bus to start the write cycle
+  // this will take 1 cycle because we need to send the DP_WRITE command
+  if (do_busclean && alu_run && !write_done && is_mem_write && !o_bus_write_dp)
+    o_bus_write_dp      <= 1;
+  
+  // writing takes 2 more cycles :
+  // - one used up above
+  // - one used down below to restore the PC_READ command
+  if (do_alu_save && alu_finish && is_mem_write && (extra_cycles == 0)) begin
+    extra_cycles <= 2;
+    write_done   <= 1;
+  end
+
+  // if we're on cycle the last of the extra cycles, send the PC_READ command
+  // so as to allow reading the instructions streams again to the decoder
+  if (i_en_alu_calc && !no_extra_cycles) begin
+    extra_cycles   <= cycles_to_go;
+    if (cycles_to_go == 1) begin
+      o_bus_write_dp <= 0;
+      o_bus_read_pc <= 1;
+    end
+  end
+
+  // once the PC_READ command has been sent, remove the stall on the decoder
+  if (i_en_alu_dump && no_extra_cycles && o_bus_read_pc) begin
+    o_bus_read_pc   <= 0;
+    write_done      <= 0;
+  end
+
+  if (do_busclean && o_bus_load_dp)
+    o_bus_load_dp       <= 0;
+
+end
+
 /*****************************************************************************
  *
  * Handles all changes to PC 
  *
  ****************************************************************************/
 
-reg  [0:0]  just_reset;
 wire [19:0] next_pc;
 wire [19:0] goyes_off;
 wire [19:0] goyes_pc;
@@ -733,10 +826,6 @@ wire [0:0]  pop_pc;
 wire [0:0]  reload_pc;
 wire [0:0]  push_pc;
 
-reg  [1:0]  extra_cycles;
-wire [0:0]  no_extra_cycles;
-wire [1:0]  cycles_to_go;
-reg  [0:0]  write_done;
  
 assign next_pc   = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
 assign goyes_off = {{12{i_imm_value[3]}}, i_imm_value, jump_off[3:0]};
@@ -750,93 +839,20 @@ assign pop_pc     = i_pop && i_ins_rtn &&
 assign reload_pc  = uncond_jmp || pop_pc || just_reset;
 assign push_pc    = update_pc && i_push && alu_finish;
 
-assign no_extra_cycles = (extra_cycles == 0);
-assign cycles_to_go    = extra_cycles - 1;
-
 always @(posedge i_clk) begin
+
   if (i_reset) begin
     PC             <= ~0;
-    just_reset     <= 1;
-    extra_cycles   <= 0;
     o_bus_load_pc  <= 0;
-    o_bus_load_dp  <= 0;
-    o_bus_write_dp <= 0;
   end
 
-
-  /*
-   * some debug information
-   */
-
-`ifdef SIM
-  if (do_alu_shpc && alu_debug_pc) begin
-    if (!o_alu_stall_dec)
-      $display("ALU_SHPC 0: pc %5h", PC);
-    if (o_alu_stall_dec)
-      $display("ALU_SHPC 0: STALL");
-  end
-`endif
-
-  /*
-   *
-   * Request the D0 or D1 pointers to be loaded to other 
-   * modules through the bus
-   *
-   */
-
-
-  // $display("[!no_ec %b] || ( [run %b] && ( [!nstll %b] || [fin %b] || [test %b] ))",
-  //           !no_extra_cycles, alu_run, !i_alu_no_stall, alu_finish, alu_go_test);
-
-
-  if (do_alu_init) begin  
-    if (is_mem_xfer && !write_done) begin
-`ifdef SIM
-      $display("ALU_XFER 3: read %b | write %b | mem_reg DAT%b",
-               is_mem_read, is_mem_write, mem_reg[0]);
-      // $display(".------------------------------------.");
-      // $display("| SHOULD TELL THE BUS CONTROLLER TO  |");
-      // $display("| LOAD D0 OR D1 INTO MODULES' DP REG |");
-      // $display("`------------------------------------´");
-`endif
-      // DO SOMETHING TO GET THE BUS CONTROLLER TO SEND OUT 
-      // THE CONTENTS OF D0 OR D1 AS THE DP 
-      case (mem_reg[0])
-      0: o_bus_address <= D0;
-      1: o_bus_address <= D1;
-      endcase
-      o_bus_load_dp <= 1;
-    end
-  end
-
-  if (do_busclean && alu_run && !write_done)
-    if (is_mem_write && !o_bus_write_dp) begin
-      // $display("ALUWRITE %0d: [%d] setting up write", `PH_ALU_DUMP, i_cycle_ctr);
-      o_bus_write_dp      <= 1;
-    end
-  
-  // writing needs one more cycle as the DP_WRITE command 
-  // needs to be send
-  if (do_alu_save && alu_finish && is_mem_write && (extra_cycles == 0)) begin
-    // $display("ALUWRITE %0d: [%d] 2 EXTRA CYCLES", `PH_ALU_SAVE, i_cycle_ctr);
-    extra_cycles <= 2;
-    write_done   <= 1;
-  end
-
-  if (i_en_alu_calc && !no_extra_cycles) begin
-    // $display("ALUWRITE %0d: [%d] %0d CYCLES TO GO", `PH_ALU_SAVE, i_cycle_ctr, cycles_to_go);
-    extra_cycles   <= cycles_to_go;
-    if (cycles_to_go == 1) begin
-      o_bus_write_dp <= 0;
-      o_bus_read_pc <= 1;
-    end
-  end
-
-  if (i_en_alu_dump && no_extra_cycles && o_bus_read_pc) begin
-    // $display("ALUWRITE %0d: [%d] RELEASE DECODER", `PH_ALU_DUMP, i_cycle_ctr);
-    o_bus_read_pc   <= 0;
-    write_done      <= 0;
-  end
+  // necessary for the write to memory above
+  // otherwise we get a conflict on o_bus_address
+  if (setup_load_dp) 
+    case (mem_reg[0])
+    0: o_bus_address <= D0;
+    1: o_bus_address <= D1;
+    endcase
 
   /**
    *
@@ -863,14 +879,6 @@ always @(posedge i_clk) begin
     //   $display("`---------------------------------´");
     // end
 `endif
-
-    // if we just came out of reset, simulate a long jump to 0
-    if (just_reset) begin
-      // $display("ALU_RSET 3: simulating GOVLNG to PC");
-      // cancel this signal for good once reset is gone
-      just_reset    <= 0;
-      o_bus_read_pc <= 1;
-    end
 
     // this may do wierd things with C=RSTK...
     if (update_pc) begin
@@ -904,11 +912,8 @@ always @(posedge i_clk) begin
    *
    */
 
-  if (do_busclean && (o_bus_load_pc || o_bus_load_dp)) begin
-    $display("BUSCLEAN %0d: cleaning the various bus control bits", `PH_ALU_DUMP);
+  if (do_busclean && o_bus_load_pc)
     o_bus_load_pc       <= 0;
-    o_bus_load_dp       <= 0;
-  end
 
 end
 
