@@ -171,16 +171,17 @@ reg  [19:0]      PC;
 reg  [19:0]      D0;
 reg  [19:0]      D1;
 
-reg  [63:0]      A;
-reg  [63:0]      B;
-reg  [63:0]      C;
-reg  [63:0]      D;
+//reg  [63:0]      A;
+reg  [3:0]       A[0:15];
+reg  [3:0]       B[0:15];
+reg  [3:0]       C[0:15];
+reg  [3:0]       D[0:15];
 
-reg  [63:0]      R0;
-reg  [63:0]      R1;
-reg  [63:0]      R2;
-reg  [63:0]      R3;
-reg  [63:0]      R4;
+reg  [3:0]      R0[0:15];
+reg  [3:0]      R1[0:15];
+reg  [3:0]      R2[0:15];
+reg  [3:0]      R3[0:15];
+reg  [3:0]      R4[0:15];
 
 reg  [0:0]       CARRY;
 reg  [0:0]       DEC;
@@ -320,6 +321,10 @@ assign is_alu_op_test = ((alu_op == `ALU_OP_TEST_EQ) ||
  *
  ****************************************************************************/
 
+`ifdef SIM
+reg [4:0] alu_dbg_ctr;
+`endif
+
 always @(posedge i_clk) begin
 
 `ifdef SIM
@@ -345,12 +350,43 @@ always @(posedge i_clk) begin
              PC, CARRY, DEC?"DEC":"HEX", rstk_ptr, RSTK[7]);
     $display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", 
              P, HST, ST, RSTK[6]);
-    $display("A:  %h    R0:  %h   RSTK5: %5h", A, R0, RSTK[5]);
-    $display("B:  %h    R1:  %h   RSTK4: %5h", B, R1, RSTK[4]);
-    $display("C:  %h    R2:  %h   RSTK3: %5h", C, R2, RSTK[3]);
-    $display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
-    $display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", 
-              D0, D1, R4, RSTK[1]);
+
+    $write("A:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", A[alu_dbg_ctr]);
+    $write("    R0:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", R0[alu_dbg_ctr]);
+    $write("   RSTK5: %5h\n", RSTK[5]);
+
+    $write("B:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", B[alu_dbg_ctr]);
+    $write("    R1:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", R1[alu_dbg_ctr]);
+    $write("   RSTK4: %5h\n", RSTK[4]);
+
+    $write("C:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", C[alu_dbg_ctr]);
+    $write("    R2:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", R2[alu_dbg_ctr]);
+    $write("   RSTK3: %5h\n", RSTK[3]);
+
+    $write("D:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", D[alu_dbg_ctr]);
+    $write("    R3:  ");
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", R3[alu_dbg_ctr]);
+    $write("   RSTK2: %5h\n", RSTK[2]);
+
+    $write("D0: %h  D1: %h    R4:  ", D0, D1);
+    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
+      $write("%h", R4[alu_dbg_ctr]);
+    $write("   RSTK1: %5h\n", RSTK[1]);
     $display("         ADDR: %5h                            RSTK0: %5h", 
              o_bus_address, RSTK[0]);
   end
@@ -457,33 +493,38 @@ always @(posedge i_clk) begin
      * source 1
      */
     case (alu_op)
-    `ALU_OP_ZERO: begin end // no source required
-    `ALU_OP_COPY,
-    `ALU_OP_EXCH,
-    `ALU_OP_RST_BIT,
-    `ALU_OP_SET_BIT,
-    `ALU_OP_2CMPL,
-    `ALU_OP_ADD,
-    `ALU_OP_TEST_EQ,
-    `ALU_OP_TEST_NEQ,
-    `ALU_OP_JMP_REL3,
-    `ALU_OP_JMP_REL4,
-    `ALU_OP_JMP_ABS5,
-    `ALU_OP_CLR_MASK:
-      case (reg_src1)
-      `ALU_REG_A:    p_src1 <= A [f_cur*4+:4];
-      `ALU_REG_B:    p_src1 <= B [f_cur*4+:4];
-      `ALU_REG_C:    p_src1 <= C [f_cur*4+:4];
-      `ALU_REG_D:    p_src1 <= D [f_cur*4+:4];
-      `ALU_REG_D0:   p_src1 <= D0[f_cur*4+:4];
-      `ALU_REG_D1:   p_src1 <= D1[f_cur*4+:4];
-      `ALU_REG_P:    p_src1 <= P;
-      `ALU_REG_HST:  p_src1 <= HST;
-      `ALU_REG_IMM:  p_src1 <= i_imm_value;
-      `ALU_REG_ZERO: p_src1 <= 0;
-      default: $display("#### SRC_1 UNHANDLED REGISTER %0d", reg_src1);
-      endcase
-    default: $display("#### SRC_1 UNHANDLED OPERATION %0d", alu_op);
+      `ALU_OP_ZERO: begin end // no source required
+      `ALU_OP_COPY,
+      `ALU_OP_EXCH,
+      `ALU_OP_RST_BIT,
+      `ALU_OP_SET_BIT,
+      `ALU_OP_2CMPL,
+      `ALU_OP_ADD,
+      `ALU_OP_TEST_EQ,
+      `ALU_OP_TEST_NEQ,
+      `ALU_OP_JMP_REL3,
+      `ALU_OP_JMP_REL4,
+      `ALU_OP_JMP_ABS5,
+      `ALU_OP_CLR_MASK:
+        case (reg_src1)
+        `ALU_REG_A:    p_src1 <= A[f_cur];
+        `ALU_REG_B:    p_src1 <= B[f_cur];
+        `ALU_REG_C:    p_src1 <= C[f_cur];
+        `ALU_REG_D:    p_src1 <= D[f_cur];
+        `ALU_REG_R0:   p_src1 <= R0[f_cur];
+        `ALU_REG_R1:   p_src1 <= R1[f_cur];
+        `ALU_REG_R2:   p_src1 <= R2[f_cur];
+        `ALU_REG_R3:   p_src1 <= R3[f_cur];
+        `ALU_REG_R4:   p_src1 <= R4[f_cur];
+        `ALU_REG_D0:   p_src1 <= D0[f_cur*4+:4];
+        `ALU_REG_D1:   p_src1 <= D1[f_cur*4+:4];
+        `ALU_REG_P:    p_src1 <= P;
+        `ALU_REG_HST:  p_src1 <= HST;
+        `ALU_REG_IMM:  p_src1 <= i_imm_value;
+        `ALU_REG_ZERO: p_src1 <= 0;
+        default: $display("#### SRC_1 UNHANDLED REGISTER %0d", reg_src1);
+        endcase
+      default: $display("#### SRC_1 UNHANDLED OPERATION %0d", alu_op);
     endcase
 
 
@@ -505,10 +546,15 @@ always @(posedge i_clk) begin
       `ALU_OP_TEST_NEQ,
       `ALU_OP_CLR_MASK: begin
         case (reg_src2)
-        `ALU_REG_A:    p_src2 <= A [f_cur*4+:4];
-        `ALU_REG_B:    p_src2 <= B [f_cur*4+:4];
-        `ALU_REG_C:    p_src2 <= C [f_cur*4+:4];
-        `ALU_REG_D:    p_src2 <= D [f_cur*4+:4];
+        `ALU_REG_A:    p_src2 <= A[f_cur];
+        `ALU_REG_B:    p_src2 <= B[f_cur];
+        `ALU_REG_C:    p_src2 <= C[f_cur];
+        `ALU_REG_D:    p_src2 <= D[f_cur];
+        `ALU_REG_R0:   p_src2 <= R0[f_cur];
+        `ALU_REG_R1:   p_src2 <= R1[f_cur];
+        `ALU_REG_R2:   p_src2 <= R2[f_cur];
+        `ALU_REG_R3:   p_src2 <= R3[f_cur];
+        `ALU_REG_R4:   p_src2 <= R4[f_cur];
         `ALU_REG_D0:   p_src2 <= D0[f_cur*4+:4];
         `ALU_REG_D1:   p_src2 <= D1[f_cur*4+:4];
         `ALU_REG_P:    p_src2 <= P;
@@ -653,10 +699,15 @@ always @(posedge i_clk) begin
       `ALU_OP_ADD,
       `ALU_OP_CLR_MASK:
         case (reg_dest)
-        `ALU_REG_A:    A[f_cur*4+:4] <= c_res1;
-        `ALU_REG_B:    B[f_cur*4+:4] <= c_res1;
-        `ALU_REG_C:    C[f_cur*4+:4] <= c_res1;
-        `ALU_REG_D:    D[f_cur*4+:4] <= c_res1;
+        `ALU_REG_A:    A[f_cur] <= c_res1;
+        `ALU_REG_B:    B[f_cur] <= c_res1;
+        `ALU_REG_C:    C[f_cur] <= c_res1;
+        `ALU_REG_D:    D[f_cur] <= c_res1;
+        `ALU_REG_R0:   R0[f_cur] <= c_res1;
+        `ALU_REG_R1:   R1[f_cur] <= c_res1;
+        `ALU_REG_R2:   R2[f_cur] <= c_res1;
+        `ALU_REG_R3:   R3[f_cur] <= c_res1;
+        `ALU_REG_R4:   R4[f_cur] <= c_res1;
         `ALU_REG_D0:   D0[f_cur*4+:4] <= c_res1;
         `ALU_REG_D1:   D1[f_cur*4+:4] <= c_res1;
         `ALU_REG_ST:   ST[f_cur*4+:4] <= c_res1;
@@ -687,10 +738,15 @@ always @(posedge i_clk) begin
     case (alu_op)
       `ALU_OP_EXCH: // 2nd assign, with src2
           case (reg_src2)
-          `ALU_REG_A:   A[f_cur*4+:4] <= c_res2;
-          `ALU_REG_B:   B[f_cur*4+:4] <= c_res2;
-          `ALU_REG_C:   C[f_cur*4+:4] <= c_res2;
-          `ALU_REG_D:   D[f_cur*4+:4] <= c_res2;
+          `ALU_REG_A:   A[f_cur] <= c_res2;
+          `ALU_REG_B:   B[f_cur] <= c_res2;
+          `ALU_REG_C:   C[f_cur] <= c_res2;
+          `ALU_REG_D:   D[f_cur] <= c_res2;
+          `ALU_REG_R0:  R0[f_cur] <= c_res2;
+          `ALU_REG_R1:  R1[f_cur] <= c_res2;
+          `ALU_REG_R2:  R2[f_cur] <= c_res2;
+          `ALU_REG_R3:  R3[f_cur] <= c_res2;
+          `ALU_REG_R4:  R4[f_cur] <= c_res2;
           // `ALU_REG_D0:  D0[f_start*4+:4] <= c_res2;
           // `ALU_REG_D1:  D1[f_start*4+:4] <= c_res2;
           // `ALU_REG_ST:  ST[f_start*4+:4] <= c_res2;

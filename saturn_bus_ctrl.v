@@ -235,7 +235,7 @@ always @(posedge i_clk) begin
       o_bus_data     <= `BUSCMD_DP_WRITE;
       last_cmd       <= `BUSCMD_DP_WRITE;
       cmd_dp_write_s <= 1;
-      o_bus_strobe   <= 1;
+      o_bus_strobe   <= 1; 
     end
 
 
