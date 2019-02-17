@@ -528,7 +528,6 @@ always @(posedge i_clk) begin
 `ifdef SIM
     $display("block_15xx %h", i_nibble);
 `endif
-    o_alu_debug   <= 1;
     o_ins_alu_op  <= 1;
     o_ins_decoded <= 1;
     next_nibble   <= 0;
@@ -602,7 +601,6 @@ always @(posedge i_clk) begin
     o_alu_op        <= (i_nibble[3] && i_nibble[2])?`ALU_OP_DEC:`ALU_OP_ADD;
     next_nibble     <= 0;
     o_ins_decoded   <= 1;
-    o_alu_debug <= 1;
 `ifdef SIM
     // o_unimplemented <= 0;
 `endif
