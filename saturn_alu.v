@@ -842,8 +842,6 @@ always @(posedge i_clk) begin
 
 end
 
-
-
 /*****************************************************************************
  *
  * Handles all changes to PC 
