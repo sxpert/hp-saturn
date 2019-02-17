@@ -120,7 +120,8 @@ saturn_decoder	m_decoder (
   .o_ins_set_mode (ins_set_mode),
 	.o_mode_dec     (mode_dec),
   .o_ins_alu_op		(ins_alu_op),
-	.o_ins_test_go  (ins_test_go)
+	.o_ins_test_go  (ins_test_go),
+	.o_ins_reset		(ins_reset)
 );
 
 wire [0:0]      inc_pc;
@@ -152,6 +153,7 @@ wire [0:0]      ins_set_mode;
 wire [0:0]      mode_dec;
 wire [0:0]      ins_alu_op;
 wire [0:0]      ins_test_go;
+wire [0:0]      ins_reset;
 
 
 saturn_alu		m_alu (
@@ -249,6 +251,7 @@ saturn_bus_ctrl m_bus_ctrl (
   .i_load_dp          (bus_load_dp),
 	.i_read_pc					(bus_read_pc),
 	.i_write_dp				  (bus_write_dp),
+	.i_cmd_reset        (ins_reset),
   .i_nibble           (bus_nibble_out),
   .o_nibble           (bus_nibble_in)
 );

@@ -32,6 +32,7 @@ module saturn_decoder(
   o_set_carry, o_test_carry, o_carry_val,
   o_ins_set_mode, o_mode_dec,
   o_ins_alu_op, o_ins_test_go,
+  o_ins_reset,
 
   o_dbg_nibbles, o_dbg_nb_nbls, o_mem_load, o_mem_pos
 );
@@ -92,6 +93,9 @@ output  reg [0:0]   o_mode_dec;
 // alu_operations
 output  reg [0:0]   o_ins_alu_op;
 output  reg [0:0]   o_ins_test_go;
+
+// bus operations
+output  reg [0:0]   o_ins_reset;
 
 /* data used by the debugger
  *
@@ -183,6 +187,8 @@ always @(posedge i_clk) begin
     o_ins_rtn       <= 0;
     o_push          <= 0;
     o_pop           <= 0;
+    o_ins_set_mode  <= 0;
+    o_ins_reset     <= 0;
   end
   
   if (decoder_active) begin
@@ -248,6 +254,9 @@ always @(posedge i_clk) begin
     o_ins_alu_op    <= 0;
     o_ins_test_go   <= 0;
 
+    // bus instructions
+    o_ins_reset     <= 0;
+
     o_dbg_nb_nbls   <= 1;
     o_mem_pos       <= 0;
 
@@ -265,6 +274,7 @@ always @(posedge i_clk) begin
       block_jump_test  <= 0;
     end else begin
       // assign block regs
+      $display("FIRST NIBBLE %h", i_nibble);
       case (i_nibble) 
       4'h0: block_0x <= 1;
       4'h1: block_1x <= 1;

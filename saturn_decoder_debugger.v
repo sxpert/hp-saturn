@@ -67,6 +67,9 @@ always @(posedge i_clk) begin
       if (o_ins_set_mode) begin
         $write("SET%s", o_mode_dec?"DEC":"HEX");
       end
+      if (o_ins_reset) begin
+        $write("RESET");
+      end
       if (o_ins_alu_op) begin
 
         case (o_alu_op)

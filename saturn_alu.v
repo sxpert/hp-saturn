@@ -730,8 +730,10 @@ always @(posedge i_clk) begin
   if (i_reset)
     just_reset     <= 1;
 
-  if (just_reset)
+  if (just_reset && do_alu_pc) begin
     just_reset    <= 0;
+    $display("---------------------------------------- CLEARING JUST_RESET");
+  end
 
 end
 
@@ -763,14 +765,11 @@ always @(posedge i_clk) begin
 
   // reset stuff
   if (i_reset) begin
+    write_done     <= 0;
     extra_cycles   <= 0;
     o_bus_load_dp  <= 0;
     o_bus_write_dp <= 0;
   end
-
-  // just reset is managed below
-  if (just_reset)
-    o_bus_read_pc <= 1;
 
   // setup the order to load DP in time
   if (setup_load_dp) begin

@@ -55,6 +55,7 @@
         o_ins_decoded <= 1;
       end
       4'hA: begin // RESET
+        o_ins_reset   <= 1;
         next_nibble   <= 0;
         o_ins_decoded <= 1;
       end
