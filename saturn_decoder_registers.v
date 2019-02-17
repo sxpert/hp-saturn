@@ -161,6 +161,15 @@ always @(posedge i_clk) begin
     endcase
   end
 
+  if (do_block_80x) begin
+    case (i_nibble)
+      4'h5: begin
+        o_reg_dest        <= `ALU_REG_ADDR;
+        o_reg_src1        <= `ALU_REG_C;
+      end
+    endcase
+  end
+
   if (do_block_80Cx) begin
     o_reg_dest        <= `ALU_REG_C;
     o_reg_src1        <= `ALU_REG_P;

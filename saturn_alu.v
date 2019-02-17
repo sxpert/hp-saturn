@@ -25,10 +25,11 @@ module saturn_alu (
     i_stalled,
 
     o_bus_address,
+    o_bus_pc_read,
+    o_bus_dp_write,
     o_bus_load_pc,
     o_bus_load_dp,
-    o_bus_read_pc,
-    o_bus_write_dp,
+    o_bus_config,
     o_bus_nibble_out,
 
     i_push,
@@ -52,6 +53,8 @@ module saturn_alu (
     i_ins_test_go,
     i_ins_set_mode,
     i_ins_rtn,
+    i_ins_config,
+    i_ins_unconfig,
 
     i_mode_dec,
     i_set_xm,
@@ -73,10 +76,11 @@ input   wire [0:0]  i_en_alu_save;
 input   wire [0:0]  i_stalled;
 
 output  reg  [19:0] o_bus_address;
+output  reg  [0:0]  o_bus_pc_read;
+output  reg  [0:0]  o_bus_dp_write;
 output  reg  [0:0]  o_bus_load_pc;
 output  reg  [0:0]  o_bus_load_dp;
-output  reg  [0:0]  o_bus_read_pc;
-output  reg  [0:0]  o_bus_write_dp;
+output  reg  [0:0]  o_bus_config;
 output  reg  [3:0]  o_bus_nibble_out;
 
 input   wire [0:0]  i_push;
@@ -109,6 +113,8 @@ input   wire [0:0]  i_ins_alu_op;
 input   wire [0:0]  i_ins_test_go;
 input   wire [0:0]  i_ins_set_mode; 
 input   wire [0:0]  i_ins_rtn;
+input   wire [0:0]  i_ins_config;
+input   wire [0:0]  i_ins_unconfig;
 
 input   wire [0:0]  i_mode_dec;
 input   wire [0:0]  i_set_xm;
@@ -345,8 +351,8 @@ always @(posedge i_clk) begin
     $display("D:  %h    R3:  %h   RSTK2: %5h", D, R3, RSTK[2]);
     $display("D0: %h  D1: %h    R4:  %h   RSTK1: %5h", 
               D0, D1, R4, RSTK[1]);
-    $display("                                                RSTK0: %5h", 
-             RSTK[0]);
+    $display("         ADDR: %5h                            RSTK0: %5h", 
+             o_bus_address, RSTK[0]);
   end
 `endif
 end
@@ -394,7 +400,7 @@ end
 always @(posedge i_clk) begin
 
   if (do_alu_init) begin
-    $display("-------------------------------------------------  DO_ALU_INIT");
+    // $display("-------------------------------------------------  DO_ALU_INIT");
     alu_run <= 1;
     f_first <= i_field_start;
     f_cur   <= i_field_start;
@@ -658,6 +664,7 @@ always @(posedge i_clk) begin
         `ALU_REG_DAT0,
         `ALU_REG_DAT1: o_bus_nibble_out <= c_res1;
         `ALU_REG_HST:  HST <= c_res1;
+        `ALU_REG_ADDR: begin end // done down below where o_bus_addr is accessible
         default: $display("#### ALU_SAVE invalid register %0d for op %0d", reg_dest, alu_op);
         endcase
       `ALU_OP_RST_BIT,
@@ -768,7 +775,7 @@ always @(posedge i_clk) begin
     write_done     <= 0;
     extra_cycles   <= 0;
     o_bus_load_dp  <= 0;
-    o_bus_write_dp <= 0;
+    o_bus_dp_write <= 0;
   end
 
   // setup the order to load DP in time
@@ -778,8 +785,8 @@ always @(posedge i_clk) begin
 
   // tell the bus to start the write cycle
   // this will take 1 cycle because we need to send the DP_WRITE command
-  if (do_busclean && alu_run && !write_done && is_mem_write && !o_bus_write_dp)
-    o_bus_write_dp      <= 1;
+  if (do_busclean && alu_run && !write_done && is_mem_write && !o_bus_dp_write)
+    o_bus_dp_write      <= 1;
   
   // writing takes 2 more cycles :
   // - one used up above
@@ -794,14 +801,14 @@ always @(posedge i_clk) begin
   if (i_en_alu_calc && !no_extra_cycles) begin
     extra_cycles   <= cycles_to_go;
     if (cycles_to_go == 1) begin
-      o_bus_write_dp <= 0;
-      o_bus_read_pc <= 1;
+      o_bus_dp_write <= 0;
+      o_bus_pc_read  <= 1;
     end
   end
 
   // once the PC_READ command has been sent, remove the stall on the decoder
-  if (i_en_alu_dump && no_extra_cycles && o_bus_read_pc) begin
-    o_bus_read_pc   <= 0;
+  if (i_en_alu_dump && no_extra_cycles && o_bus_pc_read) begin
+    o_bus_pc_read   <= 0;
     write_done      <= 0;
   end
 
@@ -809,6 +816,33 @@ always @(posedge i_clk) begin
     o_bus_load_dp       <= 0;
 
 end
+
+/*****************************************************************************
+ *
+ * config and unconfig
+ *
+ ****************************************************************************/
+
+wire is_bus_config;
+assign is_bus_config = (alu_op == `ALU_OP_COPY) && (reg_dest == `ALU_REG_ADDR);
+wire send_config;
+assign send_config =  alu_active && i_en_alu_calc && i_ins_alu_op && alu_run && alu_finish;
+
+always @(posedge i_clk) begin
+  if (i_reset) 
+    o_bus_config <= 0;
+
+  // $display("send_config %b | is_bus_cfg %b | i_ins_cfg %b", send_config, is_bus_config, i_ins_config);
+  if (send_config && is_bus_config && i_ins_config)
+    o_bus_config <= 1;
+
+
+  if (do_busclean && o_bus_config)
+    o_bus_config <= 0;
+
+end
+
+
 
 /*****************************************************************************
  *
@@ -853,6 +887,11 @@ always @(posedge i_clk) begin
     1: o_bus_address <= D1;
     endcase
 
+  // this is moved here for access conflicts to o_bus_address
+  if (do_alu_save && (alu_op == `ALU_OP_COPY) && (reg_dest == `ALU_REG_ADDR)) begin
+    o_bus_address[f_cur*4+:4] <= c_res1;
+  end
+
   /**
    *
    * Update the PC.
@@ -871,12 +910,6 @@ always @(posedge i_clk) begin
                 !o_alu_stall_dec,  next_pc, alu_done, alu_finish, 
                 is_alu_op_jump, i_ins_rtn, i_push, 
                 i_imm_value, jump_bse, goyes_off, goyes_pc);
-    // if (reload_pc) begin
-    //   $display(".---------------------------------.");
-    //   $display("| SHOULD TELL THE BUS CONTROLLER  |");
-    //   $display("| TO LOAD PC INTO MODULES' PC REG |");
-    //   $display("`---------------------------------´");
-    // end
 `endif
 
     // this may do wierd things with C=RSTK...

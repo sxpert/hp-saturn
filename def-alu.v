@@ -69,6 +69,7 @@
 `define ALU_REG_P       20
 `define ALU_REG_M       21
 `define ALU_REG_IMM     22
+`define ALU_REG_ADDR    23
 
 `define ALU_REG_ZERO    31
 

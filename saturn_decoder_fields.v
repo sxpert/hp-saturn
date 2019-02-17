@@ -6,7 +6,7 @@
 *****************************************************************************/
 
 `ifdef SIM
-`define DEBUG_FIELDS_TABLE
+// `define DEBUG_FIELDS_TABLE
 `endif
 
 reg fields_table_done;
@@ -149,6 +149,15 @@ always @(posedge i_clk) begin
       4'hC, 4'hD, 4'hE, 4'hF: begin
         o_field_start <= 0;
         o_field_last  <= i_nibble[3]?4:3;
+      end
+    endcase
+  end
+
+  if (do_block_80x) begin
+    case (i_nibble)
+      4'h5: begin
+        o_field_start <= 0;
+        o_field_last  <= 4;
       end
     endcase
   end

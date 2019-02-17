@@ -121,7 +121,8 @@ saturn_decoder	m_decoder (
 	.o_mode_dec     (mode_dec),
   .o_ins_alu_op		(ins_alu_op),
 	.o_ins_test_go  (ins_test_go),
-	.o_ins_reset		(ins_reset)
+	.o_ins_reset		(ins_reset),
+	.o_ins_config   (ins_config)
 );
 
 wire [0:0]      inc_pc;
@@ -154,6 +155,8 @@ wire [0:0]      mode_dec;
 wire [0:0]      ins_alu_op;
 wire [0:0]      ins_test_go;
 wire [0:0]      ins_reset;
+wire [0:0]      ins_config;
+wire [0:0]      ins_unconfig;
 
 
 saturn_alu		m_alu (
@@ -170,8 +173,9 @@ saturn_alu		m_alu (
 	.o_bus_address    (bus_address),
 	.o_bus_load_pc    (bus_load_pc),
 	.o_bus_load_dp    (bus_load_dp),
-	.o_bus_read_pc    (bus_read_pc),
-	.o_bus_write_dp   (bus_write_dp),
+	.o_bus_pc_read    (bus_pc_read),
+	.o_bus_dp_write   (bus_dp_write),
+	.o_bus_config			(bus_config),
 	.o_bus_nibble_out (bus_nibble_out),
 
 	.i_push					 (push),
@@ -195,6 +199,8 @@ saturn_alu		m_alu (
 	.i_ins_test_go	 (ins_test_go),
 	.i_ins_set_mode	 (ins_set_mode),
 	.i_ins_rtn			 (ins_rtn),
+	.i_ins_config    (ins_config),
+	.i_ins_unconfig  (ins_unconfig),
 
   .i_mode_dec			 (mode_dec),
   .i_set_xm        (set_xm),
@@ -210,8 +216,9 @@ saturn_alu		m_alu (
 wire [19:0]   bus_address;
 wire [0:0]    bus_load_pc;
 wire [0:0]    bus_load_dp;
-wire [0:0]    bus_read_pc;
-wire [0:0]    bus_write_dp;
+wire [0:0]    bus_pc_read;
+wire [0:0]    bus_dp_write;
+wire [0:0]    bus_config;
 
 wire [3:0]    bus_nibble_in;
 wire [3:0]    bus_nibble_out;
@@ -249,9 +256,10 @@ saturn_bus_ctrl m_bus_ctrl (
   .i_address          (bus_address),
   .i_load_pc          (bus_load_pc),
   .i_load_dp          (bus_load_dp),
-	.i_read_pc					(bus_read_pc),
-	.i_write_dp				  (bus_write_dp),
+	.i_read_pc					(bus_pc_read),
+	.i_write_dp				  (bus_dp_write),
 	.i_cmd_reset        (ins_reset),
+	.i_cmd_config			  (bus_config),
   .i_nibble           (bus_nibble_out),
   .o_nibble           (bus_nibble_in)
 );
@@ -325,9 +333,9 @@ always @(posedge clk) begin
 
 		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == `PH_BUS_SEND) };
 		if (cycle_ctr == (max_cycle + 1)) begin
-		  $display(".-------------------.");
-			$display("|   OUT OF CYCLES   |");
-			$display("`-------------------´");
+		  $display(".-----------------------------.");
+			$display("|   OUT OF CYCLES %d  |", cycle_ctr);
+			$display("`-----------------------------´");
 			clock_end <= 1;
 		end
 	end else begin
@@ -350,7 +358,7 @@ always @(posedge clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 155;
+		max_cycle     <= 170;
 
 		mem_ctrl_stall <= 0;
 `ifndef SIM

@@ -51,13 +51,19 @@
 `endif
     case (i_nibble)
       4'h5: begin // CONFIG
+        o_ins_alu_op  <= 1;
+        o_alu_op      <= `ALU_OP_COPY;
         next_nibble   <= 0;
         o_ins_decoded <= 1;
+        o_ins_config  <= 1;
       end
       4'hA: begin // RESET
         o_ins_reset   <= 1;
         next_nibble   <= 0;
         o_ins_decoded <= 1;
+        `ifdef SIM
+        o_unimplemented <= 0;
+        `endif
       end
       4'hC: block_80Cx <= 1;
       default: begin

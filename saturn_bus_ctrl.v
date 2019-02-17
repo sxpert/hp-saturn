@@ -31,6 +31,7 @@ module saturn_bus_ctrl (
   i_read_pc,
   i_write_dp,
   i_cmd_reset,
+  i_cmd_config,
   i_nibble,
   o_nibble
 );
@@ -58,13 +59,14 @@ input  wire [0:0]  i_load_dp;
 input  wire [0:0]  i_read_pc;
 input  wire [0:0]  i_write_dp;
 input  wire [0:0]  i_cmd_reset;
+input  wire [0:0]  i_cmd_config;
+
 input  wire [3:0]  i_nibble;
 output reg  [3:0]  o_nibble;
 
 /*
  * events
  */
-
 
 wire en_bus_send;
 assign en_bus_send = i_en_bus_send && !i_stalled;
@@ -73,6 +75,44 @@ assign en_bus_recv = i_en_bus_recv && !i_stalled;
 wire en_bus_ecmd;
 assign en_bus_ecmd = i_en_bus_ecmd && !i_stalled;
 
+/*
+ * states
+ */
+
+wire [0:0] addr_s;
+
+assign addr_s = addr_cnt == 5;
+
+reg  [0:0] cmd_pc_read_s;
+reg  [0:0] cmd_config_s;
+reg  [0:0] cmd_reset_s;
+
+wire [0:0] do_pc_read;
+
+wire [0:0] do_cmd_config;
+wire [0:0] do_pc_read_after_config;
+wire [0:0] cmd_config_sc;
+wire [0:0] cmd_config_uc;
+
+wire [0:0] do_cmd_reset;
+wire [0:0] do_pc_read_after_reset;
+wire [0:0] cmd_reset_sc;
+wire [0:0] cmd_reset_uc;
+
+
+assign do_cmd_config           = i_cmd_config && !cmd_config_s;
+assign do_pc_read_after_config = i_cmd_config && cmd_config_s && addr_s;
+assign cmd_config_sc           = !o_stalled_by_bus && i_cmd_config && !cmd_config_s;
+assign cmd_config_uc           = cmd_config_s && cmd_pc_read_s;
+
+assign do_cmd_reset            = i_cmd_reset && !cmd_reset_s;
+assign do_pc_read_after_reset  = i_cmd_reset && cmd_reset_s;
+assign cmd_reset_sc            = !o_stalled_by_bus && i_cmd_reset && !cmd_reset_s;
+assign cmd_reset_uc            = cmd_reset_s && cmd_pc_read_s;
+
+assign do_pc_read              = !cmd_pc_read_s && 
+                                 (do_pc_read_after_config || 
+                                  do_pc_read_after_reset);
 /*
  * test rom...
  */
@@ -98,10 +138,12 @@ end
 reg [3:0]  last_cmd;
 reg [2:0]  addr_cnt;
 reg [0:0]  send_addr;
-reg [0:0]  reset_sent;
-reg [0:0]  send_pc_read;
 reg [19:0] local_pc;
 reg [19:0] local_dp;
+
+reg [0:0]  reset_sent;
+reg [0:0]  config_sent;
+reg [0:0]  send_pc_read;
 
 always @(posedge i_clk) begin
   if (i_reset) begin
@@ -112,7 +154,12 @@ always @(posedge i_clk) begin
     addr_cnt         <= 0;
     send_addr        <= 0;
     reset_sent       <= 0;
+    config_sent      <= 0;
     send_pc_read     <= 0;
+
+    cmd_pc_read_s    <= 0;
+    cmd_config_s     <= 0;
+    cmd_reset_s      <= 0;
   end
 
   /*
@@ -121,6 +168,16 @@ always @(posedge i_clk) begin
    *
    */
   if (en_bus_send) begin
+
+    /*
+     * reset flags
+     */
+
+    if (cmd_reset_uc || cmd_config_uc) begin
+      cmd_config_s   <= 0;
+      cmd_reset_s    <= 0;
+      cmd_pc_read_s  <= 0;
+    end
 
     /*
      * Sending LOAD_PC or LOAD_DP
@@ -138,7 +195,24 @@ always @(posedge i_clk) begin
       last_cmd   <= `BUSCMD_LOAD_DP;
     end
 
-    if (i_load_pc || i_load_dp) begin
+    if (do_cmd_config) begin
+      $display("BUS_SEND %0d: [%d] CONFIGURE %h", `PH_BUS_SEND, i_cycle_ctr, i_address);
+      o_bus_data   <= `BUSCMD_CONFIGURE;
+      last_cmd     <= `BUSCMD_CONFIGURE;
+      cmd_config_s <= 1;
+    end
+
+    if (do_cmd_reset) begin
+      $display("BUS_SEND %0d: [%d] RESET", `PH_BUS_SEND, i_cycle_ctr);
+      o_bus_data   <= `BUSCMD_RESET;
+      last_cmd     <= `BUSCMD_RESET;
+      cmd_reset_s  <= 1;
+      o_bus_strobe <= 1;
+    end
+
+    // configure loop to send i_address to the bus
+    // used for LOAD_PC, LOAD_DP, CONFIGURE,
+    if (i_load_pc || i_load_dp || do_cmd_config) begin
       o_stalled_by_bus <= 1;
       o_bus_cmd_data   <= 0;
       addr_cnt         <= 0;
@@ -160,15 +234,11 @@ always @(posedge i_clk) begin
      * after a data transfer
      */
 
-    if (i_read_pc || send_pc_read) begin
-      if (last_cmd != `BUSCMD_PC_READ) begin
-        $display("BUS_SEND %0d: [%d] PC_READ", `PH_BUS_SEND, i_cycle_ctr);
-        o_bus_data   <= `BUSCMD_PC_READ;
-        last_cmd     <= `BUSCMD_PC_READ;
-        send_pc_read <= 0;
-      end
-      
-      o_bus_strobe <= 1;
+    if (do_pc_read) begin
+      $display("BUS_SEND %0d: [%d] PC_READ <<<<<", `PH_BUS_SEND, i_cycle_ctr);
+      o_bus_data    <= `BUSCMD_PC_READ;
+      last_cmd      <= `BUSCMD_PC_READ;
+      cmd_pc_read_s <= 1;
     end
 
     if ((last_cmd == `BUSCMD_PC_READ) && !i_read_stall)
@@ -192,22 +262,14 @@ always @(posedge i_clk) begin
       end
     end
 
-    if (i_cmd_reset && !reset_sent) begin
-      $display("BUS_SEND %0d: [%d] RESET", `PH_BUS_SEND, i_cycle_ctr);
-      o_bus_data   <= `BUSCMD_RESET;
-      last_cmd     <= `BUSCMD_RESET;
-      reset_sent   <= 1;
-      o_bus_strobe <= 1;
-    end
-
-
   end
+
+
   /*
    *
    * reading data from the bus
    *
    */
-
 
   if (en_bus_recv) begin
   
@@ -224,11 +286,13 @@ always @(posedge i_clk) begin
         $write("BUS_RECV %0d: [%d] STALLED (last ", `PH_BUS_RECV, i_cycle_ctr);  
         case (last_cmd)
           `BUSCMD_PC_READ: $write("PC_READ");
+          `BUSCMD_DP_READ: $write("DP_READ");
+          `BUSCMD_DP_WRITE: $write("DP_WRITE");
           `BUSCMD_RESET:   $write("RESET");
           default: $write("%h", last_cmd);
         endcase
         $display(")");
-      end
+      end 
 
   /*
    *
@@ -241,20 +305,46 @@ always @(posedge i_clk) begin
 
   end
 
+  if (en_bus_ecmd) begin
+  
+    if (cmd_reset_sc)
+      o_stalled_by_bus <= 1;
+  
+    if (cmd_reset_uc) begin
+      o_stalled_by_bus <= 0;
+    end
+  
+    if (cmd_config_sc) begin 
+      o_stalled_by_bus <= 1;
+    end
+  
+    if (cmd_config_uc) begin
+      o_stalled_by_bus <= 0;
+      addr_cnt <= 0;
+    end
+  
+    if (addr_s) begin
+      send_addr <= 0;
+    end
+
+  end
+
+
+
+
 
   // command automatic switchover
   if (en_bus_ecmd) begin
 
-    if (i_cmd_reset && !reset_sent)
-      o_stalled_by_bus <= 1;
-    
     case (last_cmd)
       `BUSCMD_LOAD_PC,
       `BUSCMD_LOAD_DP:
         if (send_addr && (addr_cnt == 5)) begin
-          $display("BUS_ECMD %0d: [%d] <= %sC_READ mode", 
+          // reset the addr count for next time
+          addr_cnt <= 0;
+          $display("BUS_ECMD %0d: [%d] <= %s_READ mode", 
                    `PH_BUS_ECMD, i_cycle_ctr, 
-                   (last_cmd == `BUSCMD_LOAD_PC)?"P":"D");
+                   (last_cmd == `BUSCMD_LOAD_PC)?"PC":"DP");
           last_cmd <= (last_cmd == `BUSCMD_LOAD_PC)?`BUSCMD_PC_READ:`BUSCMD_DP_READ;
           case (last_cmd)
              `BUSCMD_LOAD_PC: local_pc <= i_address;
@@ -263,18 +353,10 @@ always @(posedge i_clk) begin
           send_addr <= 0;
           o_stalled_by_bus <= 0;
         end   
-      `BUSCMD_PC_READ: begin
-        if (o_stalled_by_bus && reset_sent) begin
-        //   $display("BUS_ECMD %0d: [%d] (pc_read unstall)", `PH_BUS_ECMD, i_cycle_ctr); 
-          o_stalled_by_bus <= 0;
-        end  
-      end
-      `BUSCMD_RESET: begin
-        if (o_stalled_by_bus && reset_sent) begin
-        //   $display("BUS_ECMD %0d: [%d] (reset, send pc_read)", `PH_BUS_ECMD, i_cycle_ctr);
-          send_pc_read <= 1;
-        end
-      end
+      `BUSCMD_PC_READ: begin end
+      `BUSCMD_CONFIGURE: begin end
+      `BUSCMD_RESET: begin end
+      default: $display("------------ UNHANDLED BUSCMD %h", last_cmd);
     endcase
 
 
