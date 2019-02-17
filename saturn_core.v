@@ -46,19 +46,20 @@ assign reset		= btn[1];
 reg	[1:0]  clk_phase;
 reg	[0:0]  en_reset;
 
-reg	[0:0]	 en_debugger;	 // phase 0
+reg	[0:0]	 ck_debugger;	 // phase 0
 
-reg	[0:0]	 en_bus_send;	 // phase 0
-reg	[0:0]	 en_bus_recv;	 // phase 1
+reg	[0:0]	 ck_bus_send;	 // phase 0
+reg	[0:0]	 ck_bus_recv;	 // phase 1
+reg [0:0]  ck_bus_ecmd;  // phase 3
 
-reg	[0:0]	 en_inst_dec;	 // phase 2
-reg [0:0]  en_inst_exe;  // phase 3
+reg	[0:0]	 ck_inst_dec;	 // phase 2
+reg [0:0]  ck_inst_exe;  // phase 3
 
-reg	[0:0]	 en_alu_dump;	 // phase 0
-reg	[0:0]	 en_alu_init;	 // phase 3
-reg	[0:0]	 en_alu_prep;	 // phase 1
-reg	[0:0]	 en_alu_calc;	 // phase 2
-reg	[0:0]	 en_alu_save;	 // phase 3
+reg	[0:0]	 ck_alu_dump;	 // phase 0
+reg	[0:0]	 ck_alu_init;	 // phase 3
+reg	[0:0]	 ck_alu_prep;	 // phase 1
+reg	[0:0]	 ck_alu_calc;	 // phase 2
+reg	[0:0]	 ck_alu_save;	 // phase 3
 
 reg	[0:0]	 clock_end;
 reg	[31:0] cycle_ctr;
@@ -82,8 +83,8 @@ saturn_decoder	m_decoder (
 	.i_clk			    (clk),
 	.i_reset		    (reset),
 	.i_cycles		    (cycle_ctr),
-	.i_en_dbg       (en_debugger),
-	.i_en_dec		    (en_inst_dec),
+	.i_en_dbg       (ck_debugger),
+	.i_en_dec		    (ck_inst_dec),
 	.i_pc			      (reg_pc),
 	.i_stalled      (dec_stalled),
 	.i_nibble		    (bus_nibble_in),
@@ -155,11 +156,11 @@ wire [0:0]      ins_test_go;
 saturn_alu		m_alu (
 	.i_clk					 (clk),
 	.i_reset				 (reset),
-	.i_en_alu_dump   (en_alu_dump),
-	.i_en_alu_prep	 (en_alu_prep),
-	.i_en_alu_calc	 (en_alu_calc),
-	.i_en_alu_init   (en_alu_init),
-	.i_en_alu_save 	 (en_alu_save),
+	.i_en_alu_dump   (ck_alu_dump),
+	.i_en_alu_prep	 (ck_alu_prep),
+	.i_en_alu_calc	 (ck_alu_calc),
+	.i_en_alu_init   (ck_alu_init),
+	.i_en_alu_save 	 (ck_alu_save),
 	.i_stalled			 (alu_stalled),
 
 	.o_bus_address    (bus_address),
@@ -222,8 +223,9 @@ saturn_bus_ctrl m_bus_ctrl (
 	.i_clk              (clk),
   .i_reset            (reset),
 	.i_cycle_ctr        (cycle_ctr),
-  .i_en_bus_send      (en_bus_send),
-  .i_en_bus_recv      (en_bus_recv),
+  .i_en_bus_send      (ck_bus_send),
+  .i_en_bus_recv      (ck_bus_recv),
+	.i_en_bus_ecmd		  (ck_bus_ecmd),
   .i_stalled          (mem_ctrl_stall),
 	.i_read_stall       (dec_stalled),
   .o_stalled_by_bus   (bus_stalls_core),
@@ -256,19 +258,20 @@ wire [0:0] bus_cmd_data;
 initial	begin
 		clk_phase 		= 0;
 
-		en_debugger 	= 0;	// phase 0
+		ck_debugger 	= 0;	// phase 0
 
-		en_bus_send 	= 0;	// phase 0
-		en_bus_recv 	= 0;	// phase 1
+		ck_bus_send 	= 0;	// phase 0
+		ck_bus_recv 	= 0;	// phase 1
+		ck_bus_ecmd   = 0;  // phase 3
 
-		en_inst_dec 	= 0;	// phase 2
-		en_inst_exe   = 0;  // phase 3
+		ck_inst_dec 	= 0;	// phase 2
+		ck_inst_exe   = 0;  // phase 3
 
-		en_alu_dump   = 0;
-		en_alu_prep 	= 0;	// phase 1
-		en_alu_calc 	= 0;	// phase 2
-		en_alu_init   = 0;  // phase 0
-		en_alu_save 	= 0;	// phase 3
+		ck_alu_dump   = 0;
+		ck_alu_prep 	= 0;	// phase 1
+		ck_alu_calc 	= 0;	// phase 2
+		ck_alu_init   = 0;  // phase 0
+		ck_alu_save 	= 0;	// phase 3
 
 		clock_end			= 0;
 		cycle_ctr			= 0;
@@ -294,19 +297,20 @@ initial	begin
 always @(posedge clk) begin
 	if (!reset) begin
 		clk_phase    <= clk_phase + 1;
-		en_debugger  <= clk_phase[1:0] == `PH_DEBUGGER;
+		ck_debugger  <= clk_phase[1:0] == `PH_DEBUGGER;
 
-		en_bus_send  <= clk_phase[1:0] == `PH_BUS_SEND;
-		en_bus_recv  <= clk_phase[1:0] == `PH_BUS_RECV;
+		ck_bus_send  <= clk_phase[1:0] == `PH_BUS_SEND;
+		ck_bus_recv  <= clk_phase[1:0] == `PH_BUS_RECV;
+		ck_bus_ecmd  <= clk_phase[1:0] == `PH_BUS_ECMD;
 
-		en_inst_dec  <= clk_phase[1:0] == `PH_INST_DEC;
-		en_inst_exe  <= clk_phase[1:0] == `PH_INST_EXE;
+		ck_inst_dec  <= clk_phase[1:0] == `PH_INST_DEC;
+		ck_inst_exe  <= clk_phase[1:0] == `PH_INST_EXE;
 
-		en_alu_dump  <= clk_phase[1:0] == `PH_ALU_DUMP;
-		en_alu_init  <= clk_phase[1:0] == `PH_ALU_INIT;
-		en_alu_prep  <= clk_phase[1:0] == `PH_ALU_PREP;
-		en_alu_calc  <= clk_phase[1:0] == `PH_ALU_CALC;
-		en_alu_save  <= clk_phase[1:0] == `PH_ALU_SAVE;
+		ck_alu_dump  <= clk_phase[1:0] == `PH_ALU_DUMP;
+		ck_alu_init  <= clk_phase[1:0] == `PH_ALU_INIT;
+		ck_alu_prep  <= clk_phase[1:0] == `PH_ALU_PREP;
+		ck_alu_calc  <= clk_phase[1:0] == `PH_ALU_CALC;
+		ck_alu_save  <= clk_phase[1:0] == `PH_ALU_SAVE;
 
 		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == `PH_BUS_SEND) };
 		// stop after 50 clocks
@@ -319,19 +323,20 @@ always @(posedge clk) begin
 	end else begin
 		clk_phase 	  <= ~0;
 
-		en_debugger   <= 0;
+		ck_debugger   <= 0;
 
-		en_bus_send   <= 0;
-		en_bus_recv   <= 0;
+		ck_bus_send   <= 0;
+		ck_bus_recv   <= 0;
+		ck_bus_ecmd   <= 0;
 
-		en_inst_dec   <= 0;
-		en_inst_exe   <= 0;
+		ck_inst_dec   <= 0;
+		ck_inst_exe   <= 0;
 
-		en_alu_dump   <= 0;
-		en_alu_init   <= 0;
-		en_alu_prep   <= 0;
-		en_alu_calc   <= 0;
-		en_alu_save   <= 0;
+		ck_alu_dump   <= 0;
+		ck_alu_init   <= 0;
+		ck_alu_prep   <= 0;
+		ck_alu_calc   <= 0;
+		ck_alu_save   <= 0;
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
@@ -356,11 +361,11 @@ assign dec_stalled = alu_stalls_dec || bus_stalls_core;
 assign alu_stalled = bus_stalls_core;
 
 wire   read_nibble_to_dec;
-assign read_nibble_to_dec = en_bus_recv && !dec_stalled;
+assign read_nibble_to_dec = ck_bus_recv && !dec_stalled;
 wire   dec_stalled_no_read;
-assign dec_stalled_no_read = en_bus_recv && !bus_stalls_core && dec_stalled;
+assign dec_stalled_no_read = ck_bus_recv && !bus_stalls_core && dec_stalled;
 wire   bus_is_stalled;
-assign bus_is_stalled = en_bus_recv && bus_stalls_core;
+assign bus_is_stalled = ck_bus_recv && bus_stalls_core;
 
 assign halt = clock_end || inv_opcode;
 

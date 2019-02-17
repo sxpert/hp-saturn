@@ -6,6 +6,7 @@
 
 `define PH_BUS_SEND 0
 `define PH_BUS_RECV 1
+`define PH_BUS_ECMD 3
 
 `define PH_INST_DEC 2
 `define PH_INST_EXE 3

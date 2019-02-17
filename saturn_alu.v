@@ -247,7 +247,8 @@ assign alu_active = !i_reset && !i_stalled;
 `ifdef SIM
 wire do_reg_dump;
 wire do_alu_shpc;
-assign do_reg_dump = alu_active && i_en_alu_dump && i_ins_decoded && !o_alu_stall_dec;
+assign do_reg_dump = alu_active && i_en_alu_dump && !o_bus_load_pc &&
+                     i_ins_decoded && !o_alu_stall_dec;
 assign do_alu_shpc = alu_active && i_en_alu_dump;
 `endif
 
