@@ -8,7 +8,7 @@ wire [19:0] new_pc;
 assign new_pc = i_pc + 1;
 
 wire run_debugger;
-assign run_debugger =  !i_reset && i_en_dbg && !i_stalled && !next_nibble;
+assign run_debugger =  !i_reset && i_en_dbg && !i_stalled && !i_bus_load_pc && !next_nibble;
 
 wire is_short_transfer;
 assign is_short_transfer = (o_field_last == 3) && 

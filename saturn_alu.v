@@ -16,6 +16,7 @@
 module saturn_alu (
     i_clk,
     i_reset,
+    i_cycle_ctr,
     i_en_alu_dump,
 	  i_en_alu_prep,
 	  i_en_alu_calc,
@@ -26,6 +27,8 @@ module saturn_alu (
     o_bus_address,
     o_bus_load_pc,
     o_bus_load_dp,
+    o_bus_read_pc,
+    o_bus_write_dp,
     o_bus_nibble_out,
 
     i_push,
@@ -61,6 +64,7 @@ module saturn_alu (
 
 input   wire [0:0]  i_clk;
 input   wire [0:0]  i_reset;
+input   wire [31:0] i_cycle_ctr;
 input   wire [0:0]  i_en_alu_dump;
 input   wire [0:0]  i_en_alu_prep;
 input   wire [0:0]  i_en_alu_calc;
@@ -71,6 +75,8 @@ input   wire [0:0]  i_stalled;
 output  reg  [19:0] o_bus_address;
 output  reg  [0:0]  o_bus_load_pc;
 output  reg  [0:0]  o_bus_load_dp;
+output  reg  [0:0]  o_bus_read_pc;
+output  reg  [0:0]  o_bus_write_dp;
 output  reg  [3:0]  o_bus_nibble_out;
 
 input   wire [0:0]  i_push;
@@ -261,7 +267,7 @@ wire do_alu_pc;
 wire do_alu_mode;
 
 assign do_busclean = alu_active && i_en_alu_dump;
-assign do_alu_init = alu_active && i_en_alu_init && i_ins_alu_op && !alu_run; 
+assign do_alu_init = alu_active && i_en_alu_init && i_ins_alu_op && !alu_run && !write_done; 
 assign do_alu_prep = alu_active && i_en_alu_prep && alu_run;
 assign do_alu_calc = alu_active && i_en_alu_calc && alu_run;
 assign do_alu_save = alu_active && i_en_alu_save && alu_run;
@@ -277,7 +283,9 @@ assign do_go_prep  = alu_active && i_en_alu_prep && i_ins_test_go;
 
 // the decoder may request the ALU to not stall it
 
-assign o_alu_stall_dec = alu_run && (!i_alu_no_stall || alu_finish || alu_go_test);
+assign o_alu_stall_dec = (!no_extra_cycles) || 
+                         (alu_run && 
+                          (!i_alu_no_stall || alu_finish || alu_go_test));
 
 wire       alu_start;
 wire       alu_finish;
@@ -309,9 +317,9 @@ assign is_alu_op_test = ((alu_op == `ALU_OP_TEST_EQ) ||
 always @(posedge i_clk) begin
 
 `ifdef SIM
-  if (i_stalled && i_en_alu_dump) 
-    $display("ALU STALLED");
-`endif
+//   if (i_stalled && i_en_alu_dump) 
+//     $display("ALU STALLED");
+// `endif
 
 `ifdef ALU_DEBUG_DBG
   $display("iad %b | AD %b | ad %b | ADD %b | add %b | ADJ %b | adj %b | ADP %b | adp %b",
@@ -376,18 +384,6 @@ always @(posedge i_clk) begin
     reg_src2 <= i_reg_src2;
     f_last   <= i_field_last;
 
-    if (is_mem_xfer) begin
-`ifdef SIM
-      $display("ALU_XFER 3: read %b | write %b | mem_reg DAT%b",
-               is_mem_read, is_mem_write, mem_reg[0]);
-      $display(".------------------------------------.");
-      $display("| SHOULD TELL THE BUS CONTROLLER TO  |");
-      $display("| LOAD D0 OR D1 INTO MODULES' DP REG |");
-      $display("`------------------------------------´");
-`endif
-      // DO SOMETHING TO GET THE BUS CONTROLLER TO SEND OUT 
-      // THE CONTENTS OF D0 OR D1 AS THE DP 
-    end
   end
 end
 
@@ -398,6 +394,7 @@ end
 always @(posedge i_clk) begin
 
   if (do_alu_init) begin
+    $display("-------------------------------------------------  DO_ALU_INIT");
     alu_run <= 1;
     f_first <= i_field_start;
     f_cur   <= i_field_start;
@@ -552,7 +549,7 @@ always @(posedge i_clk) begin
   if (do_alu_calc) begin
     `ifdef SIM
     if (alu_debug)
-      $display("ALU_CALC 2: run %b | done %b | stall %b | op %d | f %h | c %h | l %h | dest %d | src1 %h | src2 %h | p_carry %b", 
+      $display("ALU_CALC 2: run %b | done %b | stall %b | op %d | f %h | c %h | l %h | dest %d | psrc1 %h | psrc2 %h | p_carry %b", 
                alu_run, alu_done, o_alu_stall_dec, alu_op, f_first, f_cur, f_last, reg_dest, p_src1, p_src2, p_carry);
     if (alu_debug_jump)
       $display("ALU_JUMP 2: run %b | done %b | stall %b | op %d | f %h | c %h | l %h | jbs %5h | jof %5h | jpc %5h | fin %b",
@@ -650,15 +647,18 @@ always @(posedge i_clk) begin
       `ALU_OP_ADD,
       `ALU_OP_CLR_MASK:
         case (reg_dest)
-        `ALU_REG_A:   A[f_cur*4+:4] <= c_res1;
-        `ALU_REG_B:   B[f_cur*4+:4] <= c_res1;
-        `ALU_REG_C:   C[f_cur*4+:4] <= c_res1;
-        `ALU_REG_D:   D[f_cur*4+:4] <= c_res1;
-        `ALU_REG_D0:  D0[f_cur*4+:4] <= c_res1;
-        `ALU_REG_D1:  D1[f_cur*4+:4] <= c_res1;
-        `ALU_REG_ST:  ST[f_cur*4+:4] <= c_res1;
-        `ALU_REG_P:   P <= c_res1;
-        `ALU_REG_HST: HST <= c_res1;
+        `ALU_REG_A:    A[f_cur*4+:4] <= c_res1;
+        `ALU_REG_B:    B[f_cur*4+:4] <= c_res1;
+        `ALU_REG_C:    C[f_cur*4+:4] <= c_res1;
+        `ALU_REG_D:    D[f_cur*4+:4] <= c_res1;
+        `ALU_REG_D0:   D0[f_cur*4+:4] <= c_res1;
+        `ALU_REG_D1:   D1[f_cur*4+:4] <= c_res1;
+        `ALU_REG_ST:   ST[f_cur*4+:4] <= c_res1;
+        `ALU_REG_P:    P <= c_res1;
+        `ALU_REG_DAT0,
+        `ALU_REG_DAT1: o_bus_nibble_out <= c_res1;
+        `ALU_REG_HST:  HST <= c_res1;
+        default: $display("#### ALU_SAVE invalid register %0d for op %0d", reg_dest, alu_op);
         endcase
       `ALU_OP_RST_BIT,
       `ALU_OP_SET_BIT:
@@ -733,6 +733,11 @@ wire [0:0]  pop_pc;
 wire [0:0]  reload_pc;
 wire [0:0]  push_pc;
 
+reg  [1:0]  extra_cycles;
+wire [0:0]  no_extra_cycles;
+wire [1:0]  cycles_to_go;
+reg  [0:0]  write_done;
+ 
 assign next_pc   = (is_alu_op_jump && alu_finish)?jump_pc:PC + 1;
 assign goyes_off = {{12{i_imm_value[3]}}, i_imm_value, jump_off[3:0]};
 assign goyes_pc  = jump_bse + goyes_off;
@@ -745,10 +750,17 @@ assign pop_pc     = i_pop && i_ins_rtn &&
 assign reload_pc  = uncond_jmp || pop_pc || just_reset;
 assign push_pc    = update_pc && i_push && alu_finish;
 
+assign no_extra_cycles = (extra_cycles == 0);
+assign cycles_to_go    = extra_cycles - 1;
+
 always @(posedge i_clk) begin
   if (i_reset) begin
-    PC         <= ~0;
-    just_reset <= 1;
+    PC             <= ~0;
+    just_reset     <= 1;
+    extra_cycles   <= 0;
+    o_bus_load_pc  <= 0;
+    o_bus_load_dp  <= 0;
+    o_bus_write_dp <= 0;
   end
 
 
@@ -766,8 +778,74 @@ always @(posedge i_clk) begin
 `endif
 
   /*
-   * updates the PC
+   *
+   * Request the D0 or D1 pointers to be loaded to other 
+   * modules through the bus
+   *
    */
+
+
+  // $display("[!no_ec %b] || ( [run %b] && ( [!nstll %b] || [fin %b] || [test %b] ))",
+  //           !no_extra_cycles, alu_run, !i_alu_no_stall, alu_finish, alu_go_test);
+
+
+  if (do_alu_init) begin  
+    if (is_mem_xfer && !write_done) begin
+`ifdef SIM
+      $display("ALU_XFER 3: read %b | write %b | mem_reg DAT%b",
+               is_mem_read, is_mem_write, mem_reg[0]);
+      // $display(".------------------------------------.");
+      // $display("| SHOULD TELL THE BUS CONTROLLER TO  |");
+      // $display("| LOAD D0 OR D1 INTO MODULES' DP REG |");
+      // $display("`------------------------------------´");
+`endif
+      // DO SOMETHING TO GET THE BUS CONTROLLER TO SEND OUT 
+      // THE CONTENTS OF D0 OR D1 AS THE DP 
+      case (mem_reg[0])
+      0: o_bus_address <= D0;
+      1: o_bus_address <= D1;
+      endcase
+      o_bus_load_dp <= 1;
+    end
+  end
+
+  if (do_busclean && alu_run && !write_done)
+    if (is_mem_write && !o_bus_write_dp) begin
+      // $display("ALUWRITE %0d: [%d] setting up write", `PH_ALU_DUMP, i_cycle_ctr);
+      o_bus_write_dp      <= 1;
+    end
+  
+  // writing needs one more cycle as the DP_WRITE command 
+  // needs to be send
+  if (do_alu_save && alu_finish && is_mem_write && (extra_cycles == 0)) begin
+    // $display("ALUWRITE %0d: [%d] 2 EXTRA CYCLES", `PH_ALU_SAVE, i_cycle_ctr);
+    extra_cycles <= 2;
+    write_done   <= 1;
+  end
+
+  if (i_en_alu_calc && !no_extra_cycles) begin
+    // $display("ALUWRITE %0d: [%d] %0d CYCLES TO GO", `PH_ALU_SAVE, i_cycle_ctr, cycles_to_go);
+    extra_cycles   <= cycles_to_go;
+    if (cycles_to_go == 1) begin
+      o_bus_write_dp <= 0;
+      o_bus_read_pc <= 1;
+    end
+  end
+
+  if (i_en_alu_dump && no_extra_cycles && o_bus_read_pc) begin
+    // $display("ALUWRITE %0d: [%d] RELEASE DECODER", `PH_ALU_DUMP, i_cycle_ctr);
+    o_bus_read_pc   <= 0;
+    write_done      <= 0;
+  end
+
+  /**
+   *
+   * Update the PC.
+   * Request the new PC be loaded to the other modules through 
+   * the bus if necessary 
+   *
+   */
+
   if (do_alu_pc) begin
     // $display("DO ALU PC");
 `ifdef SIM
@@ -778,19 +856,20 @@ always @(posedge i_clk) begin
                 !o_alu_stall_dec,  next_pc, alu_done, alu_finish, 
                 is_alu_op_jump, i_ins_rtn, i_push, 
                 i_imm_value, jump_bse, goyes_off, goyes_pc);
-      if (reload_pc) begin
-        $display(".---------------------------------.");
-        $display("| SHOULD TELL THE BUS CONTROLLER  |");
-        $display("| TO LOAD PC INTO MODULES' PC REG |");
-        $display("`---------------------------------´");
-      end
+    // if (reload_pc) begin
+    //   $display(".---------------------------------.");
+    //   $display("| SHOULD TELL THE BUS CONTROLLER  |");
+    //   $display("| TO LOAD PC INTO MODULES' PC REG |");
+    //   $display("`---------------------------------´");
+    // end
 `endif
 
     // if we just came out of reset, simulate a long jump to 0
     if (just_reset) begin
-      $display("ALU_RSET 3: simulating GOVLNG to PC");
+      // $display("ALU_RSET 3: simulating GOVLNG to PC");
       // cancel this signal for good once reset is gone
-      just_reset <= 0;
+      just_reset    <= 0;
+      o_bus_read_pc <= 1;
     end
 
     // this may do wierd things with C=RSTK...
@@ -799,7 +878,7 @@ always @(posedge i_clk) begin
     end
 
     if (reload_pc) begin
-      $display("ALU_PC   3: $$$$ RELOADING PC $$$$");
+      // $display("ALU_PC   3: $$$$ RELOADING PC $$$$");
       o_bus_address <= pop_pc ? RSTK[rstk_ptr-1] : next_pc;
       o_bus_load_pc <= 1;
     end
@@ -819,9 +898,17 @@ always @(posedge i_clk) begin
     end
   end
 
-  // deactivate o_load_pc
-  if (do_busclean && o_bus_load_pc)
-    o_bus_load_pc <= 0;
+  /*
+   *
+   * Deactivate the load_pc or load_dp enables on the next clock
+   *
+   */
+
+  if (do_busclean && (o_bus_load_pc || o_bus_load_dp)) begin
+    $display("BUSCLEAN %0d: cleaning the various bus control bits", `PH_ALU_DUMP);
+    o_bus_load_pc       <= 0;
+    o_bus_load_dp       <= 0;
+  end
 
 end
 

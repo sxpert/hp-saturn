@@ -8,7 +8,8 @@
 `include "def-alu.v"
 
 module saturn_decoder(
-  i_clk, i_reset, i_cycles, i_en_dbg, i_en_dec, i_stalled,
+  i_clk, i_reset, i_cycles, i_en_dbg, i_en_dec, 
+  i_bus_load_pc, i_stalled,
   i_pc, i_nibble,
 
   i_reg_p,
@@ -41,26 +42,27 @@ module saturn_decoder(
 input   wire [0:0]  i_clk;
 input   wire [0:0]  i_reset;
 input   wire [31:0] i_cycles;
-input   wire        i_en_dbg;
-input   wire        i_en_dec;
-input   wire        i_stalled;
+input   wire [0:0]  i_en_dbg;
+input   wire [0:0]  i_en_dec;
+input   wire [0:0]  i_bus_load_pc;
+input   wire [0:0]  i_stalled;
 input   wire [19:0] i_pc;
 input   wire [3:0]  i_nibble;
 
 input   wire [3:0]  i_reg_p;
 
-output  reg         o_inc_pc;
-output  reg         o_push;
-output  reg         o_pop;
-output  reg         o_dec_error;
+output  reg  [0:0]  o_inc_pc;
+output  reg  [0:0]  o_push;
+output  reg  [0:0]  o_pop;
+output  reg  [0:0]  o_dec_error;
 `ifdef SIM
 output  reg  [0:0]  o_unimplemented;
 `endif
-output  reg         o_alu_debug;
+output  reg  [0:0]  o_alu_debug;
 
 // instructions related outputs
 output  reg [19:0]  o_ins_addr;
-output  reg         o_ins_decoded;
+output  reg [0:0]   o_ins_decoded;
 
 output  reg [1:0]   o_fields_table;
 output  reg [3:0]   o_field;
@@ -76,20 +78,20 @@ output  reg [4:0]   o_reg_src1;
 output  reg [4:0]   o_reg_src2;
 
 // rtn specific
-output  reg         o_ins_rtn;
-output  reg         o_set_xm;
-output  reg         o_set_carry;
-output  reg         o_test_carry;
-output  reg         o_carry_val;
-output  reg         o_en_intr;
+output  reg [0:0]   o_ins_rtn;
+output  reg [0:0]   o_set_xm;
+output  reg [0:0]   o_set_carry;
+output  reg [0:0]   o_test_carry;
+output  reg [0:0]   o_carry_val;
+output  reg [0:0]   o_en_intr;
 
 // setdec/hex
-output  reg         o_ins_set_mode;
-output  reg         o_mode_dec;
+output  reg [0:0]   o_ins_set_mode;
+output  reg [0:0]   o_mode_dec;
 
 // alu_operations
-output  reg         o_ins_alu_op;
-output  reg         o_ins_test_go;
+output  reg [0:0]   o_ins_alu_op;
+output  reg [0:0]   o_ins_test_go;
 
 /* data used by the debugger
  *
@@ -434,6 +436,7 @@ always @(posedge i_clk) begin
         block_13x <= 1;
       4'h4, 4'h5: // DAT[01]=[AC] <field>
       begin
+        o_alu_debug <= 0;
 `ifdef SIM
         $display("block_1x %h | use table <= %b", i_nibble, i_nibble[0]);
 `endif

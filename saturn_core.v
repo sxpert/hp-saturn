@@ -86,6 +86,7 @@ saturn_decoder	m_decoder (
 	.i_en_dbg       (ck_debugger),
 	.i_en_dec		    (ck_inst_dec),
 	.i_pc			      (reg_pc),
+	.i_bus_load_pc  (bus_load_pc),
 	.i_stalled      (dec_stalled),
 	.i_nibble		    (bus_nibble_in),
 
@@ -156,6 +157,7 @@ wire [0:0]      ins_test_go;
 saturn_alu		m_alu (
 	.i_clk					 (clk),
 	.i_reset				 (reset),
+	.i_cycle_ctr     (cycle_ctr),
 	.i_en_alu_dump   (ck_alu_dump),
 	.i_en_alu_prep	 (ck_alu_prep),
 	.i_en_alu_calc	 (ck_alu_calc),
@@ -166,6 +168,8 @@ saturn_alu		m_alu (
 	.o_bus_address    (bus_address),
 	.o_bus_load_pc    (bus_load_pc),
 	.o_bus_load_dp    (bus_load_dp),
+	.o_bus_read_pc    (bus_read_pc),
+	.o_bus_write_dp   (bus_write_dp),
 	.o_bus_nibble_out (bus_nibble_out),
 
 	.i_push					 (push),
@@ -204,6 +208,8 @@ saturn_alu		m_alu (
 wire [19:0]   bus_address;
 wire [0:0]    bus_load_pc;
 wire [0:0]    bus_load_dp;
+wire [0:0]    bus_read_pc;
+wire [0:0]    bus_write_dp;
 
 wire [3:0]    bus_nibble_in;
 wire [3:0]    bus_nibble_out;
@@ -241,6 +247,8 @@ saturn_bus_ctrl m_bus_ctrl (
   .i_address          (bus_address),
   .i_load_pc          (bus_load_pc),
   .i_load_dp          (bus_load_dp),
+	.i_read_pc					(bus_read_pc),
+	.i_write_dp				  (bus_write_dp),
   .i_nibble           (bus_nibble_out),
   .o_nibble           (bus_nibble_in)
 );
@@ -313,7 +321,6 @@ always @(posedge clk) begin
 		ck_alu_save  <= clk_phase[1:0] == `PH_ALU_SAVE;
 
 		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == `PH_BUS_SEND) };
-		// stop after 50 clocks
 		if (cycle_ctr == (max_cycle + 1)) begin
 		  $display(".-------------------.");
 			$display("|   OUT OF CYCLES   |");
@@ -340,7 +347,7 @@ always @(posedge clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 20;
+		max_cycle     <= 155;
 
 		mem_ctrl_stall <= 0;
 `ifndef SIM
