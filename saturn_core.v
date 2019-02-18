@@ -363,7 +363,7 @@ always @(posedge clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 420;
+		max_cycle     <= 450;
 
 		mem_ctrl_stall <= 0;
 `ifndef SIM
