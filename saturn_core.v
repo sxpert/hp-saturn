@@ -174,8 +174,10 @@ saturn_alu		m_alu (
 	.o_bus_load_pc    (bus_load_pc),
 	.o_bus_load_dp    (bus_load_dp),
 	.o_bus_pc_read    (bus_pc_read),
+	.o_bus_dp_read    (bus_dp_read),
 	.o_bus_dp_write   (bus_dp_write),
 	.o_bus_config			(bus_config),
+	.i_bus_nibble_in  (bus_nibble_in),
 	.o_bus_nibble_out (bus_nibble_out),
 
 	.i_push					 (push),
@@ -214,10 +216,11 @@ saturn_alu		m_alu (
 
 // interconnections
 wire [19:0]   bus_address;
+wire [0:0]    bus_pc_read;
+wire [0:0]    bus_dp_read;
+wire [0:0]    bus_dp_write;
 wire [0:0]    bus_load_pc;
 wire [0:0]    bus_load_dp;
-wire [0:0]    bus_pc_read;
-wire [0:0]    bus_dp_write;
 wire [0:0]    bus_config;
 
 wire [3:0]    bus_nibble_in;
@@ -257,6 +260,7 @@ saturn_bus_ctrl m_bus_ctrl (
   .i_load_pc          (bus_load_pc),
   .i_cmd_load_dp      (bus_load_dp),
 	.i_read_pc					(bus_pc_read),
+	.i_cmd_dp_read      (bus_dp_read),
 	.i_cmd_dp_write		  (bus_dp_write),
 	.i_cmd_reset        (ins_reset),
 	.i_cmd_config			  (bus_config),
@@ -267,6 +271,7 @@ saturn_bus_ctrl m_bus_ctrl (
 reg  [0:0] mem_ctrl_stall;
 wire [0:0] bus_stalls_core;
 
+// bus to external modules
 reg  [3:0] bus_data_in;
 wire [3:0] bus_data_out;
 wire [0:0] bus_strobe;
@@ -358,7 +363,7 @@ always @(posedge clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 405;
+		max_cycle     <= 420;
 
 		mem_ctrl_stall <= 0;
 `ifndef SIM
@@ -377,14 +382,6 @@ wire	 dec_stalled;
 wire	 alu_stalled;
 assign dec_stalled = alu_stalls_dec || bus_stalls_core;
 assign alu_stalled = bus_stalls_core;
-
-wire   read_nibble_to_dec;
-assign read_nibble_to_dec = ck_bus_recv && !dec_stalled;
-wire   dec_stalled_no_read;
-assign dec_stalled_no_read = ck_bus_recv && !bus_stalls_core && dec_stalled;
-wire   bus_is_stalled;
-assign bus_is_stalled = ck_bus_recv && bus_stalls_core;
-
 assign halt = clock_end || inv_opcode;
 
 

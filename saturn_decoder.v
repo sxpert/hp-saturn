@@ -515,6 +515,10 @@ always @(posedge i_clk) begin
     o_alu_op        <= `ALU_OP_COPY;
     go_fields_table <= use_fields_tbl;
     use_fields_tbl  <= 0;
+    
+    // do not block when we're reading
+    o_alu_no_stall  <= !use_fields_tbl && i_nibble[1];
+    // o_alu_debug     <= i_nibble[1];
 
     block_15xx      <= use_fields_tbl;
 
@@ -528,10 +532,11 @@ always @(posedge i_clk) begin
 `ifdef SIM
     $display("block_15xx %h", i_nibble);
 `endif
-    o_ins_alu_op  <= 1;
-    o_ins_decoded <= 1;
-    next_nibble   <= 0;
-    block_15xx    <= 0;
+    o_alu_no_stall <= i_nibble[1];
+    o_ins_alu_op   <= 1;
+    o_ins_decoded  <= 1;
+    next_nibble    <= 0;
+    block_15xx     <= 0;
   end
 
   if (do_block_pointer_arith_const) begin

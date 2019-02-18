@@ -26,10 +26,12 @@ module saturn_alu (
 
     o_bus_address,
     o_bus_pc_read,
+    o_bus_dp_read,
     o_bus_dp_write,
     o_bus_load_pc,
     o_bus_load_dp,
     o_bus_config,
+    i_bus_nibble_in,
     o_bus_nibble_out,
 
     i_push,
@@ -77,10 +79,12 @@ input   wire [0:0]  i_stalled;
 
 output  reg  [19:0] o_bus_address;
 output  reg  [0:0]  o_bus_pc_read;
+output  reg  [0:0]  o_bus_dp_read;
 output  reg  [0:0]  o_bus_dp_write;
 output  reg  [0:0]  o_bus_load_pc;
 output  reg  [0:0]  o_bus_load_dp;
 output  reg  [0:0]  o_bus_config;
+input   wire [3:0]  i_bus_nibble_in;
 output  reg  [3:0]  o_bus_nibble_out;
 
 input   wire [0:0]  i_push;
@@ -292,7 +296,7 @@ assign do_go_prep  = alu_active && i_en_alu_prep && i_ins_test_go;
 
 assign o_alu_stall_dec = (!no_extra_cycles) || 
                          (alu_run && 
-                          (!i_alu_no_stall || alu_finish || alu_go_test));
+                          (!i_alu_no_stall || alu_finish || alu_go_test || o_bus_dp_read));
 
 wire       alu_start;
 wire       alu_finish;
@@ -465,17 +469,6 @@ always @(posedge i_clk) begin
     alu_done <= 0;
   end
 
-
-  // if (do_alu_save && alu_done)
-  //   case (alu_op)
-  //     `ALU_OP_TEST_EQ,
-  //     `ALU_OP_TEST_NEQ:
-  //       begin
-  //         $display("#### UNBLOCK THE DECODER");
-  //         alu_go_test <= 1;
-  //       end
-  //   endcase
-
 end
 
 
@@ -519,6 +512,8 @@ always @(posedge i_clk) begin
         `ALU_REG_D0:   p_src1 <= D0[f_cur*4+:4];
         `ALU_REG_D1:   p_src1 <= D1[f_cur*4+:4];
         `ALU_REG_P:    p_src1 <= P;
+        `ALU_REG_DAT0,
+        `ALU_REG_DAT1: p_src1 <= i_bus_nibble_in;
         `ALU_REG_HST:  p_src1 <= HST;
         `ALU_REG_IMM:  p_src1 <= i_imm_value;
         `ALU_REG_ZERO: p_src1 <= 0;
@@ -816,26 +811,53 @@ end
 reg  [0:0]  write_done;
 reg  [1:0]  extra_cycles;
 
+wire [0:0]  read_done;
+wire [0:0]  setup_load_dp_read;
+wire [0:0]  setup_load_dp_write;
 wire [0:0]  setup_load_dp;
 wire [0:0]  no_extra_cycles;
 wire [1:0]  cycles_to_go;
 
-assign setup_load_dp   = do_alu_init && is_mem_xfer && !write_done;
-assign no_extra_cycles = (extra_cycles == 0);
-assign cycles_to_go    = extra_cycles - 1;
+assign read_done           = is_mem_read && do_alu_save && ((f_cur +1) == f_last);
+assign setup_load_dp_read  = do_alu_init && is_mem_read && !read_done;
+assign setup_load_dp_write = do_alu_init && is_mem_write && !write_done;
+assign setup_load_dp       = setup_load_dp_read || setup_load_dp_write;
+assign no_extra_cycles     = (extra_cycles == 0);
+assign cycles_to_go        = extra_cycles - 1;
 
 always @(posedge i_clk) begin
 
   // reset stuff
   if (i_reset) begin
+    // read_done      <= 0;
     write_done     <= 0;
     extra_cycles   <= 0;
     o_bus_load_dp  <= 0;
+    o_bus_dp_read  <= 0;
     o_bus_dp_write <= 0;
   end
 
+  /*
+   * reading
+   * note: starts immediately
+   */
+
+  if (setup_load_dp_read) begin
+    o_bus_load_dp <= 1;
+    o_bus_dp_read <= 1;
+  end
+
+  if (read_done) begin
+    o_bus_load_dp <= 0;
+    o_bus_dp_read <= 0;
+  end
+
+  /*
+   * writing
+   */
+
   // setup the order to load DP in time
-  if (setup_load_dp) begin
+  if (setup_load_dp_write) begin
     o_bus_load_dp <= 1;
   end
 
