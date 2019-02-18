@@ -35,7 +35,7 @@ always @(posedge i_clk) begin
   if (do_on_first_nibble) begin
     // reset values on instruction decode start
     case (i_nibble)
-    4'h6, 4'h7: begin
+    4'h4, 4'h5, 4'h6, 4'h7: begin
       o_reg_dest        <= 0;
       o_reg_src1        <= `ALU_REG_IMM;
       o_reg_src2        <= 0;
@@ -125,7 +125,8 @@ always @(posedge i_clk) begin
 
   if (do_block_13x) begin
     o_reg_dest <= i_nibble[1]?reg_A_C:reg_D0D1;
-    o_reg_src1 <= i_nibble[1]?reg_D0D1:reg_A_C;
+    o_reg_src1 <= i_nibble[2]?`ALU_REG_C:`ALU_REG_A;
+    o_reg_src2 <= i_nibble[1]?reg_D0D1:0;
   end
 
   if (do_block_14x_15xx) begin
@@ -190,27 +191,58 @@ always @(posedge i_clk) begin
 
   if (do_block_Abx || do_block_Dx) begin
     case ({i_nibble[3],i_nibble[2]})
-    2'b00: begin
-      o_reg_dest      <= reg_ABCD;
-      o_reg_src1      <= `ALU_REG_ZERO;
-      o_reg_src2        <= 0;
-    end
-    2'b01: begin
-      o_reg_dest      <= reg_ABCD;
-      o_reg_src1      <= reg_BCAC;
-      o_reg_src2        <= 0;
-    end
-    2'b10: begin
-      o_reg_dest      <= reg_BCAC;
-      o_reg_src1      <= reg_ABCD;
-      o_reg_src2        <= 0;
-    end
-    2'b11: begin // exch
-      o_reg_dest      <= reg_ABAC;
-      o_reg_src1      <= reg_ABAC;
-      o_reg_src2      <= reg_BCCD;
-    end
+      2'b00: begin
+        o_reg_dest      <= reg_ABCD;
+        o_reg_src1      <= `ALU_REG_ZERO;
+        o_reg_src2        <= 0;
+      end
+      2'b01: begin
+        o_reg_dest      <= reg_ABCD;
+        o_reg_src1      <= reg_BCAC;
+        o_reg_src2        <= 0;
+      end
+      2'b10: begin
+        o_reg_dest      <= reg_BCAC;
+        o_reg_src1      <= reg_ABCD;
+        o_reg_src2        <= 0;
+      end
+      2'b11: begin // exch
+        o_reg_dest      <= reg_ABAC;
+        o_reg_src1      <= reg_ABAC;
+        o_reg_src2      <= reg_BCCD;
+      end
     endcase
+  end
+
+  if (do_block_Bax) begin
+    case ({i_nibble[3],i_nibble[2]})
+      2'b00: begin
+        o_reg_dest <= reg_ABCD;
+        o_reg_src1 <= reg_ABCD;
+        o_reg_src2 <= reg_BCAC;
+      end
+      2'b01: begin
+        o_reg_dest <= reg_ABCD;
+        o_reg_src1 <= reg_ABCD;
+        o_reg_src2 <= 0;
+      end
+      2'b10: begin
+        o_reg_dest <= reg_BCAC;
+        o_reg_src1 <= reg_BCAC;
+        o_reg_src2 <= reg_ABCD;
+      end
+      2'b11: begin
+        o_reg_dest <= reg_ABCD;
+        o_reg_src1 <= reg_BCAC;
+        o_reg_src2 <= reg_ABCD;
+      end
+    endcase
+  end
+
+  if (do_block_Bbx) begin
+    o_reg_dest <= reg_ABCD;
+    o_reg_src1 <= reg_ABCD;
+    o_reg_src2 <= 0;
   end
 
   if (do_block_Cx) begin

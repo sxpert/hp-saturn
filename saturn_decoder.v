@@ -191,6 +191,7 @@ always @(posedge i_clk) begin
     o_ins_set_mode  <= 0;
     o_ins_reset     <= 0;
     o_ins_config    <= 0;
+    o_test_carry    <= 0;
   end
   
   if (decoder_active) begin
@@ -290,6 +291,7 @@ always @(posedge i_clk) begin
         // 4xy GOC
         // 500 RTNNC
         // 5xy GONC
+        o_alu_debug    <= 1;
         o_alu_no_stall <= 1;
         o_alu_op       <= `ALU_OP_JMP_REL2;
         mem_load_max   <= 1;
@@ -318,6 +320,13 @@ always @(posedge i_clk) begin
         // works either way, table is fixed on the next nibble
         o_fields_table  <= `FT_TABLE_a;
         block_Ax        <= 1;
+      end
+      4'hB: begin
+        go_fields_table <= 1;
+        // we don't know, safe bet is table a, but could be table b, 
+        // works either way, table is fixed on the next nibble
+        o_fields_table  <= `FT_TABLE_a;
+        block_Bx        <= 1;
       end
       4'hC: block_Cx   <= 1;
       4'hD: block_Dx   <= 1;
@@ -572,6 +581,15 @@ always @(posedge i_clk) begin
 
 `include "saturn_decoder_block_8.v"
 
+  /*
+   * Block Axx
+   * ra=ra+rb a 
+   * ra=ra-1  a
+   * ra=0     b
+   * ra=rb    b
+   * rarbEX   b
+   */
+
   if (do_block_Ax) begin
     o_fields_table <= i_nibble[3]?`FT_TABLE_b:`FT_TABLE_a;
     block_Aax      <= !i_nibble[3];
@@ -597,10 +615,67 @@ always @(posedge i_clk) begin
     block_Abx       <= 0;
   end
 
+
+  /*
+   * Block Bxx
+   * 
+   *
+   */
+
+
+  if (do_block_Bx) begin
+    o_fields_table <= i_nibble[3]?`FT_TABLE_b:`FT_TABLE_a;
+    block_Bax      <= !i_nibble[3];
+    block_Bbx      <=  i_nibble[3];
+    block_Bx       <= 0;
+  end
+
+  if (do_block_Bax) begin
+`ifdef SIM
+    $display("block_Bax %h", i_nibble);
+`endif
+    o_ins_alu_op    <= 1;
+    case ({i_nibble[3],i_nibble[2]})
+    2'b00: o_alu_op <= `ALU_OP_SUB;
+    2'b01: o_alu_op <= `ALU_OP_INC;
+    2'b10: o_alu_op <= `ALU_OP_SUB;
+    2'b11: o_alu_op <= `ALU_OP_SUB;
+    endcase
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
+`ifdef SIM
+    o_unimplemented <= 0;
+`endif
+    block_Bax       <= 0;
+  end
+
+  if (do_block_Bbx) begin
+    o_ins_alu_op    <= 1;
+    case ({i_nibble[3],i_nibble[2]})
+    2'b00: o_alu_op <= `ALU_OP_SHL;
+    2'b01: o_alu_op <= `ALU_OP_SHR;
+    2'b10: o_alu_op <= `ALU_OP_2CMPL;
+    2'b11: o_alu_op <= `ALU_OP_1CMPL;
+    endcase
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
+`ifdef SIM
+    o_unimplemented <= 0;
+`endif
+    block_Bbx       <= 0;
+  end
+
+  /*
+   * Block Cx
+   * 
+   *
+   */
+
   if (do_block_Cx) begin
 `ifdef SIM
     $display("block_Cx %h", i_nibble);
 `endif
+    // o_alu_debug <= 1;
     o_fields_table  <= `FT_TABLE_f;
     o_ins_alu_op    <= 1;
     o_alu_op        <= (i_nibble[3] && i_nibble[2])?`ALU_OP_DEC:`ALU_OP_ADD;
@@ -628,6 +703,10 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_Fx) begin
+`ifdef SIM
+    
+`endif
+
     case (i_nibble)
       4'h8, 4'h9, 4'hA, 4'hB: // r=-r   A
       begin

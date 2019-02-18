@@ -222,6 +222,8 @@ always @(posedge i_clk) begin
           `ALU_REG_B:    $write("B");
           `ALU_REG_C:    $write("C");
           `ALU_REG_D:    $write("D");
+          `ALU_REG_D0:   $write("D0");
+          `ALU_REG_D1:   $write("D1");
           `ALU_REG_RSTK: $write("RSTK");
           `ALU_REG_IMM:  $write("\t%0d", o_imm_value+1);
           default:       $write("[src2:%0d]", o_reg_src2);

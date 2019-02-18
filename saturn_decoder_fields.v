@@ -63,6 +63,11 @@ always @(posedge i_clk) begin
     o_field           <= 0;
     o_field_valid     <= 0;
     case (i_nibble)
+    4'h4, 4'h5: begin // RTNC / GOC / RTNNC / GONC
+      $display("------------------------------------------------ 4/5xx JUMP setting fields");
+      o_field_start     <= 0;
+      o_field_last      <= 1;
+    end 
     4'h6, 4'h7: begin // GOTO / GOSUB
       o_field_start     <= 0;
       o_field_last      <= 2;

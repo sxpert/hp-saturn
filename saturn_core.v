@@ -22,23 +22,51 @@
 
 `ifdef SIM
 module saturn_core (
-	input			    clk,
-	input			    reset,
-	output [0:0]  halt,
-	output [3:0] 	busstate,
-	output [11:0] decstate
+	i_clk,
+	i_reset,
+	o_halt,
+	
+  i_bus_data_in,
+  o_bus_data_out,
+  o_bus_strobe,
+  o_bus_cmd_data
 );
+
+input  wire [0:0] i_clk;
+input  wire [0:0] i_reset;
+output wire [0:0] o_halt;
+
+input  wire [3:0] i_bus_data_in;
+output wire [3:0] o_bus_data_out;
+output wire [0:0] o_bus_strobe;
+output wire [0:0] o_bus_cmd_data;
+
 `else
 module saturn_core (
-	input			    clk_25mhz,
-	input  [6:0] 	btn,
-	output [7:0]	led
-);
-wire 		clk;
-wire 		reset;
+	clk_25mhz,
+	btn,
+	led,
 
-assign clk			= clk_25mhz;
-assign reset		= btn[1];
+  i_bus_data_in,
+  o_bus_data_out,
+  o_bus_strobe,
+  o_bus_cmd_data
+);
+
+input wire [0:0] clk_25mhz;
+input wire [6:0] btn;
+output reg [7:0] led;
+
+wire [0:0] i_clk;
+wire [0:0] i_reset;
+
+assign i_clk	 = clk_25mhz;
+assign i_reset = btn[1];
+
+input  wire [3:0] i_bus_data_in;
+output wire [3:0] o_bus_data_out;
+output wire [0:0] o_bus_strobe;
+output wire [0:0] o_bus_cmd_data;
 
 `endif
 
@@ -65,10 +93,6 @@ reg	[0:0]	 clock_end;
 reg	[31:0] cycle_ctr;
 reg	[31:0] max_cycle;
 
-// state machine stuff
-wire [0:0] halt;
-
-
 // hp48_bus bus_ctrl (
 // 	.strobe			(bus_strobe),
 // 	.reset			(reset),
@@ -80,8 +104,8 @@ wire [0:0] halt;
 // );
 
 saturn_decoder	m_decoder (
-	.i_clk			    (clk),
-	.i_reset		    (reset),
+	.i_clk			    (i_clk),
+	.i_reset		    (i_reset),
 	.i_cycles		    (cycle_ctr),
 	.i_en_dbg       (ck_debugger),
 	.i_en_dec		    (ck_inst_dec),
@@ -116,6 +140,7 @@ saturn_decoder	m_decoder (
   .o_ins_rtn      (ins_rtn),
   .o_set_xm       (set_xm),
   .o_set_carry    (set_carry),
+	.o_test_carry   (test_carry),
   .o_carry_val    (carry_val),
   .o_ins_set_mode (ins_set_mode),
 	.o_mode_dec     (mode_dec),
@@ -149,6 +174,7 @@ wire [4:0]			reg_src2;
 wire [0:0]      ins_rtn;
 wire [0:0]      set_xm;
 wire [0:0]      set_carry;
+wire [0:0]      test_carry;
 wire [0:0]      carry_val;
 wire [0:0]      ins_set_mode;
 wire [0:0]      mode_dec;
@@ -160,8 +186,8 @@ wire [0:0]      ins_unconfig;
 
 
 saturn_alu		m_alu (
-	.i_clk					 (clk),
-	.i_reset				 (reset),
+	.i_clk					 (i_clk),
+	.i_reset				 (i_reset),
 	.i_cycle_ctr     (cycle_ctr),
 	.i_en_alu_dump   (ck_alu_dump),
 	.i_en_alu_prep	 (ck_alu_prep),
@@ -207,6 +233,7 @@ saturn_alu		m_alu (
   .i_mode_dec			 (mode_dec),
   .i_set_xm        (set_xm),
   .i_set_carry     (set_carry),
+	.i_test_carry		 (test_carry),
   .i_carry_val     (carry_val),
 	
 	.o_reg_p				 (reg_p),
@@ -238,8 +265,8 @@ wire [19:0]		reg_pc;
 
 saturn_bus_ctrl m_bus_ctrl (
   // basic stuff
-	.i_clk              (clk),
-  .i_reset            (reset),
+	.i_clk              (i_clk),
+  .i_reset            (i_reset),
 	.i_cycle_ctr        (cycle_ctr),
   .i_en_bus_send      (ck_bus_send),
   .i_en_bus_recv      (ck_bus_recv),
@@ -249,10 +276,10 @@ saturn_bus_ctrl m_bus_ctrl (
   .o_stalled_by_bus   (bus_stalls_core),
 
   //bus i/o
-  .i_bus_data         (bus_data_in),
-  .o_bus_data         (bus_data_out),
-  .o_bus_strobe       (bus_strobe),
-  .o_bus_cmd_data     (bus_cmd_data),
+  .i_bus_data         (i_bus_data_in),
+  .o_bus_data         (o_bus_data_out),
+  .o_bus_strobe       (o_bus_strobe),
+  .o_bus_cmd_data     (o_bus_cmd_data),
 
   // interface to the rest of the machine
 	.i_alu_pc           (reg_pc),
@@ -271,11 +298,11 @@ saturn_bus_ctrl m_bus_ctrl (
 reg  [0:0] mem_ctrl_stall;
 wire [0:0] bus_stalls_core;
 
-// bus to external modules
-reg  [3:0] bus_data_in;
-wire [3:0] bus_data_out;
-wire [0:0] bus_strobe;
-wire [0:0] bus_cmd_data;
+// // bus to external modules
+// reg  [3:0] bus_data_in;
+// wire [3:0] bus_data_out;
+// wire [0:0] bus_strobe;
+// wire [0:0] bus_cmd_data;
 
 // `define DEBUG_CLOCKS
 
@@ -318,8 +345,8 @@ initial	begin
 //
 //--------------------------------------------------------------------------------------------------
 
-always @(posedge clk) begin
-	if (!reset) begin
+always @(posedge i_clk) begin
+	if (!i_reset) begin
 		clk_phase    <= clk_phase + 1;
 		ck_debugger  <= clk_phase[1:0] == `PH_DEBUGGER;
 
@@ -363,7 +390,7 @@ always @(posedge clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 450;
+		max_cycle     <= 650;
 
 		mem_ctrl_stall <= 0;
 `ifndef SIM
@@ -382,8 +409,9 @@ wire	 dec_stalled;
 wire	 alu_stalled;
 assign dec_stalled = alu_stalls_dec || bus_stalls_core;
 assign alu_stalled = bus_stalls_core;
-assign halt = clock_end || inv_opcode;
-
+`ifdef SIM
+assign o_halt = clock_end || inv_opcode;
+`endif
 
 // Verilator lint_off UNUSED
 //wire [N-1:0] unused;
@@ -394,25 +422,32 @@ endmodule
 `ifdef SIM
 
 module saturn_tb;
-reg			clk;
-reg			reset;
-wire		halt;
-wire [3:0]	busstate;
-wire [11:0]	decstate;
 
 saturn_core saturn (
-	.clk		(clk),
-	.reset		(reset),
-	.halt		(halt),
-	.busstate	(busstate),
-	.decstate	(decstate)
+	.i_clk						(clk),
+	.i_reset          (reset),
+	.o_halt           (halt),
+  .i_bus_data_in    (core_bus_data_in),
+  .o_bus_data_out   (core_bus_data_out),
+  .o_bus_strobe     (core_bus_strobe),
+  .o_bus_cmd_data   (core_bus_cmd_data)
 );
+
+reg	 [0:0] clk;
+reg	 [0:0] reset;
+wire [0:0] halt;
+
+reg  [3:0] core_bus_data_in;
+wire [3:0] core_bus_data_out;
+wire [0:0] core_bus_strobe;
+wire [0:0] core_bus_cmd_data;
 
 always 
     #10 clk = (clk === 1'b0);
 
 initial begin
-	//$monitor ("c %b | r %b | run %h | dec %h", clk, reset, runstate, decstate);
+	// $monitor ("c %b | r %b | in %h | out %h | str %b | cd %b", 
+	// 				  clk, reset, core_bus_data_in, core_bus_data_out, core_bus_strobe, core_bus_cmd_data);
 end 
 
 initial begin

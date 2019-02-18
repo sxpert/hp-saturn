@@ -109,6 +109,18 @@ reg   block_Abx;
 wire  do_block_Abx;
 assign do_block_Abx = do_on_other_nibbles && block_Abx;
 
+reg    block_Bx;
+wire   do_block_Bx;
+assign do_block_Bx = do_on_other_nibbles && block_Bx;
+
+reg   block_Bax;
+wire  do_block_Bax;
+assign do_block_Bax = do_on_other_nibbles && block_Bax;
+
+reg   block_Bbx;
+wire  do_block_Bbx;
+assign do_block_Bbx = do_on_other_nibbles && block_Bbx;
+
 reg   block_Cx;
 wire  do_block_Cx;
 assign do_block_Cx = do_on_other_nibbles && block_Cx;
