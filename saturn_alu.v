@@ -278,7 +278,8 @@ wire do_alu_pc;
 wire do_alu_mode;
 
 assign do_busclean = alu_active && i_en_alu_dump;
-assign do_alu_init = alu_active && i_en_alu_init && i_ins_alu_op && !alu_run && !write_done; 
+assign do_alu_init = alu_active && i_en_alu_init && i_ins_alu_op && !alu_run && 
+                     !write_done && !do_exec_p_eq; 
 assign do_alu_prep = alu_active && i_en_alu_prep && alu_run;
 assign do_alu_calc = alu_active && i_en_alu_calc && alu_run;
 assign do_alu_save = alu_active && i_en_alu_save && alu_run;
@@ -291,6 +292,24 @@ wire do_go_calc;
 
 assign do_go_init  = alu_active && i_en_alu_save && i_ins_test_go;
 assign do_go_prep  = alu_active && i_en_alu_prep && i_ins_test_go;
+
+// now for the fine tuning ;-)
+
+// save one cycle on P= n!
+wire   is_alu_op_copy;
+wire   is_reg_dest_p;
+wire   is_reg_src1_imm;
+wire   do_exec_p_eq;
+
+assign is_alu_op_copy  = (i_alu_op == `ALU_OP_COPY);
+assign is_reg_dest_p   = (i_reg_dest == `ALU_REG_P);
+assign is_reg_src1_imm = (i_reg_src1 == `ALU_REG_IMM);
+assign do_exec_p_eq    = alu_active && i_en_alu_save && i_ins_alu_op && is_alu_op_copy && is_reg_dest_p && is_reg_src1_imm;
+
+initial begin
+  // $monitor({"alu_active %b | i_en_alu_save %b | i_ins_alu_op %b | i_alu_op %0d | op=copy %b | i_reg_dest %0d | dest=P %b | i_reg_src1 %0d | src1=imm %b"},
+  //          alu_active, i_en_alu_save, i_ins_alu_op, i_alu_op, is_alu_op_copy, i_reg_dest, is_reg_dest_p, i_reg_src1, is_reg_src1_imm);
+end
 
 // the decoder may request the ALU to not stall it
 
@@ -670,6 +689,22 @@ always @(posedge i_clk) begin
     `endif
     end
   end
+
+  /*
+   *
+   * Epic shortcut for P= n case
+   *
+   */
+
+  if (do_exec_p_eq) begin
+    P <= i_imm_value;
+  end
+
+  /*
+   * normal way for the ALU to save results. 
+   *
+   *
+   */
 
   if (do_alu_save) begin
     `ifdef SIM
