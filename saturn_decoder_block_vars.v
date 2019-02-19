@@ -6,6 +6,8 @@
  *
  */
 
+`ifndef _SATURN_DECODER_BLOCK_VARS
+`define _SATURN_DECODER_BLOCK_VARS
 
 /*
  *
@@ -82,6 +84,30 @@ reg   block_80Cx;
 wire  do_block_80Cx;
 assign do_block_80Cx = do_on_other_nibbles && block_80Cx;
 
+reg   block_81x;
+wire  do_block_81x;
+assign do_block_81x = do_on_other_nibbles && block_81x;
+
+reg   block_81Ax;
+wire  do_block_81Ax;
+assign do_block_81Ax = do_on_other_nibbles && block_81Ax;
+
+reg   block_81Af0x;
+wire  do_block_81Af0x;
+assign do_block_81Af0x = do_on_other_nibbles && block_81Af0x;
+
+reg   block_81Af1x;
+wire  do_block_81Af1x;
+assign do_block_81Af1x = do_on_other_nibbles && block_81Af1x;
+
+reg   block_81Af2x;
+wire  do_block_81Af2x;
+assign do_block_81Af2x = do_on_other_nibbles && block_81Af2x;
+
+reg   block_81Afx;
+wire  do_block_81Afx;
+assign do_block_81Afx = do_on_other_nibbles && block_81Afx;
+
 reg   block_82x;
 wire  do_block_82x;
 assign do_block_82x = do_on_other_nibbles && block_82x;
@@ -153,3 +179,5 @@ assign do_block_sr_bit = do_on_other_nibbles && block_sr_bit;
 
 wire in_fields_table;
 assign in_fields_table = go_fields_table && !fields_table_done;
+
+`endif
