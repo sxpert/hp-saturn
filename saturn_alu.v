@@ -16,6 +16,7 @@
 module saturn_alu (
     i_clk,
     i_reset,
+    i_clk_ph,
     i_cycle_ctr,
     i_en_alu_dump,
 	  i_en_alu_prep,
@@ -70,6 +71,7 @@ module saturn_alu (
 
 input   wire [0:0]  i_clk;
 input   wire [0:0]  i_reset;
+input   wire [1:0]  i_clk_ph;
 input   wire [31:0] i_cycle_ctr;
 input   wire [0:0]  i_en_alu_dump;
 input   wire [0:0]  i_en_alu_prep;
@@ -134,6 +136,8 @@ assign o_reg_p = P;
 assign o_pc    = PC;
 
 /* internal registers */
+wire [1:0] phase;
+assign phase = i_clk_ph + 3;
 
 /* copy of arguments */
 reg [4:0] alu_op;
@@ -229,7 +233,7 @@ wire do_alu_mode;
 
 assign do_busclean = alu_active && i_en_alu_dump;
 assign do_alu_init = alu_active && i_en_alu_init && i_ins_alu_op && !alu_run && 
-                     !write_done && !do_exec_p_eq; 
+                     !write_done && !do_exec_p_eq && !o_bus_config; 
 assign do_alu_prep = alu_active && i_en_alu_prep && alu_run;
 assign do_alu_calc = alu_active && i_en_alu_calc && alu_run;
 assign do_alu_save = alu_active && i_en_alu_save && alu_run;
@@ -257,15 +261,26 @@ assign is_reg_src1_imm = (i_reg_src1 == `ALU_REG_IMM);
 assign do_exec_p_eq    = alu_active && i_en_alu_save && i_ins_alu_op && is_alu_op_copy && is_reg_dest_p && is_reg_src1_imm;
 
 initial begin
-  // $monitor({"alu_active %b | i_en_alu_save %b | i_ins_alu_op %b | i_alu_op %0d | op=copy %b | i_reg_dest %0d | dest=P %b | i_reg_src1 %0d | src1=imm %b"},
-  //          alu_active, i_en_alu_save, i_ins_alu_op, i_alu_op, is_alu_op_copy, i_reg_dest, is_reg_dest_p, i_reg_src1, is_reg_src1_imm);
+  // $monitor({"ALU - ph %0d | ",
+  //           "i_reset %b | i_stalled %b | nostll %b | ",
+  //           "init %b | act %b | run %b | done %b | fin %b | ",
+  //           "idump %b | oblpc %b | idec %b | bconf %b | stdec %b "}, 
+  //          phase,
+  //          i_reset, i_stalled, i_alu_no_stall,
+  //          do_alu_init, alu_active, alu_run, alu_done, alu_finish,
+  //          i_en_alu_dump, o_bus_load_pc, i_ins_decoded, o_bus_config, o_alu_stall_dec);
+
 end
 
 // the decoder may request the ALU to not stall it
 
-assign o_alu_stall_dec = !no_extra_cycles || alu_initializing || 
-                         (alu_run && 
-                          (!i_alu_no_stall || alu_finish || alu_go_test || o_bus_dp_read));
+wire bus_commands;
+assign bus_commands = o_bus_config || o_bus_dp_write ;
+
+assign o_alu_stall_dec = alu_initializing || 
+                         (alu_run && (!i_alu_no_stall || alu_finish)) || 
+                         i_stalled || bus_commands;
+
 
 wire       alu_start;
 wire       alu_finish;
@@ -428,7 +443,7 @@ always @(posedge i_clk) begin
     f_cur <= f_cur + 1;
 
   if (do_alu_init) begin
-    // $display("-------------------------------------------------  DO_ALU_INIT");
+    $display("ALU %0d - -------------------------------------------------  DO_ALU_INIT", phase);
     alu_run <= 1;
     f_first <= i_field_start;
     f_cur   <= i_field_start;
@@ -661,7 +676,7 @@ always @(posedge i_clk) begin
   end
 
   if (do_go_init) begin
-    $display("GO_INIT  3: imm %h", i_imm_value);
+    // $display("GO_INIT  3: imm %h", i_imm_value);
     jump_off <= { {16{1'b0}}, i_imm_value};
   end
 end
@@ -977,19 +992,25 @@ end
 wire is_bus_config;
 assign is_bus_config = (alu_op == `ALU_OP_COPY) && (reg_dest == `ALU_REG_ADDR);
 wire send_config;
-assign send_config =  alu_active && i_en_alu_calc && i_ins_alu_op && alu_run && alu_finish;
+assign send_config =  alu_active && (phase == 1) && i_ins_alu_op && alu_run && alu_finish;
+wire clean_after_config;
+assign clean_after_config = alu_active && (phase == 3) && o_bus_config && !alu_run;
 
 always @(posedge i_clk) begin
   if (i_reset) 
     o_bus_config <= 0;
 
   // $display("send_config %b | is_bus_cfg %b | i_ins_cfg %b", send_config, is_bus_config, i_ins_config);
-  if (send_config && is_bus_config && i_ins_config)
+  if (send_config && is_bus_config && i_ins_config) begin
+    $display("ALU %0d - =========================== ALU start configure mode", phase);
     o_bus_config <= 1;
+  end
 
 
-  if (do_busclean && o_bus_config)
+  if (clean_after_config) begin
+    $display("ALU %0d - --------------------------- ALU end configure mode %b", phase, i_stalled);
     o_bus_config <= 0;
+  end
 
 end
 
