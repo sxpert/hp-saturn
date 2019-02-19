@@ -22,10 +22,12 @@ wire is_p_eq;
 wire is_la_hex; 
 wire is_lc_hex; 
 wire disp_nb_nibbles;
+wire is_alu_op;
 assign p_is_dest       = (o_reg_dest == `ALU_REG_P);
 assign is_load_imm     =   ((o_alu_op == `ALU_OP_COPY)     || 
                             (o_alu_op == `ALU_OP_RST_BIT)  ||
                             (o_alu_op == `ALU_OP_SET_BIT)  ||
+                            (o_alu_op == `ALU_OP_JMP_REL2) ||
                             (o_alu_op == `ALU_OP_JMP_REL3) ||
                             (o_alu_op == `ALU_OP_JMP_REL4) ||
                             (o_alu_op == `ALU_OP_JMP_ABS5))
@@ -36,6 +38,8 @@ assign is_p_eq         = is_load_imm && p_is_dest;
 assign is_la_hex       = is_load_imm && (o_reg_dest == `ALU_REG_A);
 assign is_lc_hex       = is_load_imm && (o_reg_dest == `ALU_REG_C);
 assign disp_nb_nibbles = is_d0_eq || is_d1_eq;
+assign is_alu_op       = o_ins_alu_op && 
+                         !( o_ins_config );
 
 reg [4:0]  nibble_pos;
 
@@ -63,14 +67,18 @@ always @(posedge i_clk) begin
         if (o_alu_op == `ALU_OP_TEST_GO) $write("YES");
         if (o_set_xm) $write("SXM");
         if (o_set_carry) $write("%sC", o_carry_val?"S":"C");
+        $write("\t");
       end
       if (o_ins_set_mode) begin
         $write("SET%s", o_mode_dec?"DEC":"HEX");
       end
       if (o_ins_reset) begin
-        $write("RESET");
+        $write("RESET\t");
       end
-      if (o_ins_alu_op) begin
+      if (o_ins_config) 
+        $write("CONFIG\t");
+
+      if (is_alu_op) begin
 
         case (o_alu_op)
           `ALU_OP_TEST_EQ,
@@ -79,9 +87,6 @@ always @(posedge i_clk) begin
 
         // reg dest...
         case (o_alu_op)
-          `ALU_OP_JMP_REL3:  $write("%s", o_push?"GOSUB":"GOTO"); 
-          `ALU_OP_JMP_REL4:  $write("%s", o_push?"GOSUBL":"GOLONG");
-          `ALU_OP_JMP_ABS5:  $write("%s", o_push?"GOSBVL":"GOVLNG");
           `ALU_OP_CLR_MASK:
             case (o_reg_dest)
               `ALU_REG_HST:
@@ -97,6 +102,10 @@ always @(posedge i_clk) begin
                 endcase
               default:         $write("[VLR_MASK dest:%0d]", o_reg_dest);
             endcase 
+          `ALU_OP_JMP_REL2,
+          `ALU_OP_JMP_REL3,
+          `ALU_OP_JMP_REL4,
+          `ALU_OP_JMP_ABS5,
           `ALU_OP_TEST_EQ,
           `ALU_OP_TEST_NEQ: begin end 
           default:
@@ -140,12 +149,17 @@ always @(posedge i_clk) begin
           if (!is_lc_hex) 
             $write("=");
         `ALU_OP_2CMPL:    $write("=-");
+        `ALU_OP_JMP_REL2: begin
+          $write("%s",(o_mem_load[7:0] == 0)?"RTN":"GO");
+          if (!o_carry_val) $write("N");
+          $write("C");
+        end
+        `ALU_OP_JMP_REL3:  $write("%s", o_push?"GOSUB":"GOTO"); 
+        `ALU_OP_JMP_REL4:  $write("%s", o_push?"GOSUBL":"GOLONG");
+        `ALU_OP_JMP_ABS5:  $write("%s", o_push?"GOSBVL":"GOVLNG");
         `ALU_OP_EXCH,
         `ALU_OP_TEST_EQ,
         `ALU_OP_TEST_NEQ,
-        `ALU_OP_JMP_REL3,
-        `ALU_OP_JMP_REL4,
-        `ALU_OP_JMP_ABS5,
         `ALU_OP_CLR_MASK: begin end
         default: $write("[op:%0d]", o_alu_op);
         endcase
@@ -255,7 +269,8 @@ always @(posedge i_clk) begin
             `FT_FIELD_A:  $write("A");
             endcase
           else $write("%0d", o_field_last+1);
-        end else begin
+        end 
+        else begin
           // $write("@%b@", is_load_imm);
           if (is_load_imm) begin
             if (is_p_eq) $write("%0d", o_imm_value);
