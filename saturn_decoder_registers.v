@@ -1,4 +1,7 @@
+`ifndef _SATURN_DECODER_REGISTERS
+`define _SATURN_DECODER_REGISTERS
 
+`include "def-alu.v"
 
 /******************************************************************************
 *
@@ -167,6 +170,7 @@ always @(posedge i_clk) begin
       4'h5: begin
         o_reg_dest        <= `ALU_REG_ADDR;
         o_reg_src1        <= `ALU_REG_C;
+        o_reg_src2        <= `ALU_REG_NOPE;
       end
     endcase
   end
@@ -175,6 +179,24 @@ always @(posedge i_clk) begin
     o_reg_dest        <= `ALU_REG_C;
     o_reg_src1        <= `ALU_REG_P;
     o_reg_src2        <= 0;
+  end
+
+  if (do_block_81Af0x) begin
+    o_reg_dest        <= { 2'b01, i_nibble[2:0]};
+    o_reg_src1        <= i_nibble[3]?`ALU_REG_C:`ALU_REG_A;
+    o_reg_src2        <= 0;
+  end
+
+  if (do_block_81Af1x) begin
+    o_reg_dest        <= i_nibble[3]?`ALU_REG_C:`ALU_REG_A;
+    o_reg_src1        <= { 2'b01, i_nibble[2:0]};
+    o_reg_src2        <= 0;
+  end
+
+  if (do_block_81Af2x) begin
+    o_reg_dest        <= i_nibble[3]?`ALU_REG_C:`ALU_REG_A;
+    o_reg_src1        <= i_nibble[3]?`ALU_REG_C:`ALU_REG_A;
+    o_reg_src2        <= { 2'b01, i_nibble[2:0]};
   end
 
   if (do_block_82x) begin
@@ -281,3 +303,5 @@ always @(posedge i_clk) begin
   end
 
 end
+
+`endif

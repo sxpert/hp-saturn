@@ -127,13 +127,19 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_14x_15xx && !do_fields_table) begin
+    $display("fields_14x_15xx : dft %b | tv %b | fv %b", do_fields_table, table_value, o_field_valid);
     o_field       <= i_nibble[3]?`FT_FIELD_B:`FT_FIELD_A;
     o_field_start <= 0;
     o_field_last  <= i_nibble[3]?1:4;
     o_field_valid <= 1;
   end
 
-  if (do_block_14x_15xx && do_fields_table && table_value) begin
+  if (do_block_14x_15xx && do_fields_table) begin
+    $display("fields_14x_15xx : dft %b | tv %b | fv %b", do_fields_table, table_value, o_field_valid);
+  end
+
+  if (do_block_15xx && table_value) begin
+    $display("fields_15xx dft %b | tv %b | fv %b", do_fields_table, table_value, o_field_valid);
     o_field_start <= 0;
     o_field_last  <= i_nibble;
     o_field_valid <= 1;
