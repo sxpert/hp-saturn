@@ -26,20 +26,18 @@ module saturn_core (
 	i_reset,
 	o_halt,
 	
+	o_bus_reset,
   i_bus_data_in,
   o_bus_data_out,
   o_bus_strobe,
-  o_bus_cmd_data
+  o_bus_cmd_data,
+
+	o_phase
 );
 
 input  wire [0:0] i_clk;
 input  wire [0:0] i_reset;
 output wire [0:0] o_halt;
-
-input  wire [3:0] i_bus_data_in;
-output wire [3:0] o_bus_data_out;
-output wire [0:0] o_bus_strobe;
-output wire [0:0] o_bus_cmd_data;
 
 `else
 module saturn_core (
@@ -47,10 +45,13 @@ module saturn_core (
 	btn,
 	led,
 
+	o_bus_reset,
   i_bus_data_in,
   o_bus_data_out,
   o_bus_strobe,
-  o_bus_cmd_data
+  o_bus_cmd_data,
+
+	o_phase
 );
 
 input wire [0:0] clk_25mhz;
@@ -63,12 +64,18 @@ wire [0:0] i_reset;
 assign i_clk	 = clk_25mhz;
 assign i_reset = btn[1];
 
+`endif
+
+output wire [1:0] o_phase;
+
+assign o_phase = clk_phase + 3;
+
+output wire [0:0] o_bus_reset;
 input  wire [3:0] i_bus_data_in;
 output wire [3:0] o_bus_data_out;
 output wire [0:0] o_bus_strobe;
 output wire [0:0] o_bus_cmd_data;
 
-`endif
 
 // clocks
 reg	[1:0]  clk_phase;
@@ -188,6 +195,7 @@ wire [0:0]      ins_unconfig;
 saturn_alu		m_alu (
 	.i_clk					 (i_clk),
 	.i_reset				 (i_reset),
+	.i_clk_ph        (clk_phase[1:0]),
 	.i_cycle_ctr     (cycle_ctr),
 	.i_en_alu_dump   (ck_alu_dump),
 	.i_en_alu_prep	 (ck_alu_prep),
@@ -267,16 +275,18 @@ saturn_bus_ctrl m_bus_ctrl (
   // basic stuff
 	.i_clk              (i_clk),
   .i_reset            (i_reset),
+	.i_phase            (o_phase),
 	.i_cycle_ctr        (cycle_ctr),
   .i_en_bus_send      (ck_bus_send),
   .i_en_bus_recv      (ck_bus_recv),
 	.i_en_bus_ecmd		  (ck_bus_ecmd),
   .i_stalled          (mem_ctrl_stall),
 	.i_read_stall       (dec_stalled),
-  .o_stalled_by_bus   (bus_stalls_core),
+  .o_stall_alu        (bus_stalls_core),
 
   //bus i/o
-  .i_bus_data         (i_bus_data_in),
+	.o_bus_reset        (o_bus_reset),
+  .i_bus_data         (i_bus_data_in), 
   .o_bus_data         (o_bus_data_out),
   .o_bus_strobe       (o_bus_strobe),
   .o_bus_cmd_data     (o_bus_cmd_data),
@@ -284,7 +294,7 @@ saturn_bus_ctrl m_bus_ctrl (
   // interface to the rest of the machine
 	.i_alu_pc           (reg_pc),
   .i_address          (bus_address),
-  .i_load_pc          (bus_load_pc),
+  .i_cmd_load_pc      (bus_load_pc),
   .i_cmd_load_dp      (bus_load_dp),
 	.i_read_pc					(bus_pc_read),
 	.i_cmd_dp_read      (bus_dp_read),
@@ -297,12 +307,6 @@ saturn_bus_ctrl m_bus_ctrl (
 
 reg  [0:0] mem_ctrl_stall;
 wire [0:0] bus_stalls_core;
-
-// // bus to external modules
-// reg  [3:0] bus_data_in;
-// wire [3:0] bus_data_out;
-// wire [0:0] bus_strobe;
-// wire [0:0] bus_cmd_data;
 
 // `define DEBUG_CLOCKS
 
@@ -390,7 +394,7 @@ always @(posedge i_clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 650;
+		max_cycle     <= 278;
 
 		mem_ctrl_stall <= 0;
 `ifndef SIM
@@ -421,26 +425,169 @@ endmodule
 
 `ifdef SIM
 
+`include "def-buscmd.v"
+
+/******************************************************************************
+ *
+ * test rom
+ *
+ ****************************************************************************/
+
+module test_rom (
+	i_phase,
+
+	i_reset,
+	i_bus_data_in,
+  o_bus_data_out,
+	i_bus_strobe,
+	i_bus_cmd_data
+);
+
+input  wire [1:0] i_phase;
+
+input  wire [0:0] i_reset;
+input  wire [3:0] i_bus_data_in;
+output reg  [3:0] o_bus_data_out;
+input  wire [0:0] i_bus_strobe;
+input  wire [0:0] i_bus_cmd_data; 
+
+reg  [31:0] cycles;
+
+`ifdef SIM
+`define ROMBITS 20
+`else 
+`define ROMBITS 12
+`endif
+
+reg  [3:0]  rom [0:2**`ROMBITS-1];
+
+reg  [19:0] local_pc;
+reg  [19:0] local_dp;
+
+reg  [3:0]  last_bus_cmd;
+reg  [2:0]  addr_c;
+wire [0:0]  s_load_pc;
+wire [0:0]  s_load_dp;
+wire [0:0]  s_pc_read;
+wire [0:0]  s_dp_write;
+assign s_load_pc  = (last_bus_cmd == `BUSCMD_LOAD_PC);
+assign s_load_dp  = (last_bus_cmd == `BUSCMD_LOAD_DP);
+assign s_pc_read  = (last_bus_cmd == `BUSCMD_PC_READ); 
+assign s_dp_write = (last_bus_cmd == `BUSCMD_DP_WRITE); 
+
+initial begin
+  $readmemh("rom-gx-r.hex", rom, 0, 2**`ROMBITS-1);
+	// $monitor("rst %b | strb %b | c/d %b | bus_i %h | bus_o %h | last %h | slpc %b | addr_c %0d | lpc %5h | ldp %5h",
+	//         i_reset, i_bus_strobe, i_bus_cmd_data, i_bus_data_in, o_bus_data_out, 
+	// 				last_bus_cmd, s_load_pc, addr_c, local_pc, local_dp);
+end
+
+always @(posedge i_bus_strobe) begin
+  
+	if (i_reset) begin
+	  cycles       <= 0;
+	  last_bus_cmd <= `BUSCMD_NOP;
+	  addr_c       <= 0;
+	  local_pc     <= 0;
+		local_dp     <= 0;
+	end
+
+	if (!i_reset) 
+	  cycles <= cycles + 1;
+
+
+  if (!i_bus_cmd_data) begin
+
+	  $write("ROM      %0d: [%d] COMMAND ", i_phase, cycles);
+		case (i_bus_data_in) 
+		  `BUSCMD_PC_READ:   $write("PC_READ");            // 2
+			`BUSCMD_DP_WRITE:  $write("DP_WRITE");					 // 5
+		  `BUSCMD_LOAD_PC:   $write("LOAD_PC");            // 6
+			`BUSCMD_LOAD_DP:   $write("LOAD_DP");						 // 7
+			`BUSCMD_CONFIGURE: $write("CONFIGURE (ignore)"); // 8
+			`BUSCMD_RESET:     $write("RESET (ignore)");     // 15
+		endcase
+	  $write(" (%h)\n", i_bus_data_in);
+
+		last_bus_cmd <= i_bus_data_in;
+	end
+
+	// if (i_bus_cmd_data) begin
+	//   $display("BUS DATA %h", i_bus_data_in);
+	// end
+
+	if (i_bus_cmd_data && s_load_pc) begin
+		$display("ROM      %0d: [%d] ADDR_IN(%0d) %h => PC [%5h]", i_phase, cycles, addr_c, i_bus_data_in, local_pc);
+	  local_pc[addr_c*4+:4] <= i_bus_data_in;
+		if (addr_c == 4) $display("ROM       : [%d] auto PC_READ [%5h]", cycles, {i_bus_data_in, local_pc[15:0]});
+		last_bus_cmd <= (addr_c == 4)?`BUSCMD_PC_READ:last_bus_cmd;
+		addr_c <= (addr_c == 4)?0:addr_c + 1;
+	end
+
+	if (i_bus_cmd_data && s_load_dp) begin
+		$display("ROM      %0d: [%d] ADDR_IN(%0d) %h => DP [%5h]", i_phase, cycles, addr_c, i_bus_data_in, local_dp);
+	  local_dp[addr_c*4+:4] <= i_bus_data_in;
+		if (addr_c == 4) $display("ROM       : [%d] auto DP_READ [%5h]", cycles, {i_bus_data_in, local_dp[15:0]});
+		last_bus_cmd <= (addr_c == 4)?`BUSCMD_DP_READ:last_bus_cmd;
+		addr_c <= (addr_c == 4)?0:addr_c + 1;
+	end
+
+  if (i_bus_cmd_data && s_pc_read) begin
+	  o_bus_data_out <= rom[local_pc];
+		$display("ROM      %0d: [%d] %h <= PC_READ  [%5h]", i_phase, cycles, rom[local_pc], local_pc);
+		local_pc <= local_pc + 1;
+	end
+
+  if (i_bus_cmd_data && s_dp_write) begin
+		$display("ROM      %0d: [%d] %h => DP_WRITE [%5h] (ignored)", i_phase, cycles, i_bus_data_in, local_dp);
+	end
+
+end
+
+endmodule
+
+/******************************************************************************
+ *
+ * test harness
+ *
+ ****************************************************************************/
+
 module saturn_tb;
 
 saturn_core saturn (
 	.i_clk						(clk),
 	.i_reset          (reset),
 	.o_halt           (halt),
+	.o_bus_reset      (core_bus_reset),
   .i_bus_data_in    (core_bus_data_in),
   .o_bus_data_out   (core_bus_data_out),
   .o_bus_strobe     (core_bus_strobe),
-  .o_bus_cmd_data   (core_bus_cmd_data)
+  .o_bus_cmd_data   (core_bus_cmd_data),
+
+	.o_phase          (core_phase)
+);
+
+test_rom rom (
+  .i_phase        (core_phase),
+
+	.i_reset        (core_bus_reset),
+	.i_bus_data_in  (core_bus_data_out),
+	.o_bus_data_out (core_bus_data_in),
+	.i_bus_strobe   (core_bus_strobe),
+	.i_bus_cmd_data (core_bus_cmd_data)
 );
 
 reg	 [0:0] clk;
 reg	 [0:0] reset;
 wire [0:0] halt;
 
-reg  [3:0] core_bus_data_in;
+wire [0:0] core_bus_reset;
+wire [3:0] core_bus_data_in;
 wire [3:0] core_bus_data_out;
 wire [0:0] core_bus_strobe;
 wire [0:0] core_bus_cmd_data;
+
+wire [1:0] core_phase;
 
 always 
     #10 clk = (clk === 1'b0);
