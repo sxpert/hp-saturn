@@ -1,4 +1,9 @@
+`ifndef _AATURN_DECODER_BLOCK_8
+`define _SATURN_DECODER_BLOCK_8
 
+`include "def-alu.v"
+`include "def-fields.v"
+`include "saturn_decoder_block_vars.v"
 
   if (do_block_8x) begin
 `ifdef SIM
@@ -7,6 +12,8 @@
     case (i_nibble)
       4'h0:       // 
         block_80x  <= 1;
+      4'h1:
+        block_81x  <= 1;
       4'h2: 
         block_82x  <= 1;
       4'h4, 4'h5: // ST=[01] n
@@ -56,14 +63,14 @@
         next_nibble   <= 0;
         o_ins_decoded <= 1;
         o_ins_config  <= 1;
+        `ifdef SIM
+        o_unimplemented <= 0;
+        `endif
       end
       4'hA: begin // RESET
         o_ins_reset   <= 1;
         next_nibble   <= 0;
         o_ins_decoded <= 1;
-        `ifdef SIM
-        o_unimplemented <= 0;
-        `endif
       end
       4'hC: block_80Cx <= 1;
       default: begin
@@ -82,6 +89,55 @@
     next_nibble    <= 0;
     o_ins_decoded  <= 1;
     block_80Cx     <= 0;
+  end
+
+  if (do_block_81x) begin
+    $display("block_81x %h", i_nibble);
+    case (i_nibble)
+    4'hA: begin
+      block_81Ax <= 1;
+      o_fields_table <= `FT_TABLE_f;
+      go_fields_table <= 1;
+    end
+    default: o_dec_error <= 1;
+    endcase
+    block_81x <= 0;
+  end
+
+  if (do_block_81Ax) begin
+    $display("block_81Ax %h", i_nibble);
+    go_fields_table <= 0;
+    block_81Afx <= 1;
+    block_81Ax <= 0;
+  end
+
+  if (do_block_81Afx) begin
+    $display("block_81Afx %h | f %0d | s %h | l %h | 0 %b | 1 %b | 2 %b", 
+             i_nibble, o_field, o_field_start, o_field_last,
+             i_nibble == 0, i_nibble==1, i_nibble==2);
+    block_81Af0x <= i_nibble == 0;
+    block_81Af1x <= i_nibble == 1;
+    block_81Af2x <= i_nibble == 2;
+    block_81Afx <= 0;
+  end
+
+  if (do_block_81Af0x || do_block_81Af1x) begin
+    $display("block_81Af[01]x %h", i_nibble);
+    o_ins_alu_op <= 1;
+    o_alu_op <= `ALU_OP_COPY;
+    next_nibble <= 0;
+    o_ins_decoded <= 1;
+    block_81Af0x <= 0;
+    block_81Af1x <= 0;
+  end
+
+  if (do_block_81Af2x) begin
+    $display("block_81Af2x %h", i_nibble);
+    o_ins_alu_op <= 1;
+    o_alu_op <= `ALU_OP_EXCH;
+    next_nibble <= 0;
+    o_ins_decoded <= 1;
+    block_81Af2x <= 0;
   end
 
   // 821 XM=0
@@ -117,3 +173,5 @@
     o_ins_test_go    <= 1;
     block_8Ax <= 0;
   end
+
+`endif
