@@ -71,7 +71,8 @@
 `define ALU_REG_IMM     22
 `define ALU_REG_ADDR    23
 
-`define ALU_REG_ZERO    31
+`define ALU_REG_ZERO    30
+`define ALU_REG_NOPE    31
 
 // specific bits
 `define ALU_HST_XM       0
