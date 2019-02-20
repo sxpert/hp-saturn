@@ -1,20 +1,47 @@
+/*
+    (c) Raphaël Jacquot 2019
+    
+    This file is part of hp_saturn.
+
+    hp_saturn is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    hp_saturn is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+
+ */
+
 `ifndef _SATURN_BUS_CTRL
 `define _SATURN_BUS_CTRL
+
+`default_nettype none
 
 `include "def-clocks.v"
 `include "def-buscmd.v"
 
+/*
+ * enable more debug messages
+ */ 
+`ifdef SIM
+`define DEBUG_CTRL
+`endif
+
+
+
 module saturn_bus_ctrl (
-  // basic stuff
   i_clk,
   i_reset,
   i_phase,
   i_cycle_ctr,
-  i_en_bus_send,
-  i_en_bus_recv,
-  i_en_bus_ecmd,
   i_stalled,
-  i_read_stall,
+  i_alu_busy,
 
   o_stall_alu,
 
@@ -35,6 +62,9 @@ module saturn_bus_ctrl (
   i_cmd_dp_write,
   i_cmd_reset,
   i_cmd_config,
+  i_mem_xfr,
+  i_xfr_out,
+  i_xfr_cnt,
   i_nibble,
   o_nibble
 );
@@ -43,11 +73,8 @@ input  wire [0:0]  i_clk;
 input  wire [0:0]  i_reset;
 input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
-input  wire [0:0]  i_en_bus_send;
-input  wire [0:0]  i_en_bus_recv;
-input  wire [0:0]  i_en_bus_ecmd;
 input  wire [0:0]  i_stalled;
-input  wire [0:0]  i_read_stall;
+input  wire [0:0]  i_alu_busy;
 
 output reg  [0:0]  o_stall_alu;
 
@@ -66,6 +93,9 @@ input  wire [0:0]  i_cmd_dp_read;
 input  wire [0:0]  i_cmd_dp_write;
 input  wire [0:0]  i_cmd_reset;
 input  wire [0:0]  i_cmd_config;
+input  wire [0:0]  i_mem_xfr;
+input  wire [0:0]  i_xfr_out;
+input  wire [3:0]  i_xfr_cnt;
 
 input  wire [3:0]  i_nibble;
 output reg  [3:0]  o_nibble;
@@ -91,14 +121,6 @@ assign o_bus_strobe    = (i_phase == 1) && strobe_on;
 
 // events phases
 
-// wire   en_bus_send;
-// wire   en_bus_recv;
-// wire   en_bus_ecmd;
-
-// assign en_bus_send = bus_active && i_en_bus_send;
-// assign en_bus_recv = bus_active && i_en_bus_recv;
-// assign en_bus_ecmd = bus_active && i_en_bus_ecmd;
-
 wire [0:0] phase_0;
 wire [0:0] phase_1;
 wire [0:0] phase_2;
@@ -111,54 +133,165 @@ assign phase_3 = bus_active && (i_phase == 3);
 
 /******************************************************************************
  *
- * state machine events
- *
- ****************************************************************************/
-
-// tests on last_cmd
-reg  [3:0] last_cmd;
-
-wire [0:0] last_cmd_pc_read;
-wire [0:0] last_cmd_dp_read;
-wire [0:0] last_cmd_dp_write;
-wire [0:0] last_cmd_load_pc;
-wire [0:0] last_cmd_load_dp;
-
-assign last_cmd_pc_read  = (last_cmd == `BUSCMD_PC_READ);
-assign last_cmd_dp_read  = (last_cmd == `BUSCMD_DP_READ);
-assign last_cmd_dp_write = (last_cmd == `BUSCMD_DP_WRITE);
-assign last_cmd_load_pc  = (last_cmd == `BUSCMD_LOAD_PC);
-assign last_cmd_load_dp  = (last_cmd == `BUSCMD_LOAD_DP);
-
-
-/******************************************************************************
- *
  * THE EVIL STATE MACHINE !
  *
  *****************************************************************************/
 
 // actual commands
-reg  [0:0] cmd_pc_read_s;
-wire [0:0] do_cmd_pc_read;
-assign do_cmd_pc_read = phase_0 && !cmd_pc_read_s &&
-                        (cmd_dp_write_D_s || cmd_config_D_s || cmd_reset_S_s);
 
+/* the last command sent to the bus
+ * initialized to 0, BUSCMD_NOP
+ */
+reg [3:0] last_cmd;
+
+/* tests on last_cmd */
+
+wire [0:0] LC_pc_read;
+wire [0:0] LC_pc_write;
+wire [0:0] LC_dp_read;
+wire [0:0] LC_dp_write;
+wire [0:0] LC_load_pc;
+wire [0:0] LC_load_dp;
+
+assign LC_pc_read  = (last_cmd == `BUSCMD_PC_READ);
+assign LC_pc_write = (last_cmd == `BUSCMD_PC_WRITE);
+assign LC_dp_read  = (last_cmd == `BUSCMD_DP_READ);
+assign LC_dp_write = (last_cmd == `BUSCMD_DP_WRITE);
+assign LC_load_pc  = (last_cmd == `BUSCMD_LOAD_PC);
+assign LC_load_dp  = (last_cmd == `BUSCMD_LOAD_DP);
+
+/* current pointer
+ * 0: PC
+ * 1: DP
+ */
+reg [0:0] current_pointer;
+
+/*
+ * Events naming conventions
+ *
+ * bus commands (use the "cmd" prefix) :
+ *
+ * cmd_[foo]_F   : flag to indicate cmd_[foo] was done
+ * cmd_[foo]_TST : test if cmd_[foo] needs to be done
+ * cmd_[foo]_x   : whatever needs to be done for cmd_[foo], step x
+ * cmd_[foo]_STR : when there is a need for a strobe on phase 0
+ * cmd_[foo]_STx : if cmd_[foo] needs to stall the ALU and core, step x
+ * cmd_[foo]_USx : if cmd_[foo] neesd to un-stall the ALU and core, step x
+ * cmd_[foo]_C   : when flags for the execution of cmd_[foo] need to be cleaned
+ *
+ * bus actions (use the "do" prefix) :
+ *
+ * do_[foo]_TST  : test if do_[foo] can be done
+ * do_[foo]_x    : whatever needs to be done for do_[foo], step x
+ * do_[foo]_STR  : when there is a need for a strobe on phase 0
+ *
+ * note: strobe removal is automatic on phase 1
+ *
+ */
+
+/*
+ * read from the PC pointer
+ */
+
+// sending readpc
+reg  [0:0] cmd_PC_READ_F;
+wire [0:0] cmd_PC_READ_TST;
+wire [0:0] cmd_PC_READ_0;
+wire [0:0] cmd_PC_READ_STR;
+
+assign cmd_PC_READ_TST = !cmd_PC_READ_F &&
+                         (cmd_RESET_F); 
+assign cmd_PC_READ_0   = phase_0 && cmd_PC_READ_TST;
+assign cmd_PC_READ_STR = cmd_PC_READ_TST && LC_pc_read;
+
+// doing actual reads
+wire [0:0] do_READ_PC_TST;
+wire [0:0] do_READ_PC_0;
+wire [0:0] do_READ_PC_STR;
+
+assign do_READ_PC_TST = !i_alu_busy && LC_pc_read;
+assign do_READ_PC_0   = phase_1 && do_READ_PC_TST;
+assign do_READ_PC_STR = do_READ_PC_TST;
+
+/*
+ * read from the DP pointer
+ */
+
+
+wire [0:0] do_read_dp_en;
+wire [0:0] do_read_dp_str;
+reg  [0:0] do_read_dp_s;
+wire [0:0] do_read_dp;
+wire [0:0] do_read_dp_US;
+wire [0:0] do_read_dp_C;
+wire [0:0] do_read_dp_US2;
+assign do_read_dp_en  = i_cmd_dp_read && LC_dp_read;
+assign do_read_dp_str = phase_0 && do_read_dp_en;
+assign do_read_dp     = phase_1 && do_read_dp_en;
+assign do_read_dp_US  = phase_3 && do_read_dp_en && o_stall_alu;
+assign do_read_dp_C   = phase_0 && !i_cmd_dp_read && LC_dp_read && do_read_dp_s;
+assign do_read_dp_US2 = phase_3 && do_read_dp_s && cmd_PC_READ_F;
+
+/*
+ * write to the DP pointer
+ */
+
+// setup the DP pointer
 reg  [0:0] cmd_dp_write_s;
 reg  [0:0] cmd_dp_write_D_s;
 wire [0:0] do_cmd_dp_write;
 wire [0:0] do_cmd_dp_write_US;
 wire [0:0] do_cmd_dp_write_ST;
 wire [0:0] do_cmd_dp_write_C;
-assign do_cmd_dp_write    = phase_0 && i_cmd_dp_write && last_cmd_dp_read;
-assign do_cmd_dp_write_US = phase_0 && i_cmd_dp_write && last_cmd_dp_write;
-assign do_cmd_dp_write_ST = phase_3 && !i_read_stall && !i_cmd_dp_write && last_cmd_dp_write;
-assign do_cmd_dp_write_C  = phase_3 && cmd_dp_write_D_s && cmd_pc_read_s; 
+assign do_cmd_dp_write    = phase_0 && i_cmd_dp_write && LC_dp_read;
+assign do_cmd_dp_write_US = phase_0 && i_cmd_dp_write && LC_dp_write;
+assign do_cmd_dp_write_ST = phase_3 && !i_alu_busy && !i_cmd_dp_write && LC_dp_write;
+assign do_cmd_dp_write_C  = phase_3 && cmd_dp_write_D_s && cmd_PC_READ_F; 
 
-wire [0:0] do_cmd_load_pc;
-assign do_cmd_load_pc = phase_0 && i_cmd_load_pc; 
+// do actual writes
+wire [0:0] en_write_dp;
+wire [0:0] do_write_dp;
+wire [0:0] do_write_strobe;
+assign en_write_dp     = !o_stall_alu && i_cmd_dp_write && LC_dp_write;
+assign do_write_strobe = phase_0 && en_write_dp;
+assign do_write_dp     = phase_0 && en_write_dp;
+
+/*
+ * load a new PC in
+ */
+
+reg  [0:0] cmd_LOAD_PC_F;
+wire [0:0] cmd_LOAD_PC_TST;
+wire [0:0] cmd_LOAD_PC_0;
+wire [0:0] cmd_LOAD_PC_STR;
+wire [0:0] cmd_LOAD_PC_C;
+assign cmd_LOAD_PC_TST = i_cmd_load_pc;
+assign cmd_LOAD_PC_0   = phase_0 && cmd_LOAD_PC_TST; 
+assign cmd_LOAD_PC_STR = cmd_LOAD_PC_TST;
+assign cmd_LOAD_PC_C   = phase_3 && do_auto_PC_READ_TST;
+
+wire [0:0] do_auto_PC_READ_TST;
+wire [0:0] do_auto_PC_READ_0;
+wire [0:0] do_auto_PC_READ_US0;
+assign do_auto_PC_READ_TST = cmd_LOAD_PC_F && addr_loop_done;
+assign do_auto_PC_READ_0   = phase_1 && do_auto_PC_READ_TST;
+assign do_auto_PC_READ_US0 = phase_3 && o_stall_alu && do_auto_PC_READ_TST && cmd_LOAD_PC_F;
+
+/* 
+ * load a new DP in
+ */
 
 wire [0:0] do_cmd_load_dp;
 assign do_cmd_load_dp = phase_0 && i_cmd_load_dp; 
+
+wire [0:0] do_auto_dp_read;
+wire [0:0] do_auto_dp_read_US;
+assign do_auto_dp_read = phase_3 && LC_load_dp && addr_loop_done;
+assign do_auto_dp_read_US = phase_3 && LC_load_dp && addr_loop_done && i_cmd_dp_write;
+
+/*
+ * execute a configure 
+ */
 
 reg  [0:0] cmd_config_S_s;
 reg  [0:0] cmd_config_D_s;
@@ -170,55 +303,57 @@ wire [0:0] do_cmd_config_C;
 assign do_cmd_config_ST  = phase_1 && i_cmd_config && !cmd_config_S_s;
 assign do_cmd_config_0   = phase_0 && i_cmd_config && !cmd_config_S_s;
 assign do_cmd_config_D_s = phase_3 && cmd_config_S_s && is_loop_finished;
-assign do_cmd_config_US  = phase_1 && cmd_config_D_s && cmd_pc_read_s;
-assign do_cmd_config_C   = phase_2 && cmd_config_D_s && cmd_pc_read_s;
+assign do_cmd_config_US  = phase_1 && cmd_config_D_s && cmd_PC_READ_F;
+assign do_cmd_config_C   = phase_2 && cmd_config_D_s && cmd_PC_READ_F;
 
-reg  [0:0] cmd_reset_S_s;
-wire [0:0] do_cmd_reset_ST;
-wire [0:0] do_cmd_reset;
-wire [0:0] do_cmd_reset_US;
-wire [0:0] do_cmd_reset_C;
-assign do_cmd_reset_ST = phase_3 && i_cmd_reset && !cmd_reset_S_s && !cmd_pc_read_s;
-assign do_cmd_reset    = phase_0 && i_cmd_reset && !cmd_reset_S_s && !cmd_pc_read_s;
-assign do_cmd_reset_US = phase_3 && i_cmd_reset && cmd_reset_S_s && cmd_pc_read_s;
-assign do_cmd_reset_C  = phase_0 && i_cmd_reset && cmd_reset_S_s && cmd_pc_read_s;
+/*
+ * execute a bus reset
+ */
+
+reg  [0:0] cmd_RESET_F;
+wire [0:0] cmd_RESET_ST0;
+wire [0:0] cmd_RESET_0;
+wire [0:0] cmd_RESET_US0;
+wire [0:0] cmd_RESET_C;
+assign cmd_RESET_ST0 = phase_3 && i_cmd_reset && !cmd_RESET_F && !cmd_PC_READ_F;
+assign cmd_RESET_0   = phase_0 && i_cmd_reset && !cmd_RESET_F && !cmd_PC_READ_F;
+assign cmd_RESET_US0 = phase_3 && i_cmd_reset && cmd_RESET_F && cmd_PC_READ_F;
+assign cmd_RESET_C   = phase_0 && i_cmd_reset && cmd_RESET_F && cmd_PC_READ_F;
 
 // automatic stuff
 
-wire [0:0] do_auto_pc_read;
-assign do_auto_pc_read = phase_3 && last_cmd_load_pc && addr_loop_done;
+wire [0:0] do_read;
+assign do_read = do_READ_PC_0 || do_read_dp;
 
-wire [0:0] do_auto_dp_read;
-assign do_auto_dp_read = phase_3 && last_cmd_load_dp && addr_loop_done;
-
-wire [0:0] do_read_en;
-wire [0:0] do_read_pc;
+/*
+ * bus strobe management
+ */
+wire [0:0] do_cmd_strobe;
 wire [0:0] do_read_strobe;
-assign do_read_en     = !i_read_stall && last_cmd_pc_read;
-assign do_read_strobe = phase_0 && do_read_en;
-assign do_read_pc     = phase_1 && do_read_en;
-
-
-wire [0:0] en_write_dp;
-wire [0:0] do_write_dp;
-wire [0:0] do_write_strobe;
-assign en_write_dp     = !o_stall_alu && i_cmd_dp_write && last_cmd_dp_write;
-assign do_write_strobe = phase_0 && en_write_dp;
-assign do_write_dp     = phase_0 && en_write_dp;
-
 wire [0:0] do_strobe;
-assign do_strobe = do_read_strobe || do_write_strobe;
+wire [0:0] do_remove_strobe;
+assign do_cmd_strobe    = cmd_PC_READ_STR || cmd_LOAD_PC_STR;
+assign do_read_strobe   = do_READ_PC_STR || do_read_dp_str;
+assign do_strobe        = phase_0 && 
+                          (do_cmd_strobe || do_run_addr_loop || do_read_strobe);
+assign do_remove_strobe = phase_1 && strobe_on;
 
 wire [0:0] do_read_stalled_by_alu;
-assign do_read_stalled_by_alu = phase_1 && i_read_stall && last_cmd_pc_read;
+assign do_read_stalled_by_alu = phase_1 && i_alu_busy && LC_pc_read;
 
 wire [0:0] do_unstall;
 assign do_unstall = o_stall_alu &&
-                    (do_cmd_dp_write_US || do_cmd_dp_write_C ||
-                     do_cmd_config_US || do_cmd_reset_US);
+                    (do_read_dp_US2 || 
+                     do_cmd_dp_write_US || 
+                     do_cmd_dp_write_C ||
+                     do_auto_PC_READ_US0 ||
+                     do_cmd_config_US || 
+                     cmd_RESET_US0);
 
+wire [0:0] do_load_clean;
 wire [0:0] do_clean;
-assign do_clean = do_cmd_dp_write_C || do_cmd_config_C || do_cmd_reset_C;
+assign do_load_clean = cmd_LOAD_PC_C;
+assign do_clean = do_read_dp_US2 || do_cmd_dp_write_C || do_cmd_config_C || cmd_RESET_C;
 
 reg  [2:0] addr_loop_counter;
 reg  [0:0] addr_loop_done;
@@ -231,16 +366,13 @@ wire [0:0] is_loop_finished;
 wire [0:0] do_reset_loop_counter;
 assign do_init_addr_loop = phase_0 && 
                            (init_addr_loop || 
-                            do_cmd_load_pc || 
+                            cmd_LOAD_PC_TST || 
                             do_cmd_load_dp || 
                             do_cmd_config_0);
 assign do_run_addr_loop = phase_0 && run_addr_loop && !is_loop_finished;
 assign will_loop_finish = addr_loop_counter == 4;
 assign is_loop_finished = addr_loop_counter == 5;
 assign do_reset_loop_counter = phase_3 && is_loop_finished;
-
-wire [0:0] do_remove_strobe;
-assign do_remove_strobe = phase_1 && strobe_on;
 
 /******************************************************************************
  *
@@ -251,8 +383,32 @@ assign do_remove_strobe = phase_1 && strobe_on;
 initial begin
 
   `ifdef SIM
-  // $monitor("BUS - ph %0d | irs %b | icdpw %b | cprs %b | lcdpw %b", i_phase, i_read_stall, i_cmd_dp_write, cmd_pc_read_s, last_cmd_dp_write); 
-//            i_phase, o_stall_alu, o_bus_reset, strobe_on, o_bus_strobe, o_bus_cmd_data);
+
+  /* debug load_pc
+   */
+  // $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+  //           "LC_load_pc %b | addr_loop_done %b | do_auto_PC_READ_TST %b | cmd_LOAD_PC_F %b"}, 
+  //           i_clk, i_phase, o_stall_alu, i_alu_busy,
+  //           LC_load_pc, addr_loop_done, do_auto_PC_READ_TST, cmd_LOAD_PC_F); 
+
+
+  /* debug strobe for reading
+   */
+  // $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+  //           "cPR %b | cLP %b | dRP %b | dRD %b | dcs %b | dral %b | drs %b | stro %b | str %b"}, 
+  //           i_clk, i_phase, o_stall_alu, i_alu_busy,
+  //           cmd_PC_READ_STR, cmd_LOAD_PC_STR,
+  //           do_READ_PC_STR, do_read_dp_str,
+  //           do_cmd_strobe, do_run_addr_loop, do_read_strobe,
+  //           strobe_on, o_bus_strobe); 
+
+  /*
+   * debug conditions for reset
+   */
+  // $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+  //           "i_cmd_reset %b | cmd_RESET_F %b | cmd_PC_READ_F %b"}, 
+  //           i_clk, i_phase, o_stall_alu, i_alu_busy,
+  //           i_cmd_reset, cmd_RESET_F, cmd_PC_READ_F); 
   `endif
 end
 
@@ -272,11 +428,13 @@ always @(posedge i_clk) begin
     addr_loop_counter <= 0;
     addr_loop_done    <= 0;
 
-    cmd_pc_read_s     <= 0;
+    cmd_PC_READ_F     <= 0;
+    do_read_dp_s      <= 0;
     cmd_dp_write_s    <= 0;
+    cmd_LOAD_PC_F     <= 0;
     cmd_config_S_s    <= 0;
     cmd_config_D_s    <= 0;
-    cmd_reset_S_s     <= 0;
+    cmd_RESET_F       <= 0;
   end
 
   if (reset_bus) begin
@@ -297,37 +455,44 @@ always @(posedge i_clk) begin
    *
    */
 
-  if (do_cmd_pc_read) begin
+  if (cmd_PC_READ_0) begin
     $display("BUS_CTRL %1d: [%d] PC_READ", i_phase, i_cycle_ctr);
-    cmd_pc_read_s    <= 1;        
+    cmd_PC_READ_F    <= 1;        
     last_cmd         <= `BUSCMD_PC_READ;
     o_bus_data       <= `BUSCMD_PC_READ;
-    strobe_on        <= 1;
     o_bus_cmd_data   <= 0;
     o_stall_alu      <= 1;
   end
 
   if (do_cmd_dp_write) begin
     $display("BUS_CTRL %1d: [%d] DP_WRITE", i_phase, i_cycle_ctr);
-    cmd_dp_write_s    <= 1;        
-    last_cmd         <= `BUSCMD_DP_WRITE;
-    o_bus_data       <= `BUSCMD_DP_WRITE;
-    strobe_on        <= 1;
-    o_bus_cmd_data   <= 0;
-    o_stall_alu      <= 1;
+    cmd_dp_write_s <= 1;        
+    last_cmd       <= `BUSCMD_DP_WRITE;
+    o_bus_data     <= `BUSCMD_DP_WRITE;
+    o_bus_cmd_data <= 0;
+    o_stall_alu    <= 1;
   end
 
+  if (do_read_dp_US) begin
+    // $display("BUS_CTRL %1d: [%d] unstall after dp_read", i_phase, i_cycle_ctr);   
+    o_stall_alu <= 0; 
+  end
+
+  // if (do_read_dp_C) begin
+  //   $display("BUS_CTRL %1d: [%d] should do pc_read", i_phase, i_cycle_ctr);   
+  // end
+
   if (do_cmd_dp_write_ST) begin
-    $display("BUS_CTRL %1d: [%d] stall after dp_write", i_phase, i_cycle_ctr);
+    // $display("BUS_CTRL %1d: [%d] stall after dp_write", i_phase, i_cycle_ctr);
     o_stall_alu      <= 1;
     cmd_dp_write_D_s <= 1;
   end
 
-  if (do_cmd_load_pc) begin
+  if (cmd_LOAD_PC_0) begin
     $display("BUS_CTRL %1d: [%d] LOAD_PC [%5h]", i_phase, i_cycle_ctr, i_address);
+    cmd_LOAD_PC_F    <= 1;
     last_cmd         <= `BUSCMD_LOAD_PC;
     o_bus_data       <= `BUSCMD_LOAD_PC;
-    strobe_on        <= 1;
     o_bus_cmd_data   <= 0;
     o_stall_alu      <= 1;
     init_addr_loop   <= 1;
@@ -337,7 +502,6 @@ always @(posedge i_clk) begin
     $display("BUS_CTRL %1d: [%d] LOAD_DP [%5h]", i_phase, i_cycle_ctr, i_address);
     last_cmd         <= `BUSCMD_LOAD_DP;
     o_bus_data       <= `BUSCMD_LOAD_DP;
-    strobe_on        <= 1;
     o_bus_cmd_data   <= 0;
     o_stall_alu      <= 1;
     init_addr_loop   <= 1;
@@ -359,7 +523,6 @@ always @(posedge i_clk) begin
     cmd_config_S_s  <= 1;
     last_cmd        <= `BUSCMD_CONFIGURE;
     o_bus_data      <= `BUSCMD_CONFIGURE;
-    strobe_on       <= 1;
     o_bus_cmd_data  <= 0;
     o_stall_alu     <= 1;
     init_addr_loop  <= 1;
@@ -376,17 +539,16 @@ always @(posedge i_clk) begin
  *
  */
 
-  if (do_cmd_reset_ST) begin
+  if (cmd_RESET_ST0) begin
     // $display("BUS_CTRL %1d: [%d] reset stall", i_phase, i_cycle_ctr);
     o_stall_alu      <= 1;
   end
 
-  if (do_cmd_reset) begin
+  if (cmd_RESET_0) begin
     $display("BUS_CTRL %1d: [%d] RESET", i_phase, i_cycle_ctr);
-    cmd_reset_S_s  <= 1;
+    cmd_RESET_F     <= 1;
     last_cmd        <= `BUSCMD_RESET;
     o_bus_data      <= `BUSCMD_RESET;
-    strobe_on       <= 1;
     o_bus_cmd_data  <= 0;
     o_stall_alu     <= 1;
   end
@@ -410,26 +572,44 @@ always @(posedge i_clk) begin
     $write("\n");
 
     o_bus_data <= i_address[addr_loop_counter*4+:4];
-    strobe_on  <= 1;
     // clean up at the end of loop
     addr_loop_counter <= addr_loop_counter + 1;
     run_addr_loop     <= !will_loop_finish;
     addr_loop_done    <= will_loop_finish; 
   end
 
-  // cleanup functions
+  /*
+   * automatic PC_READ after LOAD_PC
+   * 
+   */
 
-  if (do_auto_pc_read) begin
+  if (do_auto_PC_READ_0) begin
     $display("BUS_CTRL %1d: [%d] auto PC_READ", i_phase, i_cycle_ctr);
     last_cmd <= `BUSCMD_PC_READ;
-    o_stall_alu <= 0;
   end
+
+`ifdef DEBUG_CTRL
+  if (do_auto_PC_READ_US0) begin
+    $display("BUS_CTRL %1d: [%d] auto PC_READ - unstall", i_phase, i_cycle_ctr);
+  end
+`endif
+
+  /*
+   * automatic DP_READ after LOAD_DP
+   *
+   */
 
   if (do_auto_dp_read) begin
     $display("BUS_CTRL %1d: [%d] auto DP_READ", i_phase, i_cycle_ctr);
     last_cmd <= `BUSCMD_DP_READ;
+  end
+
+  if (do_auto_dp_read_US) begin
+    // $display("BUS_CTRL %1d: [%d] auto DP_READ unstall", i_phase, i_cycle_ctr);
     o_stall_alu <= 0;
   end
+
+
 
   if (do_reset_loop_counter) begin
     // $display("BUS_CTRL %1d: [%d] reset loop counter", i_phase, i_cycle_ctr);
@@ -437,31 +617,45 @@ always @(posedge i_clk) begin
   end
 
   if (do_unstall) begin
+`ifdef DEBUG_CTRL
     $display("BUS_CTRL %1d: [%d] remove stall", i_phase, i_cycle_ctr);
+`endif
     o_stall_alu <= 0;
   end
 
+  if (do_load_clean) begin
+    $display("BUS_CTRL %1d: [%d] cleanup after load", i_phase, i_cycle_ctr);
+    cmd_LOAD_PC_F <= 0;
+  end
+
   if (do_clean) begin
-    $display("BUS_CTRL %1d: [%d] cleanup", i_phase, i_cycle_ctr);
-    cmd_pc_read_s    <= 0;
+    // $display("BUS_CTRL %1d: [%d] cleanup", i_phase, i_cycle_ctr);
+    cmd_PC_READ_F    <= 0;
+    do_read_dp_s      <= 0;
     cmd_dp_write_s   <= 0;
     cmd_dp_write_D_s <= 0;
     cmd_config_S_s   <= 0;
     cmd_config_D_s   <= 0;
-    cmd_reset_S_s    <= 0;
+    cmd_RESET_F      <= 0;
   end
 
   /*
    *
-   * Reading from the bus
+   * bus actions
    *
    */
 
   if (do_strobe) begin
+    // $display("S");
     strobe_on <= 1;
   end
 
-  if (do_read_pc) begin
+  if (do_read_dp) begin
+    // $display("set do_read_dp_s");
+    do_read_dp_s <= 1;
+  end
+
+  if (do_read) begin
     o_nibble <= i_bus_data;
     $display("BUS_CTRL %1d: [%d] READ %h", i_phase, i_cycle_ctr, i_bus_data);
   end
@@ -476,6 +670,7 @@ always @(posedge i_clk) begin
   end
 
   if (do_remove_strobe) begin
+    // $display(".s");
     strobe_on   <= 0;
     o_bus_cmd_data <= 1;
   end
