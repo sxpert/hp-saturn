@@ -445,11 +445,10 @@ initial begin
   /* 
    * debug dp_write
    */
-  $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
-            "i_cmd_dp_write %b | cmd_LOAD_DP_F %b | addr_loop_done %b | do_auto_DP_READ_TST %b | cmd_DP_WRITE_F0 %b | cnd_DP_WRITE_F1 %b"}, 
-            i_clk, i_phase, o_stall_alu, i_alu_busy,
-            i_cmd_dp_write, cmd_LOAD_DP_F, addr_loop_done, do_auto_DP_READ_TST, cmd_DP_WRITE_F0, cmd_DP_WRITE_F1);
-
+  // $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+  //           "i_cmd_dp_write %b | cmd_LOAD_DP_F %b | addr_loop_done %b | do_auto_DP_READ_TST %b | cmd_DP_WRITE_F0 %b | cnd_DP_WRITE_F1 %b"}, 
+  //           i_clk, i_phase, o_stall_alu, i_alu_busy,
+  //           i_cmd_dp_write, cmd_LOAD_DP_F, addr_loop_done, do_auto_DP_READ_TST, cmd_DP_WRITE_F0, cmd_DP_WRITE_F1);
 
   /* debug strobe for reading
    */
@@ -521,9 +520,8 @@ always @(posedge i_clk) begin
   end
 
   /*
-   * here starts the "FUN"
-   *
-   */
+   * PC_READ
+   */ 
 
   if (cmd_PC_READ_0) begin
     $display("BUS_CTRL %1d: [%d] PC_READ", i_phase, i_cycle_ctr);
@@ -535,7 +533,7 @@ always @(posedge i_clk) begin
   end
 
   /*
-   * DP_WRITE Functions
+   * DP_WRITE
    */ 
 
   if (cmd_DP_WRITE_0) begin
@@ -566,7 +564,9 @@ always @(posedge i_clk) begin
   end
 
   /*
-   * LOAD_PC / LOAD_DP
+   *
+   * LOAD_PC 
+   *
    */ 
 
   if (cmd_LOAD_PC_0) begin
@@ -579,6 +579,25 @@ always @(posedge i_clk) begin
     init_addr_loop   <= 1;
   end
 
+  /* automatic PC_READ after LOAD_PC */
+
+  if (do_auto_PC_READ_0) begin
+    $display("BUS_CTRL %1d: [%d] auto PC_READ", i_phase, i_cycle_ctr);
+    last_cmd <= `BUSCMD_PC_READ;
+  end
+
+`ifdef DEBUG_CTRL
+  if (do_auto_PC_READ_US0) begin
+    $display("BUS_CTRL %1d: [%d] auto PC_READ - unstall", i_phase, i_cycle_ctr);
+  end
+`endif
+
+  /*
+   *
+   * LOAD_DP
+   *
+   */
+
   if (cmd_LOAD_DP_0) begin
     $display("BUS_CTRL %1d: [%d] LOAD_DP [%5h]", i_phase, i_cycle_ctr, i_address);
     cmd_LOAD_DP_F    <= 1;
@@ -589,11 +608,19 @@ always @(posedge i_clk) begin
     init_addr_loop   <= 1;
   end
 
-/*
+  /* automatic DP_READ after LOAD_DP */
+
+  if (do_auto_DP_READ_0) begin
+    $display("BUS_CTRL %1d: [%d] auto DP_READ", i_phase, i_cycle_ctr);
+    cmd_DP_READ_F <= 1;
+    last_cmd      <= `BUSCMD_DP_READ;
+  end
+
+/******************************************************************************
  *
+ * CONFIGURE command
  *
- *
- */
+ *****************************************************************************/
 
   if (cmd_CONFIGURE_0) begin
     $display("BUS_CTRL %1d: [%d] CONFIGURE [%5h]", i_phase, i_cycle_ctr, i_address);
@@ -610,11 +637,11 @@ always @(posedge i_clk) begin
     cmd_CONFIGURE_F1  <= 1;
   end
 
-/*
+/******************************************************************************
  *
+ * reset command
  *
- *
- */
+ *****************************************************************************/
 
   if (cmd_RESET_ST0) begin
     // $display("BUS_CTRL %1d: [%d] reset stall", i_phase, i_cycle_ctr);
@@ -631,8 +658,8 @@ always @(posedge i_clk) begin
   end
 
   /****************************************************************************
+   * 
    * Address loop handling
-   *
    *
    ***************************************************************************/
 
@@ -658,43 +685,13 @@ always @(posedge i_clk) begin
     addr_loop_done    <= will_loop_finish; 
   end
 
-  /*
-   * automatic PC_READ after LOAD_PC
-   * 
-   */
-
-  if (do_auto_PC_READ_0) begin
-    $display("BUS_CTRL %1d: [%d] auto PC_READ", i_phase, i_cycle_ctr);
-    last_cmd <= `BUSCMD_PC_READ;
-  end
-
-`ifdef DEBUG_CTRL
-  if (do_auto_PC_READ_US0) begin
-    $display("BUS_CTRL %1d: [%d] auto PC_READ - unstall", i_phase, i_cycle_ctr);
-  end
-`endif
-
-  /*
-   * automatic DP_READ after LOAD_DP
-   *
-   */
-
-  if (do_auto_DP_READ_0) begin
-    $display("BUS_CTRL %1d: [%d] auto DP_READ", i_phase, i_cycle_ctr);
-    cmd_DP_READ_F <= 1;
-    last_cmd      <= `BUSCMD_DP_READ;
-  end
-
-  // if (do_auto_DP_READ_US0) begin
-  //   $display("BUS_CTRL %1d: [%d] auto DP_READ unstall (does nothing)", i_phase, i_cycle_ctr);
-  // end
-
-
-
   if (do_reset_loop_counter) begin
     // $display("BUS_CTRL %1d: [%d] reset loop counter", i_phase, i_cycle_ctr);
     addr_loop_counter <= 0;
   end
+
+
+
 
   if (do_unstall) begin
 `ifdef DEBUG_CTRL
