@@ -1,3 +1,23 @@
+/*
+    (c) Raphaël Jacquot 2019
+    
+    This file is part of hp_saturn.
+
+    hp_saturn is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    hp_saturn is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+
+ */
+
 /******************************************************************************
  *
  * Instruction decoder module
@@ -33,6 +53,7 @@ module saturn_decoder(
   o_ins_set_mode, o_mode_dec,
   o_ins_alu_op, o_ins_test_go,
   o_ins_reset, o_ins_config,
+  o_ins_mem_xfr, o_xfr_dir_out,
 
   o_dbg_nibbles, o_dbg_nb_nbls, o_mem_load, o_mem_pos
 );
@@ -97,6 +118,8 @@ output  reg [0:0]   o_ins_test_go;
 // bus operations
 output  reg [0:0]   o_ins_reset;
 output  reg [0:0]   o_ins_config;
+output  reg [0:0]   o_ins_mem_xfr;
+output  reg [0:0]   o_xfr_dir_out;
 
 /* data used by the debugger
  *
@@ -191,6 +214,8 @@ always @(posedge i_clk) begin
     o_ins_set_mode  <= 0;
     o_ins_reset     <= 0;
     o_ins_config    <= 0;
+    o_ins_mem_xfr   <= 0;
+    o_xfr_dir_out   <= 0;
     o_test_carry    <= 0;
   end
   
@@ -261,6 +286,8 @@ always @(posedge i_clk) begin
     $display("cleanup instruction modes");
     o_ins_reset     <= 0;
     o_ins_config    <= 0;
+    o_ins_mem_xfr   <= 0;
+    o_xfr_dir_out   <= 0;
 
     // counters for debugger info
     o_dbg_nb_nbls   <= 1;
@@ -315,6 +342,13 @@ always @(posedge i_clk) begin
         `endif
       end
       4'h8: block_8x   <= 1;
+      4'h9: begin
+        go_fields_table <= 1;
+        // we don't know, safe bet is table a, but could be table b, 
+        // works either way, table is fixed on the next nibble
+        o_fields_table  <= `FT_TABLE_a;
+        block_9x        <= 1;
+      end
       4'hA: begin
         go_fields_table <= 1;
         // we don't know, safe bet is table a, but could be table b, 
@@ -530,6 +564,10 @@ always @(posedge i_clk) begin
     o_alu_no_stall  <= !use_fields_tbl && i_nibble[1];
     // o_alu_debug     <= i_nibble[1];
 
+    // set the info about this being a memory transfer
+    o_ins_mem_xfr   <= 1;
+    o_xfr_dir_out   <= !i_nibble[1];
+
     block_15xx      <= use_fields_tbl;
 
     o_ins_alu_op    <= !(use_fields_tbl);
@@ -582,6 +620,38 @@ always @(posedge i_clk) begin
   end
 
 `include "saturn_decoder_block_8.v"
+
+  /*
+   * Block 9xx
+   *
+   *
+   */
+
+  if (do_block_9x) begin
+`ifdef SIM
+    $display("block_9x %h", i_nibble);
+`endif
+    o_fields_table <= i_nibble[3]?`FT_TABLE_b:`FT_TABLE_a;
+    block_9ax      <= !i_nibble[3];
+    block_9bx      <=  i_nibble[3];
+    block_9x       <= 0;
+  end
+
+  if (do_block_9ax) begin
+`ifdef SIM
+    $display("block_9ax %h", i_nibble);
+`endif
+    o_dec_error <= 1;
+    block_9ax <= 0;
+  end
+
+  if (do_block_9bx) begin
+`ifdef SIM
+    $display("block_9bx %h", i_nibble);
+`endif
+    o_dec_error <= 1;
+    block_9bx <= 0;
+  end
 
   /*
    * Block Axx
