@@ -195,14 +195,15 @@ reg [0:0] current_pointer;
 
 // sending readpc
 reg  [0:0] cmd_PC_READ_F;
+
 wire [0:0] cmd_PC_READ_TST;
 wire [0:0] cmd_PC_READ_0;
 wire [0:0] cmd_PC_READ_STR;
 
 assign cmd_PC_READ_TST = !cmd_PC_READ_F &&
-                         (cmd_RESET_F); 
-assign cmd_PC_READ_0   = phase_0 && cmd_PC_READ_TST;
-assign cmd_PC_READ_STR = cmd_PC_READ_TST && LC_pc_read;
+                         (cmd_DP_WRITE_F1 || cmd_CONFIGURE_F1 || cmd_RESET_F); 
+assign cmd_PC_READ_0   = phase_0 && cmd_PC_READ_TST; // sets cmd_PC_READ_F
+assign cmd_PC_READ_STR = cmd_PC_READ_0;
 
 // doing actual reads
 wire [0:0] do_READ_PC_TST;
@@ -216,6 +217,8 @@ assign do_READ_PC_STR = do_READ_PC_TST;
 /*
  * read from the DP pointer
  */
+
+reg  [0:0] cmd_DP_READ_F;
 
 
 wire [0:0] do_read_dp_en;
@@ -237,86 +240,123 @@ assign do_read_dp_US2 = phase_3 && do_read_dp_s && cmd_PC_READ_F;
  */
 
 // setup the DP pointer
-reg  [0:0] cmd_dp_write_s;
-reg  [0:0] cmd_dp_write_D_s;
-wire [0:0] do_cmd_dp_write;
-wire [0:0] do_cmd_dp_write_US;
-wire [0:0] do_cmd_dp_write_ST;
-wire [0:0] do_cmd_dp_write_C;
-assign do_cmd_dp_write    = phase_0 && i_cmd_dp_write && LC_dp_read;
-assign do_cmd_dp_write_US = phase_0 && i_cmd_dp_write && LC_dp_write;
-assign do_cmd_dp_write_ST = phase_3 && !i_alu_busy && !i_cmd_dp_write && LC_dp_write;
-assign do_cmd_dp_write_C  = phase_3 && cmd_dp_write_D_s && cmd_PC_READ_F; 
+reg  [0:0] cmd_DP_WRITE_F0;
+reg  [0:0] cmd_DP_WRITE_F1;
+wire [0:0] cmd_DP_WRITE_TST;
+wire [0:0] cmd_DP_WRITE_0;
+wire [0:0] cmd_DP_WRITE_1;
+wire [0:0] cmd_DP_WRITE_STR;
+wire [0:0] cmd_DP_WRITE_US0;
+wire [0:0] cmd_DP_WRITE_US1;
+wire [0:0] cmd_DP_WRITE_C;
+assign cmd_DP_WRITE_TST = i_cmd_dp_write && LC_dp_read && !cmd_DP_WRITE_F0;
+assign cmd_DP_WRITE_0   = phase_0 && cmd_DP_WRITE_TST; // sets cmd_DP_WRITE_F0
+assign cmd_DP_WRITE_STR = cmd_DP_WRITE_0;
+assign cmd_DP_WRITE_US0 = phase_2 && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1 && o_stall_alu;
+// after all nibbles were sent
+assign cmd_DP_WRITE_1   = phase_3 && !i_cmd_dp_write && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1; // sets cmd_DP_WRITE_F1
+assign cmd_DP_WRITE_US1 = phase_2 && cmd_DP_WRITE_F1;
+assign cmd_DP_WRITE_C   = phase_3 && cmd_DP_WRITE_F1; 
 
 // do actual writes
-wire [0:0] en_write_dp;
-wire [0:0] do_write_dp;
-wire [0:0] do_write_strobe;
-assign en_write_dp     = !o_stall_alu && i_cmd_dp_write && LC_dp_write;
-assign do_write_strobe = phase_0 && en_write_dp;
-assign do_write_dp     = phase_0 && en_write_dp;
+wire [0:0] do_WRITE_DP_TST;
+wire [0:0] do_WRITE_DP_0;
+wire [0:0] do_WRITE_DP_STR;
+assign do_WRITE_DP_TST = !o_stall_alu && i_cmd_dp_write && LC_dp_write;
+assign do_WRITE_DP_STR = phase_0 && do_WRITE_DP_TST;
+assign do_WRITE_DP_0   = phase_0 && do_WRITE_DP_TST;
 
 /*
- * load a new PC in
+ * LOAD_PC : load a new PC in
  */
 
 reg  [0:0] cmd_LOAD_PC_F;
+
 wire [0:0] cmd_LOAD_PC_TST;
 wire [0:0] cmd_LOAD_PC_0;
 wire [0:0] cmd_LOAD_PC_STR;
 wire [0:0] cmd_LOAD_PC_C;
+
 assign cmd_LOAD_PC_TST = i_cmd_load_pc;
-assign cmd_LOAD_PC_0   = phase_0 && cmd_LOAD_PC_TST; 
+assign cmd_LOAD_PC_0   = phase_0 && cmd_LOAD_PC_TST; // sets cmd_LOAD_PC_F
 assign cmd_LOAD_PC_STR = cmd_LOAD_PC_TST;
 assign cmd_LOAD_PC_C   = phase_3 && do_auto_PC_READ_TST;
 
+/*
+ * auto switch to PC_READ after LOAD_PC
+ */
 wire [0:0] do_auto_PC_READ_TST;
 wire [0:0] do_auto_PC_READ_0;
 wire [0:0] do_auto_PC_READ_US0;
+
 assign do_auto_PC_READ_TST = cmd_LOAD_PC_F && addr_loop_done;
 assign do_auto_PC_READ_0   = phase_1 && do_auto_PC_READ_TST;
 assign do_auto_PC_READ_US0 = phase_3 && o_stall_alu && do_auto_PC_READ_TST && cmd_LOAD_PC_F;
 
 /* 
- * load a new DP in
+ * LOAD_DP : load a new DP in
  */
 
-wire [0:0] do_cmd_load_dp;
-assign do_cmd_load_dp = phase_0 && i_cmd_load_dp; 
+reg  [0:0] cmd_LOAD_DP_F;
 
-wire [0:0] do_auto_dp_read;
-wire [0:0] do_auto_dp_read_US;
-assign do_auto_dp_read = phase_3 && LC_load_dp && addr_loop_done;
-assign do_auto_dp_read_US = phase_3 && LC_load_dp && addr_loop_done && i_cmd_dp_write;
+wire [0:0] cmd_LOAD_DP_TST;
+wire [0:0] cmd_LOAD_DP_0;
+wire [0:0] cmd_LOAD_DP_STR;
+wire [0:0] cmd_LOAD_DP_C;
+
+assign cmd_LOAD_DP_TST = i_cmd_load_dp;
+assign cmd_LOAD_DP_0   = phase_0 && cmd_LOAD_DP_TST; // sets cmd_LOAD_DP_F
+assign cmd_LOAD_DP_STR = cmd_LOAD_DP_TST;
+assign cmd_LOAD_DP_C   = phase_3 && do_auto_DP_READ_TST;
 
 /*
- * execute a configure 
+ * auto switch to PC_READ after LOAD_PC
+ */
+wire [0:0] do_auto_DP_READ_TST;
+wire [0:0] do_auto_DP_READ_0;
+wire [0:0] do_auto_DP_READ_US0;
+
+assign do_auto_DP_READ_TST = cmd_LOAD_DP_F && addr_loop_done && !cmd_DP_READ_F;
+assign do_auto_DP_READ_0   = phase_1 && do_auto_DP_READ_TST;
+// does nothing ?
+assign do_auto_DP_READ_US0 = phase_3 && o_stall_alu && do_auto_DP_READ_TST && cmd_LOAD_DP_F && !(cmd_DP_WRITE_F0); // || cmd_DP_READ_F);
+
+/*
+ * CONFIGURE : execute a configure 
  */
 
-reg  [0:0] cmd_config_S_s;
-reg  [0:0] cmd_config_D_s;
-wire [0:0] do_cmd_config_ST;
-wire [0:0] do_cmd_config_0;
-wire [0:0] do_cmd_config_D_s;
-wire [0:0] do_cmd_config_US;
-wire [0:0] do_cmd_config_C;
-assign do_cmd_config_ST  = phase_1 && i_cmd_config && !cmd_config_S_s;
-assign do_cmd_config_0   = phase_0 && i_cmd_config && !cmd_config_S_s;
-assign do_cmd_config_D_s = phase_3 && cmd_config_S_s && is_loop_finished;
-assign do_cmd_config_US  = phase_1 && cmd_config_D_s && cmd_PC_READ_F;
-assign do_cmd_config_C   = phase_2 && cmd_config_D_s && cmd_PC_READ_F;
+reg  [0:0] cmd_CONFIGURE_F0;
+reg  [0:0] cmd_CONFIGURE_F1;
+
+wire [0:0] cmd_CONFIGURE_TST;
+wire [0:0] cmd_CONFIGURE_0;
+wire [0:0] cmd_CONFIGURE_STR;
+wire [0:0] cmd_CONFIGURE_1;
+wire [0:0] cmd_CONFIGURE_US0;
+wire [0:0] cmd_CONFIGURE_C;
+
+assign cmd_CONFIGURE_TST = i_cmd_config && !cmd_CONFIGURE_F0;
+assign cmd_CONFIGURE_0   = phase_0 && cmd_CONFIGURE_TST; // sets cmd_CONFIGURE_F0
+assign cmd_CONFIGURE_STR = cmd_CONFIGURE_0;
+assign cmd_CONFIGURE_1   = phase_3 && cmd_CONFIGURE_F0 && is_loop_finished;
+assign cmd_CONFIGURE_US0 = phase_1 && cmd_CONFIGURE_F1 && cmd_PC_READ_F;
+assign cmd_CONFIGURE_C   = phase_3 && cmd_CONFIGURE_F1 && cmd_PC_READ_F;
 
 /*
- * execute a bus reset
+ * RESETexecute a bus reset
  */
 
 reg  [0:0] cmd_RESET_F;
-wire [0:0] cmd_RESET_ST0;
+
 wire [0:0] cmd_RESET_0;
+wire [0:0] cmd_RESET_STR;
+wire [0:0] cmd_RESET_ST0;
 wire [0:0] cmd_RESET_US0;
 wire [0:0] cmd_RESET_C;
+
+assign cmd_RESET_0   = phase_0 && i_cmd_reset && !cmd_RESET_F && !cmd_PC_READ_F; // sets cmd_RESET_F
+assign cmd_RESET_STR = cmd_RESET_0;
 assign cmd_RESET_ST0 = phase_3 && i_cmd_reset && !cmd_RESET_F && !cmd_PC_READ_F;
-assign cmd_RESET_0   = phase_0 && i_cmd_reset && !cmd_RESET_F && !cmd_PC_READ_F;
 assign cmd_RESET_US0 = phase_3 && i_cmd_reset && cmd_RESET_F && cmd_PC_READ_F;
 assign cmd_RESET_C   = phase_0 && i_cmd_reset && cmd_RESET_F && cmd_PC_READ_F;
 
@@ -330,12 +370,14 @@ assign do_read = do_READ_PC_0 || do_read_dp;
  */
 wire [0:0] do_cmd_strobe;
 wire [0:0] do_read_strobe;
+wire [0:0] do_write_strobe;
 wire [0:0] do_strobe;
 wire [0:0] do_remove_strobe;
-assign do_cmd_strobe    = cmd_PC_READ_STR || cmd_LOAD_PC_STR;
-assign do_read_strobe   = do_READ_PC_STR || do_read_dp_str;
+assign do_cmd_strobe    = cmd_PC_READ_STR || cmd_DP_WRITE_STR || cmd_LOAD_PC_STR || cmd_LOAD_DP_STR || cmd_CONFIGURE_STR || cmd_RESET_STR;
+assign do_read_strobe   = do_READ_PC_STR; // || do_READ_DP_STR;
+assign do_write_strobe  = do_WRITE_DP_STR;
 assign do_strobe        = phase_0 && 
-                          (do_cmd_strobe || do_run_addr_loop || do_read_strobe);
+                          (do_cmd_strobe || do_run_addr_loop || do_read_strobe || do_write_strobe);
 assign do_remove_strobe = phase_1 && strobe_on;
 
 wire [0:0] do_read_stalled_by_alu;
@@ -344,16 +386,17 @@ assign do_read_stalled_by_alu = phase_1 && i_alu_busy && LC_pc_read;
 wire [0:0] do_unstall;
 assign do_unstall = o_stall_alu &&
                     (do_read_dp_US2 || 
-                     do_cmd_dp_write_US || 
-                     do_cmd_dp_write_C ||
+                     cmd_DP_WRITE_1 ||
+                     cmd_DP_WRITE_US0 || 
+                     cmd_DP_WRITE_US1 ||
                      do_auto_PC_READ_US0 ||
-                     do_cmd_config_US || 
+                     cmd_CONFIGURE_US0 || 
                      cmd_RESET_US0);
 
 wire [0:0] do_load_clean;
 wire [0:0] do_clean;
 assign do_load_clean = cmd_LOAD_PC_C;
-assign do_clean = do_read_dp_US2 || do_cmd_dp_write_C || do_cmd_config_C || cmd_RESET_C;
+assign do_clean = do_read_dp_US2 || cmd_DP_WRITE_C || cmd_CONFIGURE_C || cmd_RESET_C;
 
 reg  [2:0] addr_loop_counter;
 reg  [0:0] addr_loop_done;
@@ -367,8 +410,8 @@ wire [0:0] do_reset_loop_counter;
 assign do_init_addr_loop = phase_0 && 
                            (init_addr_loop || 
                             cmd_LOAD_PC_TST || 
-                            do_cmd_load_dp || 
-                            do_cmd_config_0);
+                            cmd_LOAD_DP_TST || 
+                            cmd_CONFIGURE_0);
 assign do_run_addr_loop = phase_0 && run_addr_loop && !is_loop_finished;
 assign will_loop_finish = addr_loop_counter == 4;
 assign is_loop_finished = addr_loop_counter == 5;
@@ -391,6 +434,22 @@ initial begin
   //           i_clk, i_phase, o_stall_alu, i_alu_busy,
   //           LC_load_pc, addr_loop_done, do_auto_PC_READ_TST, cmd_LOAD_PC_F); 
 
+  /*
+   * debug auto_dp_read
+   */
+  // $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+  //           "cmd_LOAD_DP_F %b | addr_loop_done %b | do_auto_DP_READ_TST %b"}, 
+  //           i_clk, i_phase, o_stall_alu, i_alu_busy,
+  //           cmd_LOAD_DP_F, addr_loop_done, do_auto_DP_READ_TST);
+   
+  /* 
+   * debug dp_write
+   */
+  $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+            "i_cmd_dp_write %b | cmd_LOAD_DP_F %b | addr_loop_done %b | do_auto_DP_READ_TST %b | cmd_DP_WRITE_F0 %b | cnd_DP_WRITE_F1 %b"}, 
+            i_clk, i_phase, o_stall_alu, i_alu_busy,
+            i_cmd_dp_write, cmd_LOAD_DP_F, addr_loop_done, do_auto_DP_READ_TST, cmd_DP_WRITE_F0, cmd_DP_WRITE_F1);
+
 
   /* debug strobe for reading
    */
@@ -401,6 +460,15 @@ initial begin
   //           do_READ_PC_STR, do_read_dp_str,
   //           do_cmd_strobe, do_run_addr_loop, do_read_strobe,
   //           strobe_on, o_bus_strobe); 
+
+  /*
+   * debug conditions for configure
+   */
+
+  // $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+  //           "i_cmd_config %b | cmd_CONFIGURE_F0 %b | is_loop_finished %b | cmd_CONFIGURE_F1 %b | cmd_PC_READ_F %b"}, 
+  //           i_clk, i_phase, o_stall_alu, i_alu_busy,
+  //           i_cmd_config, cmd_CONFIGURE_F0, is_loop_finished, cmd_CONFIGURE_F1, cmd_PC_READ_F);
 
   /*
    * debug conditions for reset
@@ -429,11 +497,13 @@ always @(posedge i_clk) begin
     addr_loop_done    <= 0;
 
     cmd_PC_READ_F     <= 0;
-    do_read_dp_s      <= 0;
-    cmd_dp_write_s    <= 0;
+    cmd_DP_READ_F     <= 0;
+    cmd_DP_WRITE_F0   <= 0;
+    cmd_DP_WRITE_F1   <= 0;
     cmd_LOAD_PC_F     <= 0;
-    cmd_config_S_s    <= 0;
-    cmd_config_D_s    <= 0;
+    cmd_LOAD_DP_F     <= 0;
+    cmd_CONFIGURE_F0  <= 0;
+    cmd_CONFIGURE_F1  <= 0;
     cmd_RESET_F       <= 0;
   end
 
@@ -464,29 +534,40 @@ always @(posedge i_clk) begin
     o_stall_alu      <= 1;
   end
 
-  if (do_cmd_dp_write) begin
+  /*
+   * DP_WRITE Functions
+   */ 
+
+  if (cmd_DP_WRITE_0) begin
     $display("BUS_CTRL %1d: [%d] DP_WRITE", i_phase, i_cycle_ctr);
-    cmd_dp_write_s <= 1;        
-    last_cmd       <= `BUSCMD_DP_WRITE;
-    o_bus_data     <= `BUSCMD_DP_WRITE;
-    o_bus_cmd_data <= 0;
-    o_stall_alu    <= 1;
+    cmd_DP_WRITE_F0 <= 1;        
+    last_cmd        <= `BUSCMD_DP_WRITE;
+    o_bus_data      <= `BUSCMD_DP_WRITE;
+    o_bus_cmd_data  <= 0;
+    o_stall_alu     <= 1;
   end
 
-  if (do_read_dp_US) begin
-    // $display("BUS_CTRL %1d: [%d] unstall after dp_read", i_phase, i_cycle_ctr);   
-    o_stall_alu <= 0; 
+  if (cmd_DP_WRITE_1) begin
+    $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_1 (sets cmd_DP_WRITE_F1)", i_phase, i_cycle_ctr);
+    cmd_DP_WRITE_F1 <= 1;
+    o_stall_alu     <= 1;
   end
 
-  // if (do_read_dp_C) begin
-  //   $display("BUS_CTRL %1d: [%d] should do pc_read", i_phase, i_cycle_ctr);   
-  // end
-
-  if (do_cmd_dp_write_ST) begin
-    // $display("BUS_CTRL %1d: [%d] stall after dp_write", i_phase, i_cycle_ctr);
-    o_stall_alu      <= 1;
-    cmd_dp_write_D_s <= 1;
+  if (cmd_DP_WRITE_US0) begin
+    $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_US0", i_phase, i_cycle_ctr);
   end
+
+  if (cmd_DP_WRITE_US1) begin
+    $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_US1", i_phase, i_cycle_ctr);
+  end
+
+  if (cmd_DP_WRITE_C) begin
+    $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_C", i_phase, i_cycle_ctr);
+  end
+
+  /*
+   * LOAD_PC / LOAD_DP
+   */ 
 
   if (cmd_LOAD_PC_0) begin
     $display("BUS_CTRL %1d: [%d] LOAD_PC [%5h]", i_phase, i_cycle_ctr, i_address);
@@ -498,8 +579,9 @@ always @(posedge i_clk) begin
     init_addr_loop   <= 1;
   end
 
-  if (do_cmd_load_dp) begin
+  if (cmd_LOAD_DP_0) begin
     $display("BUS_CTRL %1d: [%d] LOAD_DP [%5h]", i_phase, i_cycle_ctr, i_address);
+    cmd_LOAD_DP_F    <= 1;
     last_cmd         <= `BUSCMD_LOAD_DP;
     o_bus_data       <= `BUSCMD_LOAD_DP;
     o_bus_cmd_data   <= 0;
@@ -513,24 +595,19 @@ always @(posedge i_clk) begin
  *
  */
 
-  if (do_cmd_config_ST) begin
-    // $display("BUS_CTRL %1d: [%d] configure stall", i_phase, i_cycle_ctr);
-    o_stall_alu      <= 1;
-  end
-
-  if (do_cmd_config_0) begin
+  if (cmd_CONFIGURE_0) begin
     $display("BUS_CTRL %1d: [%d] CONFIGURE [%5h]", i_phase, i_cycle_ctr, i_address);
-    cmd_config_S_s  <= 1;
-    last_cmd        <= `BUSCMD_CONFIGURE;
-    o_bus_data      <= `BUSCMD_CONFIGURE;
-    o_bus_cmd_data  <= 0;
-    o_stall_alu     <= 1;
-    init_addr_loop  <= 1;
+    cmd_CONFIGURE_F0 <= 1;
+    last_cmd         <= `BUSCMD_CONFIGURE;
+    o_bus_data       <= `BUSCMD_CONFIGURE;
+    o_bus_cmd_data   <= 0;
+    o_stall_alu      <= 1;
+    init_addr_loop   <= 1;
   end
 
-  if (do_cmd_config_D_s) begin
-    // $display("BUS_CTRL %1d: [%d] set cmd_config_D_s", i_phase, i_cycle_ctr);
-    cmd_config_D_s  <= 1;
+  if (cmd_CONFIGURE_1) begin
+    $display("BUS_CTRL %1d: [%d] set cmd_CONFIGURE_F1", i_phase, i_cycle_ctr);
+    cmd_CONFIGURE_F1  <= 1;
   end
 
 /*
@@ -553,8 +630,11 @@ always @(posedge i_clk) begin
     o_stall_alu     <= 1;
   end
 
-
-  // address loop handling
+  /****************************************************************************
+   * Address loop handling
+   *
+   *
+   ***************************************************************************/
 
   if (do_init_addr_loop) begin
     // $display("BUS_CTRL %1d: [%d] init addr loop", i_phase, i_cycle_ctr);
@@ -599,15 +679,15 @@ always @(posedge i_clk) begin
    *
    */
 
-  if (do_auto_dp_read) begin
+  if (do_auto_DP_READ_0) begin
     $display("BUS_CTRL %1d: [%d] auto DP_READ", i_phase, i_cycle_ctr);
-    last_cmd <= `BUSCMD_DP_READ;
+    cmd_DP_READ_F <= 1;
+    last_cmd      <= `BUSCMD_DP_READ;
   end
 
-  if (do_auto_dp_read_US) begin
-    // $display("BUS_CTRL %1d: [%d] auto DP_READ unstall", i_phase, i_cycle_ctr);
-    o_stall_alu <= 0;
-  end
+  // if (do_auto_DP_READ_US0) begin
+  //   $display("BUS_CTRL %1d: [%d] auto DP_READ unstall (does nothing)", i_phase, i_cycle_ctr);
+  // end
 
 
 
@@ -629,13 +709,13 @@ always @(posedge i_clk) begin
   end
 
   if (do_clean) begin
-    // $display("BUS_CTRL %1d: [%d] cleanup", i_phase, i_cycle_ctr);
+    $display("BUS_CTRL %1d: [%d] cleanup", i_phase, i_cycle_ctr);
     cmd_PC_READ_F    <= 0;
-    do_read_dp_s      <= 0;
-    cmd_dp_write_s   <= 0;
-    cmd_dp_write_D_s <= 0;
-    cmd_config_S_s   <= 0;
-    cmd_config_D_s   <= 0;
+    do_read_dp_s     <= 0;
+    cmd_DP_WRITE_F0  <= 0;
+    cmd_DP_WRITE_F1  <= 0;
+    cmd_CONFIGURE_F0 <= 0;
+    cmd_CONFIGURE_F1 <= 0;
     cmd_RESET_F      <= 0;
   end
 
@@ -660,7 +740,7 @@ always @(posedge i_clk) begin
     $display("BUS_CTRL %1d: [%d] READ %h", i_phase, i_cycle_ctr, i_bus_data);
   end
 
-  if (do_write_dp) begin
+  if (do_WRITE_DP_0) begin
     $display("BUS_CTRL %1d: [%d] WRITE %h", i_phase, i_cycle_ctr, i_nibble);
     o_bus_data <= i_nibble;
   end
