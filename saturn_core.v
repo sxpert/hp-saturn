@@ -1,5 +1,21 @@
 /*
- * Licence: GPLv3 or later
+    (c) Raphaël Jacquot 2019
+    
+		This file is part of hp_saturn.
+
+    hp_saturn is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    hp_saturn is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+
  */
 
 `default_nettype none //
@@ -117,9 +133,9 @@ saturn_decoder	m_decoder (
 	.i_en_dbg       (ck_debugger),
 	.i_en_dec		    (ck_inst_dec),
 	.i_pc			      (reg_pc),
-	.i_bus_load_pc  (bus_load_pc),
+	.i_bus_load_pc  (alu_bus_load_pc),
 	.i_stalled      (dec_stalled),
-	.i_nibble		    (bus_nibble_in),
+	.i_nibble		    (ctrl_bus_nibble_in),
 
 	.i_reg_p        (reg_p),
 
@@ -154,7 +170,9 @@ saturn_decoder	m_decoder (
   .o_ins_alu_op		(ins_alu_op),
 	.o_ins_test_go  (ins_test_go),
 	.o_ins_reset		(ins_reset),
-	.o_ins_config   (ins_config)
+	.o_ins_config   (ins_config),
+  .o_ins_mem_xfr  (ins_mem_xfr),
+	.o_xfr_dir_out  (xfr_dir_out)
 );
 
 wire [0:0]      inc_pc;
@@ -189,6 +207,8 @@ wire [0:0]      ins_alu_op;
 wire [0:0]      ins_test_go;
 wire [0:0]      ins_reset;
 wire [0:0]      ins_config;
+wire [0:0]      ins_mem_xfr;
+wire [0:0]      xfr_dir_out;
 wire [0:0]      ins_unconfig;
 
 
@@ -204,15 +224,16 @@ saturn_alu		m_alu (
 	.i_en_alu_save 	 (ck_alu_save),
 	.i_stalled			 (alu_stalled),
 
-	.o_bus_address    (bus_address),
-	.o_bus_load_pc    (bus_load_pc),
-	.o_bus_load_dp    (bus_load_dp),
-	.o_bus_pc_read    (bus_pc_read),
-	.o_bus_dp_read    (bus_dp_read),
-	.o_bus_dp_write   (bus_dp_write),
-	.o_bus_config			(bus_config),
-	.i_bus_nibble_in  (bus_nibble_in),
-	.o_bus_nibble_out (bus_nibble_out),
+	.o_bus_address    (alu_bus_address),
+	.o_bus_xfr_cnt		(alu_bus_xfr_cnt),
+	.o_bus_load_pc    (alu_bus_load_pc),
+	.o_bus_load_dp    (alu_bus_load_dp),
+	.o_bus_pc_read    (alu_bus_pc_read),
+	.o_bus_dp_read    (alu_bus_dp_read),
+	.o_bus_dp_write   (alu_bus_dp_write),
+	.o_bus_config			(alu_bus_config),
+	.i_bus_nibble_in  (ctrl_bus_nibble_in),
+	.o_bus_nibble_out (alu_bus_nibble_out),
 
 	.i_push					 (push),
 	.i_pop					 (pop),
@@ -236,6 +257,8 @@ saturn_alu		m_alu (
 	.i_ins_set_mode	 (ins_set_mode),
 	.i_ins_rtn			 (ins_rtn),
 	.i_ins_config    (ins_config),
+	.i_ins_mem_xfr   (ins_mem_xfr),
+	.i_xfr_dir_out   (xfr_dir_out),
 	.i_ins_unconfig  (ins_unconfig),
 
   .i_mode_dec			 (mode_dec),
@@ -250,16 +273,17 @@ saturn_alu		m_alu (
 
 
 // interconnections
-wire [19:0]   bus_address;
-wire [0:0]    bus_pc_read;
-wire [0:0]    bus_dp_read;
-wire [0:0]    bus_dp_write;
-wire [0:0]    bus_load_pc;
-wire [0:0]    bus_load_dp;
-wire [0:0]    bus_config;
+wire [19:0]   alu_bus_address;
+wire [3:0]    alu_bus_xfr_cnt;
+wire [0:0]    alu_bus_pc_read;
+wire [0:0]    alu_bus_dp_read;
+wire [0:0]    alu_bus_dp_write;
+wire [0:0]    alu_bus_load_pc;
+wire [0:0]    alu_bus_load_dp;
+wire [0:0]    alu_bus_config;
 
-wire [3:0]    bus_nibble_in;
-wire [3:0]    bus_nibble_out;
+wire [3:0]    ctrl_bus_nibble_in;
+wire [3:0]    alu_bus_nibble_out;
 
 wire [0:0]    alu_stalls_dec;
 wire [3:0]		reg_p;
@@ -277,11 +301,8 @@ saturn_bus_ctrl m_bus_ctrl (
   .i_reset            (i_reset),
 	.i_phase            (o_phase),
 	.i_cycle_ctr        (cycle_ctr),
-  .i_en_bus_send      (ck_bus_send),
-  .i_en_bus_recv      (ck_bus_recv),
-	.i_en_bus_ecmd		  (ck_bus_ecmd),
   .i_stalled          (mem_ctrl_stall),
-	.i_read_stall       (dec_stalled),
+	.i_alu_busy         (dec_stalled),
   .o_stall_alu        (bus_stalls_core),
 
   //bus i/o
@@ -293,16 +314,19 @@ saturn_bus_ctrl m_bus_ctrl (
 
   // interface to the rest of the machine
 	.i_alu_pc           (reg_pc),
-  .i_address          (bus_address),
-  .i_cmd_load_pc      (bus_load_pc),
-  .i_cmd_load_dp      (bus_load_dp),
-	.i_read_pc					(bus_pc_read),
-	.i_cmd_dp_read      (bus_dp_read),
-	.i_cmd_dp_write		  (bus_dp_write),
+  .i_address          (alu_bus_address),
+  .i_cmd_load_pc      (alu_bus_load_pc),
+  .i_cmd_load_dp      (alu_bus_load_dp),
+	.i_read_pc					(alu_bus_pc_read),
+	.i_cmd_dp_read      (alu_bus_dp_read),
+	.i_cmd_dp_write		  (alu_bus_dp_write),
 	.i_cmd_reset        (ins_reset),
-	.i_cmd_config			  (bus_config),
-  .i_nibble           (bus_nibble_out),
-  .o_nibble           (bus_nibble_in)
+	.i_cmd_config			  (alu_bus_config),
+	.i_mem_xfr				  (ins_mem_xfr),
+	.i_xfr_out					(xfr_dir_out),
+	.i_xfr_cnt				 	(alu_bus_xfr_cnt),
+  .i_nibble           (alu_bus_nibble_out),
+  .o_nibble           (ctrl_bus_nibble_in)
 );
 
 reg  [0:0] mem_ctrl_stall;
@@ -394,7 +418,7 @@ always @(posedge i_clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 278;
+		max_cycle     <= 72;
 
 		mem_ctrl_stall <= 0;
 `ifndef SIM
@@ -469,10 +493,12 @@ reg  [2:0]  addr_c;
 wire [0:0]  s_load_pc;
 wire [0:0]  s_load_dp;
 wire [0:0]  s_pc_read;
+wire [0:0]  s_dp_read;
 wire [0:0]  s_dp_write;
 assign s_load_pc  = (last_bus_cmd == `BUSCMD_LOAD_PC);
 assign s_load_dp  = (last_bus_cmd == `BUSCMD_LOAD_DP);
 assign s_pc_read  = (last_bus_cmd == `BUSCMD_PC_READ); 
+assign s_dp_read  = (last_bus_cmd == `BUSCMD_DP_READ); 
 assign s_dp_write = (last_bus_cmd == `BUSCMD_DP_WRITE); 
 
 initial begin
@@ -536,6 +562,12 @@ always @(posedge i_bus_strobe) begin
 	  o_bus_data_out <= rom[local_pc];
 		$display("ROM      %0d: [%d] %h <= PC_READ  [%5h]", i_phase, cycles, rom[local_pc], local_pc);
 		local_pc <= local_pc + 1;
+	end
+
+  if (i_bus_cmd_data && s_dp_read) begin
+	  o_bus_data_out <= rom[local_dp];
+		$display("ROM      %0d: [%d] %h <= DP_READ  [%5h]", i_phase, cycles, rom[local_dp], local_dp);
+		local_dp <= local_dp + 1;
 	end
 
   if (i_bus_cmd_data && s_dp_write) begin

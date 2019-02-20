@@ -1,4 +1,22 @@
 
+/*
+    This file is part of hp_saturn.
+
+    hp_saturn is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    hp_saturn is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+
+ */
+
 `ifndef _SATURN_ALU
 `define _SATURN_ALU
 
@@ -26,6 +44,7 @@ module saturn_alu (
     i_stalled,
 
     o_bus_address,
+    o_bus_xfr_cnt,
     o_bus_pc_read,
     o_bus_dp_read,
     o_bus_dp_write,
@@ -57,6 +76,8 @@ module saturn_alu (
     i_ins_set_mode,
     i_ins_rtn,
     i_ins_config,
+    i_ins_mem_xfr,
+    i_xfr_dir_out,
     i_ins_unconfig,
 
     i_mode_dec,
@@ -81,6 +102,7 @@ input   wire [0:0]  i_en_alu_save;
 input   wire [0:0]  i_stalled;
 
 output  reg  [19:0] o_bus_address;
+output  reg  [3:0]  o_bus_xfr_cnt;
 output  reg  [0:0]  o_bus_pc_read;
 output  reg  [0:0]  o_bus_dp_read;
 output  reg  [0:0]  o_bus_dp_write;
@@ -121,6 +143,8 @@ input   wire [0:0]  i_ins_test_go;
 input   wire [0:0]  i_ins_set_mode; 
 input   wire [0:0]  i_ins_rtn;
 input   wire [0:0]  i_ins_config;
+input   wire [0:0]  i_ins_mem_xfr;
+input   wire [0:0]  i_xfr_dir_out;
 input   wire [0:0]  i_ins_unconfig;
 
 input   wire [0:0]  i_mode_dec;
@@ -278,7 +302,7 @@ wire bus_commands;
 assign bus_commands = o_bus_config || o_bus_dp_write ;
 
 assign o_alu_stall_dec = alu_initializing || 
-                         (alu_run && (!i_alu_no_stall || alu_finish)) || 
+                         (alu_run && (!i_alu_no_stall || alu_finish || i_ins_mem_xfr)) || 
                          i_stalled || bus_commands;
 
 
@@ -900,18 +924,23 @@ reg  [0:0]  write_done;
 reg  [1:0]  extra_cycles;
 
 wire [0:0]  read_done;
+wire [0:0]  read_done_t;
 wire [0:0]  setup_load_dp_read;
 wire [0:0]  setup_load_dp_write;
 wire [0:0]  setup_load_dp;
 wire [0:0]  no_extra_cycles;
 wire [1:0]  cycles_to_go;
 
-assign read_done           = is_mem_read && do_alu_save && ((f_cur +1) == f_last);
+assign read_done_t          = is_mem_read && do_alu_save && ((f_cur +1) == f_last);
+assign read_done           = (phase == 3) && i_stalled && is_mem_read && !do_alu_save && (f_cur == f_last);
 assign setup_load_dp_read  = do_alu_init && is_mem_read && !read_done;
 assign setup_load_dp_write = do_alu_init && is_mem_write && !write_done;
 assign setup_load_dp       = setup_load_dp_read || setup_load_dp_write;
 assign no_extra_cycles     = (extra_cycles == 0);
 assign cycles_to_go        = extra_cycles - 1;
+
+  reg [3:0] _f;
+  reg [3:0] _l;
 
 always @(posedge i_clk) begin
 
@@ -933,9 +962,19 @@ always @(posedge i_clk) begin
   if (setup_load_dp_read) begin
     o_bus_load_dp <= 1;
     o_bus_dp_read <= 1;
+    $display("%0d =========================================== XFR INIT %0d %0d => %0d", 
+              phase, f_first, f_last, f_last - f_first);
+    o_bus_xfr_cnt <= f_last - f_first;
+  end
+
+  // $display("phase %0d | i_stalled %b | is_mem_read %b | do_alu_save %b | f_cur+1 %0d | f_last %0d | read_done %b",
+  //          phase, i_stalled, is_mem_read, do_alu_save, f_cur+1, f_last, read_done);
+  if (read_done_t) begin
+    $display("============================================= NEW read done");
   end
 
   if (read_done) begin
+    $display("============================================= old read_done");
     o_bus_load_dp <= 0;
     o_bus_dp_read <= 0;
   end
