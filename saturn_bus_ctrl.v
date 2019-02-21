@@ -559,13 +559,13 @@ always @(posedge i_clk) begin
     last_cmd        <= `BUSCMD_DP_WRITE;
     o_bus_data      <= `BUSCMD_DP_WRITE;
     o_bus_cmd_data  <= 0;
-    o_stall_alu     <= 1;
+    // o_stall_alu     <= 1;
   end
 
   if (cmd_DP_WRITE_1) begin
     $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_1 (sets cmd_DP_WRITE_F1)", i_phase, i_cycle_ctr);
     cmd_DP_WRITE_F1 <= 1;
-    o_stall_alu     <= 1;
+    // o_stall_alu     <= 1;
   end
 
   if (cmd_DP_WRITE_US0) begin
@@ -623,7 +623,7 @@ always @(posedge i_clk) begin
     last_cmd         <= `BUSCMD_LOAD_DP;
     o_bus_data       <= `BUSCMD_LOAD_DP;
     o_bus_cmd_data   <= 0;
-    o_stall_alu      <= 1;
+    // o_stall_alu      <= 1;
     init_addr_loop   <= 1;
   end
 

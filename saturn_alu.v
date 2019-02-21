@@ -19,6 +19,8 @@
 
  */
 
+`default_nettype none //
+
 `ifndef _SATURN_ALU
 `define _SATURN_ALU
 
@@ -189,6 +191,10 @@ assign phase_1 = (phase == 1);
 assign phase_2 = (phase == 2);
 assign phase_3 = (phase == 3); 
 
+wire alu_active;
+
+assign alu_active = !i_reset && !i_stalled;
+
 /*
  *
  * internal registers
@@ -292,47 +298,115 @@ assign alu_debug_pc   = `ALU_DEBUG_PC   || i_alu_debug;
  *
  */
 
-
-/* module 1:
- * src1 and src2 can only be written here
- * address can only be written here
- * registers can only be read here
- */
-
 // the ALU is in memory transfer mode
 reg [0:0] f_mode_xfr;
+reg [0:0] f_mode_load_ptr;
+reg [0:0] f_mode_ldreg;
+reg [0:0] f_mode_jmp;
+reg [0:0] f_mode_alu;
 
-wire [0:0] mode_xfr;
 wire [0:0] mode_set;
+wire [0:0] stall_modes;
+wire [0:0] alu_start_ev;
+
 wire [0:0] start_in_xfr_mode;
+wire [0:0] start_in_load_ptr_mode;
+wire [0:0] start_in_ldreg_mode;
+wire [0:0] start_in_jmp_mode;
+wire [0:0] start_in_alu_mode;
 
-assign mode_xfr = i_ins_mem_xfr || f_mode_xfr;
-assign mode_set = f_mode_xfr;
-assign start_in_xfr_mode = phase_3 && i_ins_mem_xfr && !mode_set;
+assign mode_set               = f_mode_xfr || f_mode_load_ptr || f_mode_ldreg || f_mode_jmp || f_mode_alu;
+assign stall_modes            = f_mode_xfr || f_mode_alu;
 
+assign alu_start_ev           = alu_active && phase_3;
+assign start_in_xfr_mode      = alu_start_ev && i_ins_mem_xfr && !mode_set;
+assign start_in_load_ptr_mode = alu_start_ev && i_ins_alu_op && op_copy && dest_ptr && src1_IMM && !mode_set;
+assign start_in_ldreg_mode    = alu_start_ev && i_ins_alu_op && op_copy && dest_A_C && src1_IMM && !mode_set;
+assign start_in_jmp_mode      = alu_start_ev && i_ins_alu_op && op_jump && src1_IMM && !mode_set;
+// this is the last mode in the queue, called when no others have been recognized
+assign start_in_alu_mode      = alu_start_ev && i_ins_alu_op && !mode_set &&
+                                !(start_in_load_ptr_mode || start_in_ldreg_mode || start_in_jmp_mode);
 /*
  * wires for all modes
  */
+
+/* operation */
+
+wire [0:0] op_copy;
+wire [0:0] op_jmp_rel_2;
+wire [0:0] op_jmp_rel_3;
+wire [0:0] op_jmp_rel_4;
+wire [0:0] op_jmp_abs_5;
+wire [0:0] op_jump;
+
+assign op_copy      = (i_alu_op == `ALU_OP_COPY);
+assign op_jmp_rel_2 = (i_alu_op == `ALU_OP_JMP_REL2);
+assign op_jmp_rel_3 = (i_alu_op == `ALU_OP_JMP_REL3);
+assign op_jmp_rel_4 = (i_alu_op == `ALU_OP_JMP_REL4);
+assign op_jmp_abs_5 = (i_alu_op == `ALU_OP_JMP_ABS5);
+assign op_jump      = op_jmp_rel_2 || op_jmp_rel_3 || op_jmp_rel_4 || op_jmp_abs_5;
 
 /* source 1 */
 wire [0:0] src1_A;
 wire [0:0] src1_C;
 wire [0:0] src1_DAT0;
 wire [0:0] src1_DAT1;
+wire [0:0] src1_IMM;
 
 assign src1_A    = (i_reg_src1 == `ALU_REG_A);
 assign src1_C    = (i_reg_src1 == `ALU_REG_C);
 assign src1_DAT0 = (i_reg_src1 == `ALU_REG_DAT0);
 assign src1_DAT1 = (i_reg_src1 == `ALU_REG_DAT1); 
+assign src1_IMM  = (i_reg_src1 == `ALU_REG_IMM);
 
 /* destination */
+wire [0:0] dest_A;
+wire [0:0] dest_C;
+wire [0:0] dest_D0;
+wire [0:0] dest_D1;
 wire [0:0] dest_DAT0;
 wire [0:0] dest_DAT1;
 
+assign dest_A    = (i_reg_dest == `ALU_REG_A);
+assign dest_C    = (i_reg_dest == `ALU_REG_C);
+assign dest_D0   = (i_reg_dest == `ALU_REG_D0);
+assign dest_D1   = (i_reg_dest == `ALU_REG_D1);
 assign dest_DAT0 = (i_reg_dest == `ALU_REG_DAT0);
 assign dest_DAT1 = (i_reg_dest == `ALU_REG_DAT1);
 
-/*
+wire [0:0] dest_A_C;
+wire [0:0] dest_ptr;
+
+assign dest_A_C  = dest_A || dest_C;
+assign dest_ptr  = dest_D0 || dest_D1;
+
+
+/* module 1:
+ * handles all alu mode timing
+ *
+ *
+ */
+
+always @(posedge i_clk) begin
+
+  if (i_reset) begin
+    f_mode_alu <= 0;
+  end
+
+  if (start_in_alu_mode) begin
+    $display("ALU      %0d: [%d] alu mode started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
+    $display("ALU      %0d: [%d] stall the decoder",phase, i_cycle_ctr);
+    f_mode_alu <= 1;
+  end
+
+
+end
+
+/* module 2:
+ * src1 and src2 can only be written here
+ * address can only be written here
+ * registers can only be read here
+ *
  * wires specific to the XFR mode
  * 
  * sources of address data used for XFR mode:
@@ -354,20 +428,29 @@ wire [0:0] addr_src_xfr_0;
 wire [0:0] addr_src_xfr_1;
 wire [1:0] addr_src_xfr;
 wire [1:0] addr_src;
+
+wire [0:0] data_src_A;
+wire [0:0] data_src_C;
+
 wire [0:0] copy_done;
 wire [0:0] copy_address;
 wire [0:0] start_load_dp;
 
-assign addr_src_A        = (!f_mode_xfr) && src1_A;
-assign addr_src_C        = (!f_mode_xfr) && src1_C;
-assign addr_src_D0       = ( f_mode_xfr) && (src1_DAT0 || dest_DAT0);
-assign addr_src_D1       = ( f_mode_xfr) && (src1_DAT1 || dest_DAT1);
+wire mode_xfr;
+
+assign mode_xfr = start_in_xfr_mode || f_mode_xfr;
+
+assign addr_src_A        = (!mode_xfr) && src1_A;
+assign addr_src_C        = (!mode_xfr) && src1_C;
+assign addr_src_D0       = ( mode_xfr) && (src1_DAT0 || dest_DAT0);
+assign addr_src_D1       = ( mode_xfr) && (src1_DAT1 || dest_DAT1);
 assign addr_src_xfr_0    = !addr_src_A && !addr_src_C && !addr_src_D0 && addr_src_D1;
 assign addr_src_xfr_1    = !addr_src_A && !addr_src_C && (addr_src_D0 || addr_src_D1);
 assign addr_src_xfr      = {addr_src_xfr_1, addr_src_xfr_0};
-assign addr_src          = {2{f_mode_xfr}} & addr_src_xfr;
+assign addr_src          = {2{mode_xfr}} & addr_src_xfr;
+
 assign copy_done         = data_counter == 5;
-assign copy_address      = f_mode_xfr && !copy_done && !xfr_init_done;
+assign copy_address      = alu_active && mode_xfr && !copy_done && !xfr_init_done;
 assign start_load_dp     = start_in_xfr_mode;
 
 // now copy the data aligning the first nibble with index 0 of the buffer
@@ -381,18 +464,20 @@ wire [3:0] xfr_data_ctr;
 wire [0:0] xfr_data_copy;
 wire [0:0] xfr_copy_done;
 
-assign xfr_data_init     = f_mode_xfr && copy_done && !xfr_init_done && !xfr_data_done && phase_3;
+assign xfr_data_init     = alu_active && mode_xfr && copy_done && !xfr_init_done && !xfr_data_done && phase_3;
 assign xfr_data_ctr      = data_counter + i_field_start;
-assign xfr_copy_done     = xfr_init_done && copy_done && !xfr_data_init && !xfr_data_done;
-assign xfr_data_copy     = xfr_data_init || xfr_init_done && !xfr_data_done && !copy_done && !xfr_copy_done;
+assign xfr_copy_done     = alu_active && xfr_init_done && copy_done && !xfr_data_init && !xfr_data_done;
+assign xfr_data_copy     = alu_active && (xfr_data_init || xfr_init_done && !xfr_data_done && !copy_done && !xfr_copy_done);
 
 /*
  * sources specific pointers
  */
 wire [3:0] src1_ptr;
+wire [2:0] src1a_ptr;
 
-assign src1_ptr = ( {4{copy_address}} & data_counter   | 
-                    {4{xfr_data_copy}} & xfr_data_ctr  ); 
+assign src1_ptr  = ( {4{copy_address}} & data_counter   | 
+                     {4{xfr_data_copy}} & xfr_data_ctr  ); 
+assign src1a_ptr = src1_ptr[2:0];
 
 always @(posedge i_clk) begin
 
@@ -405,7 +490,14 @@ always @(posedge i_clk) begin
   end
 
   // always update the data out to the controller
-  o_bus_data_nibl <= xfr_data[i_bus_data_ptr];
+  if (alu_active)
+    o_bus_data_nibl <= xfr_data[i_bus_data_ptr];
+
+  /****************************************************************************
+   *
+   * register to memory transfer.
+   *
+   ***************************************************************************/
 
   if (start_in_xfr_mode) begin
     $display("ALU      %0d: [%d] memory transfer started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
@@ -431,12 +523,12 @@ always @(posedge i_clk) begin
       xfr_data[data_counter] <= C[src1_ptr];
     end
     2'b10: begin
-      $display("D0[%0d] %h", src1_ptr, D0[src1_ptr[2:0]]);
-      xfr_data[data_counter] <= D0[src1_ptr[2:0]];
+      $display("D0[%0d] %h", src1_ptr, D0[src1a_ptr]);
+      xfr_data[data_counter] <= D0[src1a_ptr];
     end
     2'b11: begin
-      $display("D1[%0d] %h", src1_ptr, D1[src1_ptr[2:0]]);
-      xfr_data[data_counter] <= D1[src1_ptr[2:0]];
+      $display("D1[%0d] %h", src1_ptr, D1[src1a_ptr]);
+      xfr_data[data_counter] <= D1[src1a_ptr];
     end
     default: begin end
     endcase
@@ -449,10 +541,13 @@ always @(posedge i_clk) begin
     xfr_init_done <= 1;
   end
 
-  // need to copy actual data, LOL
+  // need to copy actual data
+  // two sources are possible, A and C, a conditional will suffice
   if (xfr_data_copy) begin
-    $display("ALU      %0d: [%d] copy data | dc %h | xdc %h | s1p %h | xdd %b",phase, i_cycle_ctr, data_counter, xfr_data_ctr, src1_ptr, xfr_data_done);
-    data_counter  <= data_counter + 1;
+    $display("ALU      %0d: [%d] copy data DAT[%b][%2d] <= %c[%2d] %h",
+             phase, i_cycle_ctr, dest_DAT1, data_counter, src1_A?"A":"C", src1_ptr, (src1_A)?A[src1_ptr]:C[src1_ptr]);
+    xfr_data[data_counter] <=  (src1_A)?A[src1_ptr]:C[src1_ptr];
+    data_counter           <= data_counter + 1;
   end
 
   if (xfr_copy_done) begin
@@ -466,10 +561,13 @@ always @(posedge i_clk) begin
     o_bus_xfr_cnt  <= (i_field_last - i_field_start);
   end
 
-  /*
+  /****************************************************************************
+   *
    * reset all things that were changed
-   */
-  if (i_bus_done) begin
+   *
+   ***************************************************************************/
+
+  if (alu_active && i_bus_done) begin
     $display("ALU      %0d: [%d] bus controller is done, cleaning all variables used",phase, i_cycle_ctr);    
     /* variables for the XFR mode */
     f_mode_xfr    <= 0;
@@ -481,6 +579,116 @@ always @(posedge i_clk) begin
     o_bus_dp_write <= 0;
     o_bus_dp_read  <= 0;
     o_bus_xfr_cnt  <= 0;
+  end
+
+end
+
+/*
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
+reg  [3:0] v_dest_counter;
+reg  [3:0] v_max_counter;
+wire [2:0] v_dest_counter_ptr;
+assign v_dest_counter_ptr = v_dest_counter[2:0];
+
+wire [0:0] do_load_pointer;
+wire [0:0] do_load_pointer_done;
+wire [0:0] do_load_register;
+wire [0:0] do_load_register_done;
+
+assign do_load_pointer       = alu_active && phase_2 && f_mode_load_ptr && (v_dest_counter != 5);
+assign do_load_pointer_done  = alu_active && phase_3 && f_mode_load_ptr && (v_dest_counter == 5);
+assign do_load_register      = alu_active && phase_2 && f_mode_ldreg && (v_dest_counter != v_max_counter);
+assign do_load_register_done = alu_active && phase_3 && f_mode_ldreg && (v_dest_counter == v_max_counter);
+
+
+
+always @(posedge i_clk) begin
+
+  if (i_reset) begin
+    v_dest_counter  <= 0;
+    v_max_counter   <= 0;
+    f_mode_load_ptr <= 0;
+    f_mode_ldreg    <= 0;
+    f_mode_jmp      <= 0;
+  end
+
+  /*
+   * 
+   * ptr mode
+   *
+   */
+  if (start_in_load_ptr_mode) begin
+    $display("ALU      %0d: [%d] load_ptr mode started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
+    f_mode_load_ptr <= 1;
+    v_dest_counter  <= 0;
+  end
+
+  if (do_load_pointer) begin
+    $display("ALU      %0d: [%d] loading pointer D%b[%0d] <= %h", phase, i_cycle_ctr, dest_D1, v_dest_counter, i_bus_nibble_in);
+    case (dest_D1)
+      0: D0[v_dest_counter_ptr] <= i_bus_nibble_in;
+      1: D0[v_dest_counter_ptr] <= i_bus_nibble_in;
+      default: begin end
+    endcase
+    v_dest_counter <= v_dest_counter + 1;
+  end
+
+  if (do_load_pointer_done) begin
+    $display("ALU      %0d: [%d] resetting variables after loading pointer", phase, i_cycle_ctr);
+    v_dest_counter  <= 0;
+    f_mode_load_ptr <= 0;
+  end
+
+  /*
+   *
+   * load register mode
+   *
+   * LAHEX / LCHEX
+   *
+   */
+
+  if (start_in_ldreg_mode) begin
+    $display("ALU      %0d: [%d] load register mode started (loading reg %c with %0d nibbles)",
+      phase, i_cycle_ctr, dest_A?"A":"C", i_field_last - i_field_start + 1);
+    f_mode_ldreg   <= 1;
+    v_dest_counter <= 0;
+    v_max_counter  <= i_field_last - i_field_start + 1;
+  end
+
+  if (do_load_register) begin
+    $display("ALU      %0d: [%d] loading register %c[%0d] <= %h", phase, i_cycle_ctr, dest_A?"A":"C", v_dest_counter, i_bus_nibble_in);
+    case (dest_C)
+      0: A[v_dest_counter] <= i_bus_nibble_in;
+      1: C[v_dest_counter] <= i_bus_nibble_in;
+      default: begin end
+    endcase
+    v_dest_counter <= v_dest_counter + 1;
+  end
+
+  if (do_load_register_done) begin
+    $display("ALU      %0d: [%d] resetting variables after loading register", phase, i_cycle_ctr);
+    v_dest_counter <= 0;
+    v_max_counter  <= 0;
+    f_mode_ldreg   <= 0;
+  end
+
+  /*
+   *
+   * jump mode
+   *
+   */
+  if (start_in_jmp_mode) begin
+    $display("ALU      %0d: [%d] jmp mode started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
+    $display("ALU      %0d: [%d] stall the decoder",phase, i_cycle_ctr);
+    f_mode_jmp <= 1;
   end
 
 end
@@ -513,15 +721,6 @@ end
 
 
 
-/*
- */
-
-/*
- * can the alu function ?
- */
-wire alu_active;
-
-assign alu_active = !i_reset && !i_stalled;
 
 /*
  * simulation only states, when alu is active
@@ -571,26 +770,14 @@ assign is_reg_dest_p   = (i_reg_dest == `ALU_REG_P);
 assign is_reg_src1_imm = (i_reg_src1 == `ALU_REG_IMM);
 assign do_exec_p_eq    = alu_active && i_en_alu_save && i_ins_alu_op && is_alu_op_copy && is_reg_dest_p && is_reg_src1_imm;
 
-initial begin
-  // $monitor({"ALU - ph %0d | ",
-  //           "i_reset %b | i_stalled %b | nostll %b | ",
-  //           "init %b | act %b | run %b | done %b | fin %b | ",
-  //           "idump %b | oblpc %b | idec %b | bconf %b | stdec %b "}, 
-  //          phase,
-  //          i_reset, i_stalled, i_alu_no_stall,
-  //          do_alu_init, alu_active, alu_run, alu_done, alu_finish,
-  //          i_en_alu_dump, o_bus_load_pc, i_ins_decoded, o_bus_config, o_alu_stall_dec);
-
-end
-
 // the decoder may request the ALU to not stall it
 
 wire bus_commands;
 assign bus_commands = o_bus_config ;
 
 assign o_alu_stall_dec = alu_initializing || 
-                         ((alu_run || f_mode_xfr) && (!i_alu_no_stall || alu_finish || i_ins_mem_xfr)) || 
-                         i_stalled || bus_commands;
+                         (alu_run && (!i_alu_no_stall || alu_finish || i_ins_mem_xfr)) || 
+                         i_stalled || bus_commands || stall_modes;
 
 
 wire       alu_start;
@@ -1234,95 +1421,6 @@ assign cycles_to_go        = extra_cycles - 1;
 
   reg [3:0] _f;
   reg [3:0] _l;
-
-always @(posedge i_clk) begin
-
-  // reset stuff
-  if (i_reset) begin
-    // read_done      <= 0;
-    write_done     <= 0;
-    extra_cycles   <= 0;
-    o_bus_load_dp  <= 0;
-    o_bus_dp_read  <= 0;
-    o_bus_dp_write <= 0;
-  end
-
-  /*
-   * reading
-   * note: starts immediately
-   */
-
-  if (setup_load_dp_read) begin
-    o_bus_load_dp <= 1;
-    o_bus_dp_read <= 1;
-    $display("%0d =========================================== XFR INIT %0d %0d => %0d", 
-              phase, f_first, f_last, f_last - f_first);
-    o_bus_xfr_cnt <= f_last - f_first;
-  end
-
-  // $display("phase %0d | i_stalled %b | is_mem_read %b | do_alu_save %b | f_cur+1 %0d | f_last %0d | read_done %b",
-  //          phase, i_stalled, is_mem_read, do_alu_save, f_cur+1, f_last, read_done);
-  if (read_done_t) begin
-    $display("============================================= NEW read done");
-  end
-
-  if (read_done) begin
-    $display("============================================= old read_done");
-    // o_bus_load_dp <= 0;
-    // o_bus_dp_read <= 0;
-  end
-
-  /*
-   * writing
-   */
-
-  // setup the order to load DP in time
-  if (setup_load_dp_write) begin
-    o_bus_load_dp <= 1;
-  end
-
-  // tell the bus to start the write cycle
-  // this will take 1 cycle because we need to send the DP_WRITE command
-  if (do_busclean && alu_run && !write_done && is_mem_write && !o_bus_dp_write) begin
-    o_bus_dp_write      <= 1;
-    $display("ALU      %0d: %0d nibbles to write", phase, f_last - f_first + 1);
-    o_bus_xfr_cnt       <= f_last - f_first;
-  end
- 
-  // if (do_alu_calc && alu_run && alu_finish && o_bus_dp_write) begin
-  //   $display("ALU      %0d: end of write", phase);
-  //   write_done <= 1;
-  //   o_bus_dp_write <= 0;
-  // end
-  // writing takes 2 more cycles :
-  // - one used up above
-  // - one used down below to restore the PC_READ command
-  if (do_alu_save && alu_finish && is_mem_write && (extra_cycles == 0)) begin
-    extra_cycles <= 2;
-    write_done   <= 1;
-  end
-
-  // if we're on cycle the last of the extra cycles, send the PC_READ command
-  // so as to allow reading the instructions streams again to the decoder
-  if (i_en_alu_calc && !no_extra_cycles) begin
-    extra_cycles   <= cycles_to_go;
-    if (cycles_to_go == 1) begin
-      o_bus_dp_write <= 0;
-      o_bus_pc_read  <= 1;
-    end
-  end
-
-  // once the PC_READ command has been sent, remove the stall on the decoder
-  if (i_en_alu_dump && no_extra_cycles && o_bus_pc_read) begin
-    
-    o_bus_pc_read   <= 0;
-    write_done      <= 0;
-  end
-
-  // if (do_busclean && o_bus_load_dp)
-    // o_bus_load_dp       <= 0;
-
-end
 
 /*****************************************************************************
  *

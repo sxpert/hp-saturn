@@ -516,6 +516,7 @@ always @(posedge i_clk) begin
         o_mem_pos                 <= 0;
         block_load_reg_imm        <= 1;
         o_alu_no_stall            <= 1;
+        o_ins_alu_op              <= 1;
         o_alu_op                  <= `ALU_OP_COPY;
 `ifdef SIM
         o_unimplemented           <= 0;
@@ -608,12 +609,13 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_3x) begin
-    // $write("block load C hex %h\n", i_nibble);
+     $write("block load C hex %h\n", i_nibble);
     mem_load_max       <= i_nibble + 1;
     o_mem_pos          <= 0;
     o_alu_no_stall     <= 1;
     o_alu_op           <= `ALU_OP_COPY;
     block_load_reg_imm <= 1;
+    o_ins_alu_op       <= 1;
     block_3x           <= 0;
 `ifdef SIM
     o_unimplemented    <= 0;
