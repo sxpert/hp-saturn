@@ -44,6 +44,7 @@ module saturn_bus_ctrl (
   i_alu_busy,
 
   o_stall_alu,
+  o_bus_done,
 
   // bus i/o
   o_bus_reset,
@@ -55,6 +56,8 @@ module saturn_bus_ctrl (
   // interface to the rest of the machine
   i_alu_pc,
   i_address,
+  i_data_nibl,
+  o_data_ptr,
   i_cmd_load_pc,
   i_cmd_load_dp,
   i_read_pc,
@@ -77,6 +80,7 @@ input  wire [0:0]  i_stalled;
 input  wire [0:0]  i_alu_busy;
 
 output reg  [0:0]  o_stall_alu;
+output reg  [0:0]  o_bus_done;
 
 output reg  [0:0]  o_bus_reset;
 input  wire [3:0]  i_bus_data;
@@ -86,6 +90,8 @@ output reg  [0:0]  o_bus_cmd_data;
 
 input  wire [19:0] i_alu_pc;
 input  wire [19:0] i_address;
+input  wire [3:0]  i_data_nibl;
+output reg  [3:0]  o_data_ptr;
 input  wire [0:0]  i_cmd_load_pc;
 input  wire [0:0]  i_cmd_load_dp;
 input  wire [0:0]  i_read_pc;
@@ -254,7 +260,7 @@ assign cmd_DP_WRITE_0   = phase_0 && cmd_DP_WRITE_TST; // sets cmd_DP_WRITE_F0
 assign cmd_DP_WRITE_STR = cmd_DP_WRITE_0;
 assign cmd_DP_WRITE_US0 = phase_2 && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1 && o_stall_alu;
 // after all nibbles were sent
-assign cmd_DP_WRITE_1   = phase_3 && !i_cmd_dp_write && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1; // sets cmd_DP_WRITE_F1
+assign cmd_DP_WRITE_1   = phase_3 && (o_data_ptr == i_xfr_cnt) && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1; // sets cmd_DP_WRITE_F1
 assign cmd_DP_WRITE_US1 = phase_2 && cmd_DP_WRITE_F1;
 assign cmd_DP_WRITE_C   = phase_3 && cmd_DP_WRITE_F1; 
 
@@ -304,7 +310,7 @@ wire [0:0] cmd_LOAD_DP_0;
 wire [0:0] cmd_LOAD_DP_STR;
 wire [0:0] cmd_LOAD_DP_C;
 
-assign cmd_LOAD_DP_TST = i_cmd_load_dp;
+assign cmd_LOAD_DP_TST = i_cmd_load_dp && !cmd_LOAD_DP_F;
 assign cmd_LOAD_DP_0   = phase_0 && cmd_LOAD_DP_TST; // sets cmd_LOAD_DP_F
 assign cmd_LOAD_DP_STR = cmd_LOAD_DP_TST;
 assign cmd_LOAD_DP_C   = phase_3 && do_auto_DP_READ_TST;
@@ -316,7 +322,7 @@ wire [0:0] do_auto_DP_READ_TST;
 wire [0:0] do_auto_DP_READ_0;
 wire [0:0] do_auto_DP_READ_US0;
 
-assign do_auto_DP_READ_TST = cmd_LOAD_DP_F && addr_loop_done && !cmd_DP_READ_F;
+assign do_auto_DP_READ_TST = cmd_LOAD_DP_F && addr_loop_done;
 assign do_auto_DP_READ_0   = phase_1 && do_auto_DP_READ_TST;
 // does nothing ?
 assign do_auto_DP_READ_US0 = phase_3 && o_stall_alu && do_auto_DP_READ_TST && cmd_LOAD_DP_F && !(cmd_DP_WRITE_F0); // || cmd_DP_READ_F);
@@ -395,10 +401,9 @@ assign do_unstall = o_stall_alu &&
 
 wire [0:0] do_load_clean;
 wire [0:0] do_clean;
-assign do_load_clean = cmd_LOAD_PC_C;
+assign do_load_clean = cmd_LOAD_PC_C || cmd_LOAD_DP_C;
 assign do_clean = do_read_dp_US2 || cmd_DP_WRITE_C || cmd_CONFIGURE_C || cmd_RESET_C;
 
-reg  [2:0] addr_loop_counter;
 reg  [0:0] addr_loop_done;
 reg  [0:0] init_addr_loop;
 reg  [0:0] run_addr_loop;
@@ -413,8 +418,8 @@ assign do_init_addr_loop = phase_0 &&
                             cmd_LOAD_DP_TST || 
                             cmd_CONFIGURE_0);
 assign do_run_addr_loop = phase_0 && run_addr_loop && !is_loop_finished;
-assign will_loop_finish = addr_loop_counter == 4;
-assign is_loop_finished = addr_loop_counter == 5;
+assign will_loop_finish = o_data_ptr == 4;
+assign is_loop_finished = o_data_ptr == 5;
 assign do_reset_loop_counter = phase_3 && is_loop_finished;
 
 /******************************************************************************
@@ -449,6 +454,14 @@ initial begin
   //           "i_cmd_dp_write %b | cmd_LOAD_DP_F %b | addr_loop_done %b | do_auto_DP_READ_TST %b | cmd_DP_WRITE_F0 %b | cnd_DP_WRITE_F1 %b"}, 
   //           i_clk, i_phase, o_stall_alu, i_alu_busy,
   //           i_cmd_dp_write, cmd_LOAD_DP_F, addr_loop_done, do_auto_DP_READ_TST, cmd_DP_WRITE_F0, cmd_DP_WRITE_F1);
+
+  /* 
+   * debug dp_read
+   */
+  // $monitor({"BUS - clk %b | ph %0d | osta %b | iabs %b | ",
+  //           "i_cmd_dp_read %b | cmd_LOAD_DP_F %b | addr_loop_done %b | do_auto_DP_READ_TST %b | cmd_DP_WRITE_F0 %b | cnd_DP_WRITE_F1 %b"}, 
+  //           i_clk, i_phase, o_stall_alu, i_alu_busy,
+  //           i_cmd_dp_read, cmd_LOAD_DP_F, addr_loop_done, do_auto_DP_READ_TST, cmd_DP_WRITE_F0, cmd_DP_WRITE_F1);
 
   /* debug strobe for reading
    */
@@ -487,13 +500,16 @@ always @(posedge i_clk) begin
     strobe_on         <= 0;
     o_bus_cmd_data    <= 1; // 1 is the default level
     bus_out_of_reset  <= 1;
+    o_data_ptr        <= 0;
     // local states
 
     // address loop
     init_addr_loop    <= 0;
     run_addr_loop     <= 0;
-    addr_loop_counter <= 0;
     addr_loop_done    <= 0;
+
+    // read and write loops
+    o_data_ptr        <= 0;
 
     cmd_PC_READ_F     <= 0;
     cmd_DP_READ_F     <= 0;
@@ -537,8 +553,9 @@ always @(posedge i_clk) begin
    */ 
 
   if (cmd_DP_WRITE_0) begin
-    $display("BUS_CTRL %1d: [%d] DP_WRITE", i_phase, i_cycle_ctr);
-    cmd_DP_WRITE_F0 <= 1;        
+    $display("BUS_CTRL %1d: [%d] DP_WRITE (%0d nibble to write - ctr %0d)", i_phase, i_cycle_ctr, i_xfr_cnt + 1, o_data_ptr);
+    cmd_DP_WRITE_F0 <= 1;   
+    o_data_ptr      <= 0;     
     last_cmd        <= `BUSCMD_DP_WRITE;
     o_bus_data      <= `BUSCMD_DP_WRITE;
     o_bus_cmd_data  <= 0;
@@ -556,11 +573,13 @@ always @(posedge i_clk) begin
   end
 
   if (cmd_DP_WRITE_US1) begin
-    $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_US1", i_phase, i_cycle_ctr);
+    $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_US1 (signal done)", i_phase, i_cycle_ctr);
+    o_bus_done <= 1;
   end
 
   if (cmd_DP_WRITE_C) begin
     $display("BUS_CTRL %1d: [%d] cmd_DP_WRITE_C", i_phase, i_cycle_ctr);
+    o_bus_done <= 0;
   end
 
   /*
@@ -611,7 +630,7 @@ always @(posedge i_clk) begin
   /* automatic DP_READ after LOAD_DP */
 
   if (do_auto_DP_READ_0) begin
-    $display("BUS_CTRL %1d: [%d] auto DP_READ", i_phase, i_cycle_ctr);
+    $display("BUS_CTRL %1d: [%d] auto DP_READ (%0d nibble to read - ctr %0d)", i_phase, i_cycle_ctr, i_xfr_cnt + 1, o_data_ptr);
     cmd_DP_READ_F <= 1;
     last_cmd      <= `BUSCMD_DP_READ;
   end
@@ -666,28 +685,29 @@ always @(posedge i_clk) begin
   if (do_init_addr_loop) begin
     // $display("BUS_CTRL %1d: [%d] init addr loop", i_phase, i_cycle_ctr);
     addr_loop_done    <= 0;
-    addr_loop_counter <= 0;
+    o_data_ptr <= 0;
     run_addr_loop     <= 1;
     init_addr_loop    <= 0;
   end
 
   if (do_run_addr_loop) begin
     $write("BUS_CTRL %1d: [%d] ADDR(%0d)-> %h ", 
-           i_phase, i_cycle_ctr, addr_loop_counter,
-           i_address[addr_loop_counter*4+:4]);
+           i_phase, i_cycle_ctr, o_data_ptr,
+           i_data_nibl);
     if (will_loop_finish) $write("done");
     $write("\n");
 
-    o_bus_data <= i_address[addr_loop_counter*4+:4];
+    if (LC_load_pc) o_bus_data <= i_address[o_data_ptr*4+:4];
+    if (LC_load_dp) o_bus_data <= i_data_nibl;
     // clean up at the end of loop
-    addr_loop_counter <= addr_loop_counter + 1;
-    run_addr_loop     <= !will_loop_finish;
-    addr_loop_done    <= will_loop_finish; 
+    o_data_ptr     <= o_data_ptr + 1;
+    run_addr_loop  <= !will_loop_finish;
+    addr_loop_done <= will_loop_finish; 
   end
 
   if (do_reset_loop_counter) begin
     // $display("BUS_CTRL %1d: [%d] reset loop counter", i_phase, i_cycle_ctr);
-    addr_loop_counter <= 0;
+    o_data_ptr <= 0;
   end
 
 
@@ -703,12 +723,14 @@ always @(posedge i_clk) begin
   if (do_load_clean) begin
     $display("BUS_CTRL %1d: [%d] cleanup after load", i_phase, i_cycle_ctr);
     cmd_LOAD_PC_F <= 0;
+    cmd_LOAD_DP_F <= 0;
+    o_data_ptr <= 0;
   end
 
   if (do_clean) begin
     $display("BUS_CTRL %1d: [%d] cleanup", i_phase, i_cycle_ctr);
     cmd_PC_READ_F    <= 0;
-    do_read_dp_s     <= 0;
+    cmd_DP_READ_F    <= 0;
     cmd_DP_WRITE_F0  <= 0;
     cmd_DP_WRITE_F1  <= 0;
     cmd_CONFIGURE_F0 <= 0;
@@ -738,8 +760,9 @@ always @(posedge i_clk) begin
   end
 
   if (do_WRITE_DP_0) begin
-    $display("BUS_CTRL %1d: [%d] WRITE %h", i_phase, i_cycle_ctr, i_nibble);
-    o_bus_data <= i_nibble;
+    $display("BUS_CTRL %1d: [%d] WRITE %h (%0d to go)", i_phase, i_cycle_ctr, i_data_nibl, i_xfr_cnt - o_data_ptr);
+    o_bus_data <= i_data_nibl;
+    o_data_ptr <= (o_data_ptr == i_xfr_cnt)?o_data_ptr: o_data_ptr + 1;
   end
 
   if (do_read_stalled_by_alu) begin

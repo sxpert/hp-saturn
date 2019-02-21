@@ -1,6 +1,6 @@
 /*
     (c) Raphaël Jacquot 2019
-    
+
     This file is part of hp_saturn.
 
     hp_saturn is free software: you can redistribute it and/or modify
@@ -556,21 +556,21 @@ always @(posedge i_clk) begin
 `endif
     // o_alu_debug     <= 1;
     o_fields_table  <= i_nibble[3]?`FT_TABLE_value:`FT_TABLE_a;
-    o_alu_op        <= `ALU_OP_COPY;
+    // o_alu_op        <= `ALU_OP_COPY;
     go_fields_table <= use_fields_tbl;
     use_fields_tbl  <= 0;
     
     // do not block when we're reading
-    o_alu_no_stall  <= !use_fields_tbl && i_nibble[1];
+    // o_alu_no_stall  <= !use_fields_tbl && i_nibble[1];
     // o_alu_debug     <= i_nibble[1];
 
     // set the info about this being a memory transfer
-    o_ins_mem_xfr   <= 1;
+    o_ins_mem_xfr   <= !(use_fields_tbl);
     o_xfr_dir_out   <= !i_nibble[1];
 
     block_15xx      <= use_fields_tbl;
 
-    o_ins_alu_op    <= !(use_fields_tbl);
+    // o_ins_alu_op    <= !(use_fields_tbl);
     next_nibble     <= use_fields_tbl;
     o_ins_decoded   <= !(use_fields_tbl);
     block_14x_15xx  <= 0;
@@ -581,8 +581,9 @@ always @(posedge i_clk) begin
     $display("block_15xx %h", i_nibble);
 `endif
     o_alu_debug <= 1;
-    o_alu_no_stall <= 1;
-    o_ins_alu_op   <= 1;
+    // o_alu_no_stall <= 1;
+    // o_ins_alu_op   <= 1;
+    o_ins_mem_xfr  <= 1;
     o_ins_decoded  <= 1;
     next_nibble    <= 0;
     block_15xx     <= 0;

@@ -272,7 +272,7 @@ always @(posedge i_clk) begin
         $write("\t");
         if (o_field_valid) begin
           
-          // $write("[FT%d]", o_fields_table);
+          $write("[FT%d]", o_fields_table);
           if (o_fields_table != `FT_TABLE_value)
             case (o_field)
             `FT_FIELD_P:  $write("P");

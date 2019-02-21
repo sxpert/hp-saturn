@@ -1,4 +1,6 @@
 /*
+    (c) Raphaël Jacquot 2019
+
     This file is part of hp_saturn.
 
     hp_saturn is free software: you can redistribute it and/or modify
