@@ -260,7 +260,7 @@ assign cmd_DP_WRITE_0   = phase_0 && cmd_DP_WRITE_TST; // sets cmd_DP_WRITE_F0
 assign cmd_DP_WRITE_STR = cmd_DP_WRITE_0;
 assign cmd_DP_WRITE_US0 = phase_2 && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1 && o_stall_alu;
 // after all nibbles were sent
-assign cmd_DP_WRITE_1   = phase_3 && (o_data_ptr == i_xfr_cnt) && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1; // sets cmd_DP_WRITE_F1
+assign cmd_DP_WRITE_1   = phase_3 && (o_data_ptr == (i_xfr_cnt + 1)) && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1; // sets cmd_DP_WRITE_F1
 assign cmd_DP_WRITE_US1 = phase_2 && cmd_DP_WRITE_F1;
 assign cmd_DP_WRITE_C   = phase_3 && cmd_DP_WRITE_F1; 
 
@@ -760,9 +760,9 @@ always @(posedge i_clk) begin
   end
 
   if (do_WRITE_DP_0) begin
-    $display("BUS_CTRL %1d: [%d] WRITE %h (%0d to go)", i_phase, i_cycle_ctr, i_data_nibl, i_xfr_cnt - o_data_ptr);
+    $display("BUS_CTRL %1d: [%d] WRITE %h %0d/%0d (%0d to go)", i_phase, i_cycle_ctr, i_data_nibl, o_data_ptr, i_xfr_cnt, i_xfr_cnt - o_data_ptr);
     o_bus_data <= i_data_nibl;
-    o_data_ptr <= (o_data_ptr == i_xfr_cnt)?o_data_ptr: o_data_ptr + 1;
+    o_data_ptr <= o_data_ptr + 1;
   end
 
   if (do_read_stalled_by_alu) begin

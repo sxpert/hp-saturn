@@ -391,7 +391,8 @@ assign xfr_data_copy     = xfr_data_init || xfr_init_done && !xfr_data_done && !
  */
 wire [3:0] src1_ptr;
 
-assign src1_ptr = ( {4{copy_address}} & data_counter ); 
+assign src1_ptr = ( {4{copy_address}} & data_counter   | 
+                    {4{xfr_data_copy}} & xfr_data_ctr  ); 
 
 always @(posedge i_clk) begin
 
@@ -419,7 +420,6 @@ always @(posedge i_clk) begin
   end
 
   if (copy_address) begin
-    $display("ALU      %0d: [%d] copy address f_mode_xfr %b && !copy_done %b && !xfr_init_done %b", phase, i_cycle_ctr, f_mode_xfr, !copy_done, !xfr_init_done);
     $write("ALU      %0d: [%d] xfr_data[%0d] = ", phase, i_cycle_ctr, data_counter);
     case (addr_src)
     2'b00: begin
@@ -449,8 +449,9 @@ always @(posedge i_clk) begin
     xfr_init_done <= 1;
   end
 
+  // need to copy actual data, LOL
   if (xfr_data_copy) begin
-    $display("ALU      %0d: [%d] copy data | dc %h | xdc %h | xdd %b",phase, i_cycle_ctr, data_counter, xfr_data_ctr, xfr_data_done);
+    $display("ALU      %0d: [%d] copy data | dc %h | xdc %h | s1p %h | xdd %b",phase, i_cycle_ctr, data_counter, xfr_data_ctr, src1_ptr, xfr_data_done);
     data_counter  <= data_counter + 1;
   end
 
