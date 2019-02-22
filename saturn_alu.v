@@ -226,14 +226,6 @@ reg        alu_run;
 reg        alu_done;
 reg        alu_go_test;
 
-/*
- * next PC in case of jump 
- */
-reg  [19:0]      jump_bse;
-reg  [19:0]      jump_off;
-wire [19:0]      jump_pc;
-assign jump_pc = (alu_op == `ALU_OP_JMP_ABS5)?jump_off:(jump_bse + jump_off); 
-
 reg  [2:0]       rstk_ptr;
 
 /* public registers */
@@ -478,8 +470,12 @@ always @(posedge i_clk) begin
    */
   if (start_in_jmp_mode) begin
     $display("ALU      %0d: [%d] jmp mode started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
-    $display("ALU      %0d: [%d] stall the decoder",phase, i_cycle_ctr);
     f_mode_jmp <= 1;
+  end
+
+  if (do_apply_jump) begin
+    $display("ALU      %0d: [%d] end of jmp mode", phase, i_cycle_ctr);
+    f_mode_jmp <= 0;
   end
 
   /* general ALU mode (when there is no optimization)
@@ -536,7 +532,6 @@ wire [0:0] copy_address;
 wire [0:0] start_load_dp;
 
 wire mode_xfr;
-
 assign mode_xfr = start_in_xfr_mode || f_mode_xfr;
 
 assign addr_src_A        = (!mode_xfr) && src1_A;
@@ -858,16 +853,84 @@ end
 // assign push_pc    = update_pc && i_push && alu_finish;
 
 
+/* jump values generator */
+
+wire mode_jmp;
+assign mode_jmp = start_in_jmp_mode || f_mode_jmp;
+
+reg [2:0]  jump_offset_counter;
+reg [19:0] jump_base;
+reg [19:0] jump_offset;
+
+wire [0:0] jump_counter_0;
+wire [0:0] jump_counter_1;
+wire [0:0] jump_counter_2;
+wire [0:0] jump_counter_3;
+wire [0:0] jump_counter_4;
+
+assign jump_counter_0 = (jump_offset_counter == 0);
+assign jump_counter_1 = (jump_offset_counter == 1);
+assign jump_counter_2 = (jump_offset_counter == 2);
+assign jump_counter_3 = (jump_offset_counter == 3);
+assign jump_counter_4 = (jump_offset_counter == 4);
+
+wire [19:0] jump_offset_1;
+wire [19:0] jump_offset_2;
+wire [19:0] jump_offset_3;
+wire [19:0] jump_offset_4;
+wire [19:0] jump_offset_5;
+
+assign jump_offset_1 = {{16{i_bus_nibble_in[3] && jump_relative}}, i_imm_value};
+assign jump_offset_2 = {{12{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 3:0]};
+assign jump_offset_3 = {{ 8{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 7:0]};
+assign jump_offset_4 = {{ 4{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[11:0]};
+assign jump_offset_5 = {                                           i_imm_value, jump_offset[15:0]};
+
+
+wire [19:0] new_jump_offset;
+assign new_jump_offset = ({20{jump_counter_0}} & jump_offset_1) |
+                         ({20{jump_counter_1}} & jump_offset_2) |
+                         ({20{jump_counter_2}} & jump_offset_3) |
+                         ({20{jump_counter_3}} & jump_offset_4) |
+                         ({20{jump_counter_4}} & jump_offset_5);                         
+
+wire [0:0] jump_rel_2_done;
+wire [0:0] jump_rel_3_done;
+wire [0:0] jump_rel_4_done;
+wire [0:0] jump_abs_5_done;
+wire [0:0] jump_done;
+
+assign jump_rel_2_done = jump_counter_1 && op_jmp_rel_2;
+assign jump_rel_3_done = jump_counter_2 && op_jmp_rel_3;
+assign jump_rel_4_done = jump_counter_3 && op_jmp_rel_4;
+assign jump_abs_5_done = jump_counter_4 && op_jmp_abs_5;
+assign jump_done       = jump_rel_2_done || jump_rel_3_done || jump_rel_4_done || jump_abs_5_done;
+
+wire [0:0] do_set_jump_base;
+wire [0:0] do_calc_jump;
+wire [0:0] do_apply_jump;
+assign do_set_jump_base = start_in_jmp_mode && !jump_done && jump_counter_0; 
+assign do_calc_jump     = mode_jmp && phase_3 && !jump_done;
+assign do_apply_jump    = mode_jmp && phase_3 &&  jump_done;
+
+wire [0:0] jump_relative;
+assign jump_relative = op_jmp_rel_2 || op_jmp_rel_3 || op_jmp_rel_4;
+
+wire [19:0] jump_pc;
+assign jump_pc = jump_relative?(jump_base+new_jump_offset):new_jump_offset;
+
+/* pc update generator */
+
 wire [19:0] next_pc;
 wire [0:0]  update_pc;
 wire [0:0]  reload_pc;
 wire [0:0]  pop_pc;
 wire [0:0]  pc_lines_cleanup;
 
-assign next_pc   = /*(set_unc_jmp || set_jmp_rel2)?jump_pc:*/PC + 1;
-assign update_pc = (!i_reset && just_reset) /*!o_alu_stall_dec || exec_unc_jmp || exec_jmp_rel2 */;
+assign next_pc   = (jump_done)?jump_pc:PC + 1;
+assign update_pc = (!i_reset && just_reset) || alu_active && phase_3 && (!o_alu_stall_dec) /* || exec_unc_jmp || exec_jmp_rel2 */;
 assign pop_pc    = i_pop && i_ins_rtn && ((!i_ins_test_go) || (i_ins_test_go && CARRY));
-assign reload_pc = (!i_reset && just_reset) /*|| (exec_unc_jmp || pop_pc || exec_jmp_rel2)*/;
+assign reload_pc = (!i_reset && just_reset) || do_apply_jump;
 
 assign pc_lines_cleanup = alu_active && phase_0;
 
@@ -877,9 +940,12 @@ always @(posedge i_clk) begin
    * initializes default values
    */
   if (i_reset) begin
-    PC             <= ~0;
-    o_bus_load_pc  <= 0;
-    rstk_ptr       <= 0;
+    PC                  <= ~0;
+    o_bus_load_pc       <= 0;
+    rstk_ptr            <= 0;
+    jump_offset_counter <= 0;
+    jump_base           <= 0;
+    jump_offset         <= 0;
   end
 
   /*
@@ -890,6 +956,30 @@ always @(posedge i_clk) begin
   if (alu_initializing)
     RSTK[v_dest_counter_ptr] <= 0;
 
+  /** 
+   * handles jumps
+   *
+   */
+  if (do_set_jump_base) begin
+    // $display("ALU_PC   %0d: [%d] set jump base %0d | nibble %h | rel %b | base %h | offset %h | jump_pc %h", 
+    //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, PC, new_jump_offset, jump_pc);
+    jump_base <= PC;
+  end
+
+  if (do_calc_jump) begin
+    // $display("ALU_PC   %0d: [%d] calc jump     %0d | nibble %h | rel %b | base %h | offset %h | jump_pc %h", 
+    //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, jump_base, new_jump_offset, jump_pc);
+    jump_offset <= new_jump_offset;
+    jump_offset_counter <= jump_offset_counter + 1;
+  end
+
+  if (do_apply_jump) begin
+    // $display("ALU_PC   %0d: [%d] apply jump    %0d | nibble %h | rel %b | base %h | offset %h | jump_pc %h",
+    //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, jump_base, new_jump_offset, jump_pc);
+    jump_offset_counter <= 0;
+  end
+
+
   /**
    *
    * Update the PC.
@@ -899,12 +989,12 @@ always @(posedge i_clk) begin
    */
 
   if (update_pc) begin
-    $display("ALU_PC   %0d: [%d] update pc to %h", phase, i_cycle_ctr, next_pc);
+    // $display("ALU_PC   %0d: [%d] update pc to %h", phase, i_cycle_ctr, next_pc);
     PC <= /*pop_pc ? RSTK[rstk_ptr - 1] : */next_pc;
   end
 
   if (reload_pc) begin
-    $display("ALU_PC   %0d: [%d] $$$$ RELOADING PC to %h $$$$", phase, i_cycle_ctr, next_pc);
+    // $display("ALU_PC   %0d: [%d] $$$$ RELOADING PC to %h $$$$", phase, i_cycle_ctr, next_pc);
     o_bus_address <= pop_pc ? RSTK[rstk_ptr-1] : next_pc;
     o_bus_load_pc <= 1;
   end

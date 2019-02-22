@@ -700,7 +700,7 @@ always @(posedge i_clk) begin
   if (do_run_addr_loop) begin
     $write("BUS_CTRL %1d: [%d] ADDR(%0d)-> %h ", 
            i_phase, i_cycle_ctr, o_data_ptr,
-           i_data_nibl);
+           LC_load_pc?i_address[o_data_ptr*4+:4]:i_data_nibl);
     if (will_loop_finish) $write("done");
     $write("\n");
 
