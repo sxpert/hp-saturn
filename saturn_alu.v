@@ -852,6 +852,11 @@ always @(posedge i_clk) begin
     P <= i_imm_value;
   end
 
+  if (start_in_p_mode && op_copy_p_to_c) begin
+    $display("ALU      %0d: [%d] C=P %h", phase, i_cycle_ctr, i_field_start);
+    C[i_field_start] <= P;
+  end
+
   /* ST=[01] <bit>
    */
   if (start_in_st_bit_mode) begin
@@ -1036,6 +1041,22 @@ always @(posedge i_clk) begin
 
 end
 
+/*****************************************************************************
+ *
+ * execute SETHEX and SETDEC 
+ *
+ ****************************************************************************/
+
+always @(posedge i_clk) begin
+  if (i_reset) 
+    DEC <= 0;
+
+  // changing calculation modes
+  if (alu_active && phase_3 && i_ins_set_mode) begin
+    $display("ALU      %0d: [%d] setting calulation mode to %s", phase, i_cycle_ctr, i_mode_dec?"DEC":"HEX");
+    DEC <= i_mode_dec;
+  end
+end
 
 
 
