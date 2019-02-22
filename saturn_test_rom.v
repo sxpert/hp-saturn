@@ -73,8 +73,8 @@ assign s_dp_read  = (last_bus_cmd == `BUSCMD_DP_READ);
 assign s_dp_write = (last_bus_cmd == `BUSCMD_DP_WRITE); 
 
 initial begin
-  $readmemh("rom-gx-r.hex", rom, 0, 2**`ROMBITS-1);
-//   $readmemh("testrom-2.hex", rom, 0, 2**`ROMBITS-1);
+  // $readmemh("rom-gx-r.hex", rom, 0, 2**`ROMBITS-1);
+  $readmemh("testrom-2.hex", rom, 0, 2**`ROMBITS-1);
   // $monitor("rst %b | strb %b | c/d %b | bus_i %h | bus_o %h | last %h | slpc %b | addr_c %0d | lpc %5h | ldp %5h",
   //         i_reset, i_bus_strobe, i_bus_cmd_data, i_bus_data_in, o_bus_data_out, 
   // 				last_bus_cmd, s_load_pc, addr_c, local_pc, local_dp);

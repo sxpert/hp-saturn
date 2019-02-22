@@ -179,7 +179,7 @@ assign o_pc    = PC;
  */
 
 wire [1:0] phase;
-assign phase = i_clk_ph + 3;
+assign phase = i_clk_ph - 2'b01;
 
 wire [0:0] phase_0;
 wire [0:0] phase_1;
@@ -456,20 +456,8 @@ assign dest_ptr  = dest_D0 || dest_D1;
 reg  [0:0]  just_reset;
 
 always @(posedge i_clk) begin
-
-  if (i_reset) begin
-    just_reset     <= 1;
-    f_mode_xfr    <= 0;
-    f_mode_load_ptr  <= 0;
-    f_mode_ldreg     <= 0;
-    f_mode_jmp       <= 0;
-    f_mode_alu <= 0;
-  end
-
-  if (just_reset && !i_reset) begin
-    just_reset    <= 0;
+  if (just_reset && !i_reset)
     $display("ALU_INIT %0d: [%d] CLEARING JUST_RESET", phase, i_cycle_ctr);
-  end
 
   /* register to memory transfer
    */
@@ -478,19 +466,17 @@ always @(posedge i_clk) begin
     $display("ALU      %0d: [%d] addr_src A %b | C %b | D0 %b | D1 %b | src %2b", phase, i_cycle_ctr, 
              addr_src_A, addr_src_C, addr_src_D0, addr_src_D1, addr_src);
     $display("ALU      %0d: [%d] stall the decoder",phase, i_cycle_ctr);
-    f_mode_xfr <= 1;
+    f_mode_xfr <= 1'b1;
   end
 
-  if (alu_active && f_mode_xfr && i_bus_done) begin
+  if (alu_active && f_mode_xfr && i_bus_done)
     $display("ALU      %0d: [%d] resetting variables after data transfer", phase, i_cycle_ctr);
-    f_mode_xfr <= 0;
-  end
 
   /* load pointer register with value
    */
   if (start_in_load_ptr_mode) begin
     $display("ALU      %0d: [%d] load_ptr mode started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
-    f_mode_load_ptr <= 1;
+    f_mode_load_ptr <= 1'b1;
   end
 
   /* load register immediate with 1-16 nibbles
@@ -498,33 +484,43 @@ always @(posedge i_clk) begin
   if (start_in_ldreg_mode) begin
     $display("ALU      %0d: [%d] load register mode started (loading reg %c with %0d nibbles)",
       phase, i_cycle_ctr, dest_A?"A":"C", i_field_last - i_field_start + 1);
-    f_mode_ldreg   <= 1;
+    f_mode_ldreg   <= 1'b1;
   end
 
-  if (do_load_register_done) begin
+  if (do_load_register_done)
     $display("ALU      %0d: [%d] resetting variables after loading register", phase, i_cycle_ctr);
-    f_mode_ldreg   <= 0;
-  end
 
   /* a jump instruction just appeared !
    */
   if (start_in_jmp_mode) begin
     $display("ALU      %0d: [%d] jmp mode started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
-    f_mode_jmp <= 1;
+    f_mode_jmp <= 1'b1;
   end
 
-  if (do_apply_jump) begin
+  if (do_apply_jump)
     $display("ALU      %0d: [%d] end of jmp mode", phase, i_cycle_ctr);
-    f_mode_jmp <= 0;
-  end
 
   /* general ALU mode (when there is no optimization)
    */
   if (start_in_alu_mode) begin
     $display("ALU      %0d: [%d] alu mode started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
     $display("ALU      %0d: [%d] stall the decoder",phase, i_cycle_ctr);
-    f_mode_alu <= 1;
+    f_mode_alu <= 1'b1;
   end
+
+  if (i_reset || 
+      alu_active && f_mode_xfr && i_bus_done ||
+      do_load_register_done ||
+      do_apply_jump) 
+  begin
+    f_mode_xfr      <= 1'b0;
+    f_mode_load_ptr <= 1'b0;
+    f_mode_ldreg    <= 1'b0;
+    f_mode_jmp      <= 1'b0;
+    f_mode_alu      <= 1'b0;
+  end
+
+  just_reset <= i_reset;
 
 end
 
