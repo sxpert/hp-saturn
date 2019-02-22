@@ -221,6 +221,13 @@ assign do_READ_PC_0   = phase_1 && do_READ_PC_TST;
 assign do_READ_PC_STR = do_READ_PC_TST;
 
 /*
+ * common to both reading and writing to the dp pointer
+ */
+
+wire [0:0] xfr_done;
+assign xfr_done = (o_data_ptr == (i_xfr_cnt + 1));
+
+/*
  * read from the DP pointer
  */
 
@@ -260,7 +267,7 @@ assign cmd_DP_WRITE_0   = phase_0 && cmd_DP_WRITE_TST; // sets cmd_DP_WRITE_F0
 assign cmd_DP_WRITE_STR = cmd_DP_WRITE_0;
 assign cmd_DP_WRITE_US0 = phase_2 && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1 && o_stall_alu;
 // after all nibbles were sent
-assign cmd_DP_WRITE_1   = phase_3 && (o_data_ptr == (i_xfr_cnt + 1)) && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1; // sets cmd_DP_WRITE_F1
+assign cmd_DP_WRITE_1   = phase_3 && xfr_done && cmd_DP_WRITE_F0 && !cmd_DP_WRITE_F1; // sets cmd_DP_WRITE_F1
 assign cmd_DP_WRITE_US1 = phase_2 && cmd_DP_WRITE_F1;
 assign cmd_DP_WRITE_C   = phase_3 && cmd_DP_WRITE_F1; 
 
@@ -268,7 +275,7 @@ assign cmd_DP_WRITE_C   = phase_3 && cmd_DP_WRITE_F1;
 wire [0:0] do_WRITE_DP_TST;
 wire [0:0] do_WRITE_DP_0;
 wire [0:0] do_WRITE_DP_STR;
-assign do_WRITE_DP_TST = !o_stall_alu && i_cmd_dp_write && LC_dp_write;
+assign do_WRITE_DP_TST = !o_stall_alu && i_cmd_dp_write && LC_dp_write && !xfr_done;
 assign do_WRITE_DP_STR = phase_0 && do_WRITE_DP_TST;
 assign do_WRITE_DP_0   = phase_0 && do_WRITE_DP_TST;
 

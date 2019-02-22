@@ -484,7 +484,7 @@ saturn_core saturn (
 	.o_phase          (core_phase)
 );
 
-test_rom rom (
+saturn_test_rom rom (
   .i_phase        (core_phase),
 
 	.i_reset        (core_bus_reset),

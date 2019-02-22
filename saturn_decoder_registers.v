@@ -196,7 +196,7 @@ always @(posedge i_clk) begin
   if (do_block_80Cx) begin
     o_reg_dest        <= `ALU_REG_C;
     o_reg_src1        <= `ALU_REG_P;
-    o_reg_src2        <= 0;
+    o_reg_src2        <= `ALU_REG_NOPE;
   end
 
   if (do_block_81Af0x) begin
