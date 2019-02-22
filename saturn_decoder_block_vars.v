@@ -81,9 +81,6 @@ reg    block_3x;
 wire   do_block_3x;
 assign do_block_3x = do_on_other_nibbles && block_3x;
 
-// reg   block_jmp2_cry_set;
-// reg   block_jmp2_cry_clr;
-
 reg    block_8x;
 wire   do_block_8x;
 assign do_block_8x = do_on_other_nibbles && block_8x;
@@ -123,6 +120,10 @@ assign do_block_81Afx = do_on_other_nibbles && block_81Afx;
 reg   block_82x;
 wire  do_block_82x;
 assign do_block_82x = do_on_other_nibbles && block_82x;
+
+reg  block_84x_85x;
+wire do_block_84x_85x;
+assign do_block_84x_85x = do_on_other_nibbles && block_84x_85x;
 
 reg    block_8Ax;
 wire   do_block_8Ax;
@@ -197,9 +198,6 @@ reg  block_jmp;
 wire do_block_jmp;
 assign do_block_jmp = do_on_other_nibbles && block_jmp;
 
-reg  block_sr_bit;
-wire do_block_sr_bit;
-assign do_block_sr_bit = do_on_other_nibbles && block_sr_bit;
 
 wire in_fields_table;
 assign in_fields_table = go_fields_table && !fields_table_done;

@@ -828,16 +828,6 @@ always @(posedge i_clk) begin
     block_jmp                  <= mem_load_max != o_mem_pos;
   end
 
-  if (do_block_sr_bit) begin
-    o_ins_alu_op    <= 1;
-    o_imm_value     <= i_nibble;
-    o_mem_load[3:0] <= i_nibble;
-    o_mem_pos       <= 1;
-    next_nibble     <= 0;
-    o_ins_decoded   <= 1;
-    block_sr_bit    <= 0;
-  end
-
 end
 
 `include "saturn_decoder_registers.v"

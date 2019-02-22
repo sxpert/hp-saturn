@@ -39,7 +39,7 @@
       4'h4, 4'h5: // ST=[01] n
       begin 
         o_alu_op       <= i_nibble[0]?`ALU_OP_SET_BIT:`ALU_OP_RST_BIT;
-        block_sr_bit   <= 1;
+        block_84x_85x  <= 1;
         `ifdef SIM
         o_unimplemented <= 0;
         `endif
@@ -176,6 +176,16 @@
     o_unimplemented <= 0;
     `endif
     block_82x       <= 0;
+  end
+
+  if (do_block_84x_85x) begin
+    o_ins_alu_op    <= 1;
+    o_imm_value     <= i_nibble;
+    o_mem_load[3:0] <= i_nibble;
+    o_mem_pos       <= 1;
+    next_nibble     <= 0;
+    o_ins_decoded   <= 1;
+    block_84x_85x   <= 0;
   end
 
   if (do_block_8Ax) begin

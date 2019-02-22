@@ -223,6 +223,12 @@ always @(posedge i_clk) begin
     o_reg_src2        <= `ALU_REG_IMM;
   end
 
+  if (do_block_84x_85x) begin
+    o_reg_dest        <= `ALU_REG_ST;
+    o_reg_src1        <= `ALU_REG_IMM;
+    o_reg_src2        <= `ALU_REG_NOPE;
+  end
+
   if (do_block_8Ax) begin
     o_reg_dest <= 0;
     o_reg_src1 <= i_nibble[3]?reg_ABCD:reg_BCAC;

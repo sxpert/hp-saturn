@@ -297,7 +297,24 @@ reg [0:0] f_mode_ldreg;
 reg [0:0] f_mode_jmp;
 reg [0:0] f_mode_alu;
 
+wire mode_xfr;
+wire mode_load_ptr;
+wire mode_ldreg;
+wire mode_p;
+wire mode_st_bit;
+wire mode_jmp;
+wire mode_alu;
+
+assign mode_xfr      = start_in_xfr_mode      || f_mode_xfr;
+assign mode_load_ptr = start_in_load_ptr_mode || f_mode_load_ptr;
+assign mode_ldreg    = start_in_ldreg_mode    || f_mode_ldreg;
+assign mode_p        = start_in_p_mode;
+assign mode_st_bit   = start_in_st_bit_mode;
+assign mode_jmp      = start_in_jmp_mode      || f_mode_jmp;
+assign mode_alu      = start_in_alu_mode      || f_mode_alu;
+
 wire [0:0] mode_set;
+wire [0:0] mode_not_alu;
 wire [0:0] stall_modes;
 wire [0:0] alu_start_ev;
 
@@ -305,27 +322,25 @@ wire [0:0] start_in_xfr_mode;
 wire [0:0] start_in_load_ptr_mode;
 wire [0:0] start_in_ldreg_mode;
 wire [0:0] start_in_p_mode;
+wire [0:0] start_in_st_bit_mode;
 wire [0:0] start_in_jmp_mode;
 wire [0:0] start_in_alu_mode;
 
+assign mode_not_alu           = mode_xfr || mode_load_ptr || mode_ldreg || mode_p || mode_st_bit || mode_jmp;
 assign mode_set               = f_mode_xfr || f_mode_load_ptr || f_mode_ldreg || f_mode_jmp || f_mode_alu;
 assign stall_modes            = f_mode_xfr || f_mode_alu;
 
 assign alu_start_ev           = alu_active && phase_3;
+
 assign start_in_xfr_mode      = alu_start_ev && i_ins_mem_xfr && !mode_set;
 assign start_in_load_ptr_mode = alu_start_ev && i_ins_alu_op && op_copy && dest_ptr && src1_IMM && !mode_set;
 assign start_in_ldreg_mode    = alu_start_ev && i_ins_alu_op && op_copy && dest_A_C && src1_IMM && !mode_set;
-// there is no need to set a flag for that one
 assign start_in_p_mode        = alu_start_ev && i_ins_alu_op && op_1_cycle_p && !mode_set; 
+assign start_in_st_bit_mode   = alu_start_ev && i_ins_alu_op && op_st_bit && !mode_set;
 assign start_in_jmp_mode      = alu_start_ev && i_ins_alu_op && op_jump && src1_IMM && !mode_set;
-// this is the last mode in the queue, called when no others have been recognized
-assign start_in_alu_mode      = alu_start_ev && i_ins_alu_op && !mode_set &&
-                                !(start_in_load_ptr_mode || start_in_ldreg_mode || 
-                                  start_in_p_mode || start_in_jmp_mode);
+assign start_in_alu_mode      = alu_start_ev && i_ins_alu_op && !mode_not_alu;
 
-
-assign o_alu_stall_dec = alu_initializing || i_stalled || 
-                         stall_modes;
+assign o_alu_stall_dec = alu_initializing || i_stalled || stall_modes;
 
   
 /*
@@ -335,6 +350,8 @@ assign o_alu_stall_dec = alu_initializing || i_stalled ||
 /* operation */
 
 wire [0:0] op_copy;
+wire [0:0] op_rst_bit;
+wire [0:0] op_set_bit;
 wire [0:0] op_inc;
 wire [0:0] op_dec;
 wire [0:0] op_jmp_rel_2;
@@ -348,10 +365,16 @@ wire [0:0] op_set_p;
 wire [0:0] op_copy_p_to_c;
 wire [0:0] op_copy_c_to_p;
 
+wire [0:0] op_st_rst_bit;
+wire [0:0] op_st_set_bit;
+wire [0:0] op_st_bit;
+
 wire [0:0] op_1_cycle_p;
 wire [0:0] op_jump;
 
 assign op_copy        = (i_alu_op == `ALU_OP_COPY);
+assign op_rst_bit     = (i_alu_op == `ALU_OP_RST_BIT);
+assign op_set_bit     = (i_alu_op == `ALU_OP_SET_BIT);
 assign op_inc         = (i_alu_op == `ALU_OP_INC);
 assign op_dec         = (i_alu_op == `ALU_OP_DEC); 
 assign op_jmp_rel_2   = (i_alu_op == `ALU_OP_JMP_REL2);
@@ -365,6 +388,9 @@ assign op_set_p       = op_copy && src1_IMM && dest_P;
 assign op_copy_p_to_c = op_copy && src1_P && dest_C;
 assign op_copy_c_to_p = op_copy && src1_C && dest_P;
 
+assign op_st_rst_bit  = op_rst_bit && dest_ST && src1_IMM;
+assign op_st_set_bit  = op_set_bit && dest_ST && src1_IMM;
+assign op_st_bit      = op_st_rst_bit || op_st_set_bit;
 assign op_1_cycle_p   = op_inc_p || op_dec_p || op_set_p || op_copy_p_to_c || op_copy_c_to_p;
 assign op_jump        = op_jmp_rel_2 || op_jmp_rel_3 || op_jmp_rel_4 || op_jmp_abs_5;
 
@@ -390,6 +416,7 @@ wire [0:0] dest_D0;
 wire [0:0] dest_D1;
 wire [0:0] dest_DAT0;
 wire [0:0] dest_DAT1;
+wire [0:0] dest_ST;
 wire [0:0] dest_P;
 
 assign dest_A    = (i_reg_dest == `ALU_REG_A);
@@ -398,6 +425,7 @@ assign dest_D0   = (i_reg_dest == `ALU_REG_D0);
 assign dest_D1   = (i_reg_dest == `ALU_REG_D1);
 assign dest_DAT0 = (i_reg_dest == `ALU_REG_DAT0);
 assign dest_DAT1 = (i_reg_dest == `ALU_REG_DAT1);
+assign dest_ST   = (i_reg_dest == `ALU_REG_ST);
 assign dest_P    = (i_reg_dest == `ALU_REG_P);
 
 wire [0:0] dest_A_C;
@@ -435,8 +463,8 @@ always @(posedge i_clk) begin
    */
   if (start_in_xfr_mode) begin
     $display("ALU      %0d: [%d] memory transfer started (i_ins_decoded %b)", phase, i_cycle_ctr, i_ins_decoded);
-    $display("ALU      %0d: [%d] addr_src A %b | C %b | D0 %b | D1 %b | b1 %b | b0 %b | src %2b", phase, i_cycle_ctr, 
-             addr_src_A, addr_src_C, addr_src_D0, addr_src_D1, addr_src_xfr_1, addr_src_xfr_0, addr_src);
+    $display("ALU      %0d: [%d] addr_src A %b | C %b | D0 %b | D1 %b | src %2b", phase, i_cycle_ctr, 
+             addr_src_A, addr_src_C, addr_src_D0, addr_src_D1, addr_src);
     $display("ALU      %0d: [%d] stall the decoder",phase, i_cycle_ctr);
     f_mode_xfr <= 1;
   end
@@ -488,7 +516,6 @@ always @(posedge i_clk) begin
 
 end
 
-
 /* module 1:
  * handles all alu mode timing
  *
@@ -522,26 +549,25 @@ wire [0:0] addr_src_A;
 wire [0:0] addr_src_C;
 wire [0:0] addr_src_D0;
 wire [0:0] addr_src_D1;
-wire [0:0] addr_src_xfr_0;
-wire [0:0] addr_src_xfr_1;
-wire [1:0] addr_src_xfr;
-wire [1:0] addr_src;
+reg  [1:0] addr_src;
 
 wire [0:0] copy_done;
 wire [0:0] copy_address;
 wire [0:0] start_load_dp;
 
-wire mode_xfr;
-assign mode_xfr = start_in_xfr_mode || f_mode_xfr;
-
 assign addr_src_A        = (!mode_xfr) && src1_A;
 assign addr_src_C        = (!mode_xfr) && src1_C;
 assign addr_src_D0       = ( mode_xfr) && (src1_DAT0 || dest_DAT0);
 assign addr_src_D1       = ( mode_xfr) && (src1_DAT1 || dest_DAT1);
-assign addr_src_xfr_0    = !addr_src_A && !addr_src_C && !addr_src_D0 && addr_src_D1;
-assign addr_src_xfr_1    = !addr_src_A && !addr_src_C && (addr_src_D0 || addr_src_D1);
-assign addr_src_xfr      = {addr_src_xfr_1, addr_src_xfr_0};
-assign addr_src          = {2{mode_xfr}} & addr_src_xfr;
+
+always @(*) begin
+  addr_src = 0;
+  if (mode_xfr) begin
+    // assert(!addr_src_A && !addr_src_C) $display("we got address source A or C where we shouldn't");
+    if (addr_src_D0) addr_src = 2'b10;
+    if (addr_src_D1) addr_src = 2'b11;
+  end
+end
 
 assign copy_done         = data_counter == 5;
 assign copy_address      = alu_active && mode_xfr && !copy_done && !xfr_init_done;
@@ -564,14 +590,18 @@ assign xfr_copy_done     = alu_active && xfr_init_done && copy_done && !xfr_data
 assign xfr_data_copy     = alu_active && (xfr_data_init || xfr_init_done && !xfr_data_done && !copy_done && !xfr_copy_done);
 
 /*
- * sources specific pointers
+ * the same counter is used for both sources when two sources are used
  */
-wire [3:0] src1_ptr;
-wire [2:0] src1a_ptr;
+reg  [3:0] source_counter;
+wire [2:0] source_counter_ptr;
 
-assign src1_ptr  = ( {4{copy_address}} & data_counter   | 
-                     {4{xfr_data_copy}} & xfr_data_ctr  ); 
-assign src1a_ptr = src1_ptr[2:0];
+always @(*) begin
+  source_counter = 0;
+  if (copy_address) source_counter = data_counter;
+  if (xfr_data_copy) source_counter = xfr_data_ctr;
+end
+
+assign source_counter_ptr = source_counter[2:0];
 
 always @(posedge i_clk) begin
 
@@ -600,20 +630,20 @@ always @(posedge i_clk) begin
     $write("ALU      %0d: [%d] xfr_data[%0d] = ", phase, i_cycle_ctr, data_counter);
     case (addr_src)
     2'b00: begin
-      $display("A[%0d] %h", src1_ptr, A[src1_ptr]);
-      xfr_data[data_counter] <= A[src1_ptr];
+      $display("A[%0d] %h", source_counter, A[source_counter]);
+      xfr_data[data_counter] <= A[source_counter];
     end
     2'b01: begin
-      $display("C[%0d] %h", src1_ptr, C[src1_ptr]);
-      xfr_data[data_counter] <= C[src1_ptr];
+      $display("C[%0d] %h", source_counter, C[source_counter]);
+      xfr_data[data_counter] <= C[source_counter];
     end
     2'b10: begin
-      $display("D0[%0d] %h", src1_ptr, D0[src1a_ptr]);
-      xfr_data[data_counter] <= D0[src1a_ptr];
+      $display("D0[%0d] %h", source_counter, D0[source_counter_ptr]);
+      xfr_data[data_counter] <= D0[source_counter_ptr];
     end
     2'b11: begin
-      $display("D1[%0d] %h", src1_ptr, D1[src1a_ptr]);
-      xfr_data[data_counter] <= D1[src1a_ptr];
+      $display("D1[%0d] %h", source_counter, D1[source_counter_ptr]);
+      xfr_data[data_counter] <= D1[source_counter_ptr];
     end
     default: begin end
     endcase
@@ -630,8 +660,8 @@ always @(posedge i_clk) begin
   // two sources are possible, A and C, a conditional will suffice
   if (xfr_data_copy) begin
     $display("ALU      %0d: [%d] copy data DAT[%b][%2d] <= %c[%2d] %h",
-             phase, i_cycle_ctr, dest_DAT1, data_counter, src1_A?"A":"C", src1_ptr, (src1_A)?A[src1_ptr]:C[src1_ptr]);
-    xfr_data[data_counter] <=  (src1_A)?A[src1_ptr]:C[src1_ptr];
+             phase, i_cycle_ctr, dest_DAT1, data_counter, src1_A?"A":"C", source_counter, (src1_A)?A[source_counter]:C[source_counter]);
+    xfr_data[data_counter] <=  (src1_A)?A[source_counter]:C[source_counter];
     data_counter           <= data_counter + 1;
   end
 
@@ -666,6 +696,18 @@ always @(posedge i_clk) begin
   end
 
 end
+
+
+/*
+ * module 3: calculations
+ * 
+ * this is a combinatorial stage
+ *
+ */
+
+// always @(*) begin
+
+// end
 
 /*
  * moduls 4:
@@ -798,13 +840,12 @@ always @(posedge i_clk) begin
     P <= i_imm_value;
   end
 
-
-  /*
-   *
-   * jump mode
-   *
+  /* ST=[01] <bit>
    */
-
+  if (start_in_st_bit_mode) begin
+    $display("ALU      %0d: [%d] ST[%0d] = %b", phase, i_cycle_ctr, i_imm_value, op_set_bit);
+    ST[i_imm_value] <= op_set_bit;
+  end
 
 end
 
@@ -812,24 +853,6 @@ end
  * manages all that is linked with the program counter
  */
 
-// wire [19:0] goyes_off;
-// wire [19:0] goyes_pc;
-
-// wire [0:0]  is_jmp_rel2;
-// wire [0:0]  is_rtn_rel2;
-// wire [0:0]  jmp_carry_test;
-// wire [0:0]  exec_rtn_rel2;
-// wire [0:0]  set_jmp_rel2;
-// wire [0:0]  exec_jmp_rel2;
-
-// wire [0:0]  set_unc_jmp;
-// wire [0:0]  exec_unc_jmp;
-// wire [0:0]  exec_unc_rtn;
-// wire [0:0]  pop_pc;
-// // wire [0:0]  reload_pc;
-// wire [0:0]  push_pc;
-
- 
 // assign goyes_off = {{12{i_imm_value[3]}}, i_imm_value, jump_off[3:0]};
 // assign goyes_pc  = jump_bse + goyes_off;
 // // rtnyes is already handled by i_ins_test_go
@@ -840,81 +863,53 @@ end
 // // assign set_jmp_rel2   = is_jmp_rel2 && jmp_carry_test && alu_finish;
 // assign exec_jmp_rel2  = is_jmp_rel2 && jmp_carry_test && alu_done;
 
-
-// // assign set_unc_jmp = is_alu_op_unc_jump && alu_finish;
-// // assign exec_unc_jmp   = is_alu_op_unc_jump && alu_done;
-// assign exec_unc_rtn   = i_pop && i_ins_rtn;
-
-// assign pop_pc     = i_pop && i_ins_rtn &&  
-//                     ((!i_ins_test_go) ||                    
-//                      (i_ins_test_go && CARRY));
-
-// assign reload_pc  = (exec_unc_jmp || pop_pc || just_reset || exec_jmp_rel2);
-// assign push_pc    = update_pc && i_push && alu_finish;
-
-
 /* jump values generator */
-
-wire mode_jmp;
-assign mode_jmp = start_in_jmp_mode || f_mode_jmp;
 
 reg [2:0]  jump_offset_counter;
 reg [19:0] jump_base;
-reg [19:0] jump_offset;
+reg [15:0] jump_offset;
+reg [19:0] new_jump_offset;
+reg [0:0]  jump_start;
+reg [0:0]  jump_done;
 
-wire [0:0] jump_counter_0;
-wire [0:0] jump_counter_1;
-wire [0:0] jump_counter_2;
-wire [0:0] jump_counter_3;
-wire [0:0] jump_counter_4;
+wire [0:0] jump_relative;
+assign jump_relative = op_jmp_rel_2 || op_jmp_rel_3 || op_jmp_rel_4;
 
-assign jump_counter_0 = (jump_offset_counter == 0);
-assign jump_counter_1 = (jump_offset_counter == 1);
-assign jump_counter_2 = (jump_offset_counter == 2);
-assign jump_counter_3 = (jump_offset_counter == 3);
-assign jump_counter_4 = (jump_offset_counter == 4);
-
-wire [19:0] jump_offset_1;
-wire [19:0] jump_offset_2;
-wire [19:0] jump_offset_3;
-wire [19:0] jump_offset_4;
-wire [19:0] jump_offset_5;
-
-assign jump_offset_1 = {{16{i_bus_nibble_in[3] && jump_relative}}, i_imm_value};
-assign jump_offset_2 = {{12{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 3:0]};
-assign jump_offset_3 = {{ 8{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 7:0]};
-assign jump_offset_4 = {{ 4{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[11:0]};
-assign jump_offset_5 = {                                           i_imm_value, jump_offset[15:0]};
-
-
-wire [19:0] new_jump_offset;
-assign new_jump_offset = ({20{jump_counter_0}} & jump_offset_1) |
-                         ({20{jump_counter_1}} & jump_offset_2) |
-                         ({20{jump_counter_2}} & jump_offset_3) |
-                         ({20{jump_counter_3}} & jump_offset_4) |
-                         ({20{jump_counter_4}} & jump_offset_5);                         
-
-wire [0:0] jump_rel_2_done;
-wire [0:0] jump_rel_3_done;
-wire [0:0] jump_rel_4_done;
-wire [0:0] jump_abs_5_done;
-wire [0:0] jump_done;
-
-assign jump_rel_2_done = jump_counter_1 && op_jmp_rel_2;
-assign jump_rel_3_done = jump_counter_2 && op_jmp_rel_3;
-assign jump_rel_4_done = jump_counter_3 && op_jmp_rel_4;
-assign jump_abs_5_done = jump_counter_4 && op_jmp_abs_5;
-assign jump_done       = jump_rel_2_done || jump_rel_3_done || jump_rel_4_done || jump_abs_5_done;
+always @(*) begin
+  new_jump_offset = 0;
+  jump_start = 0;
+  jump_done = 0;
+  case (jump_offset_counter)
+  0: begin
+    new_jump_offset = {{16{i_bus_nibble_in[3] && jump_relative}}, i_imm_value};
+    jump_start = 1;
+  end
+  1: begin
+    new_jump_offset = {{12{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 3:0]};
+    if (op_jmp_rel_2) jump_done = 1;
+  end
+  2: begin
+    new_jump_offset = {{ 8{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 7:0]};
+    if (op_jmp_rel_3) jump_done = 1;
+  end
+  3: begin
+    new_jump_offset = {{ 4{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[11:0]};
+    if (op_jmp_rel_4) jump_done = 1;
+  end
+  4: begin
+    new_jump_offset = {i_imm_value, jump_offset[15:0]};
+    if (op_jmp_abs_5) jump_done = 1;
+  end
+  default: begin end
+  endcase
+end
 
 wire [0:0] do_set_jump_base;
 wire [0:0] do_calc_jump;
 wire [0:0] do_apply_jump;
-assign do_set_jump_base = start_in_jmp_mode && !jump_done && jump_counter_0; 
+assign do_set_jump_base = start_in_jmp_mode && !jump_done && jump_start; 
 assign do_calc_jump     = mode_jmp && phase_3 && !jump_done;
 assign do_apply_jump    = mode_jmp && phase_3 &&  jump_done;
-
-wire [0:0] jump_relative;
-assign jump_relative = op_jmp_rel_2 || op_jmp_rel_3 || op_jmp_rel_4;
 
 wire [19:0] jump_pc;
 assign jump_pc = jump_relative?(jump_base+new_jump_offset):new_jump_offset;
@@ -969,7 +964,7 @@ always @(posedge i_clk) begin
   if (do_calc_jump) begin
     // $display("ALU_PC   %0d: [%d] calc jump     %0d | nibble %h | rel %b | base %h | offset %h | jump_pc %h", 
     //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, jump_base, new_jump_offset, jump_pc);
-    jump_offset <= new_jump_offset;
+    jump_offset <= new_jump_offset[15:0];
     jump_offset_counter <= jump_offset_counter + 1;
   end
 
@@ -978,7 +973,6 @@ always @(posedge i_clk) begin
     //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, jump_base, new_jump_offset, jump_pc);
     jump_offset_counter <= 0;
   end
-
 
   /**
    *

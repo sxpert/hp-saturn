@@ -10,7 +10,7 @@
 #     #exit
 # fi
 #iverilog -v -Wall -DSIM -o mask_gen_tb mask_gen.v
-iverilog -v -Wall -DSIM -o rom_tb saturn_core.v
+iverilog -v -g2005-sv -gassertions -Wall -DSIM -o rom_tb saturn_core.v
 IVERILOG_STATUS=$?
 #./mask_gen_tb
 echo "--------------------------------------------------------------------"
