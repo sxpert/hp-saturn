@@ -219,8 +219,8 @@ always @(posedge i_clk) begin
 
   if (do_block_82x) begin
     o_reg_dest        <= `ALU_REG_HST;
-    o_reg_src1        <= `ALU_REG_HST;
-    o_reg_src2        <= `ALU_REG_IMM;
+    o_reg_src1        <= `ALU_REG_IMM;
+    o_reg_src2        <= `ALU_REG_NOPE;
   end
 
   if (do_block_84x_85x) begin

@@ -302,16 +302,18 @@ wire mode_load_ptr;
 wire mode_ldreg;
 wire mode_p;
 wire mode_st_bit;
+wire mode_hst_clrmask;
 wire mode_jmp;
 wire mode_alu;
 
-assign mode_xfr      = start_in_xfr_mode      || f_mode_xfr;
-assign mode_load_ptr = start_in_load_ptr_mode || f_mode_load_ptr;
-assign mode_ldreg    = start_in_ldreg_mode    || f_mode_ldreg;
-assign mode_p        = start_in_p_mode;
-assign mode_st_bit   = start_in_st_bit_mode;
-assign mode_jmp      = start_in_jmp_mode      || f_mode_jmp;
-assign mode_alu      = start_in_alu_mode      || f_mode_alu;
+assign mode_xfr         = start_in_xfr_mode      || f_mode_xfr;
+assign mode_load_ptr    = start_in_load_ptr_mode || f_mode_load_ptr;
+assign mode_ldreg       = start_in_ldreg_mode    || f_mode_ldreg;
+assign mode_p           = start_in_p_mode;
+assign mode_st_bit      = start_in_st_bit_mode;
+assign mode_hst_clrmask = start_in_hst_clrmask_mode;
+assign mode_jmp         = start_in_jmp_mode      || f_mode_jmp;
+assign mode_alu         = start_in_alu_mode      || f_mode_alu;
 
 wire [0:0] mode_set;
 wire [0:0] mode_not_alu;
@@ -323,26 +325,27 @@ wire [0:0] start_in_load_ptr_mode;
 wire [0:0] start_in_ldreg_mode;
 wire [0:0] start_in_p_mode;
 wire [0:0] start_in_st_bit_mode;
+wire [0:0] start_in_hst_clrmask_mode;
 wire [0:0] start_in_jmp_mode;
 wire [0:0] start_in_alu_mode;
 
-assign mode_not_alu           = mode_xfr || mode_load_ptr || mode_ldreg || mode_p || mode_st_bit || mode_jmp;
-assign mode_set               = f_mode_xfr || f_mode_load_ptr || f_mode_ldreg || f_mode_jmp || f_mode_alu;
-assign stall_modes            = f_mode_xfr || f_mode_alu;
+assign mode_not_alu              = mode_xfr || mode_load_ptr || mode_ldreg || mode_p || mode_st_bit || mode_hst_clrmask || mode_jmp;
+assign mode_set                  = f_mode_xfr || f_mode_load_ptr || f_mode_ldreg || f_mode_jmp || f_mode_alu;
+assign stall_modes               = f_mode_xfr || f_mode_alu;
 
-assign alu_start_ev           = alu_active && phase_3;
+assign alu_start_ev              = alu_active && phase_3;
 
-assign start_in_xfr_mode      = alu_start_ev && i_ins_mem_xfr && !mode_set;
-assign start_in_load_ptr_mode = alu_start_ev && i_ins_alu_op && op_copy && dest_ptr && src1_IMM && !mode_set;
-assign start_in_ldreg_mode    = alu_start_ev && i_ins_alu_op && op_copy && dest_A_C && src1_IMM && !mode_set;
-assign start_in_p_mode        = alu_start_ev && i_ins_alu_op && op_1_cycle_p && !mode_set; 
-assign start_in_st_bit_mode   = alu_start_ev && i_ins_alu_op && op_st_bit && !mode_set;
-assign start_in_jmp_mode      = alu_start_ev && i_ins_alu_op && op_jump && src1_IMM && !mode_set;
-assign start_in_alu_mode      = alu_start_ev && i_ins_alu_op && !mode_not_alu;
+assign start_in_xfr_mode         = alu_start_ev && i_ins_mem_xfr && !mode_set;
+assign start_in_load_ptr_mode    = alu_start_ev && i_ins_alu_op && op_copy && dest_ptr && src1_IMM && !mode_set;
+assign start_in_ldreg_mode       = alu_start_ev && i_ins_alu_op && op_copy && dest_A_C && src1_IMM && !mode_set;
+assign start_in_p_mode           = alu_start_ev && i_ins_alu_op && op_1_cycle_p && !mode_set; 
+assign start_in_st_bit_mode      = alu_start_ev && i_ins_alu_op && op_st_bit && !mode_set;
+assign start_in_hst_clrmask_mode = alu_start_ev && i_ins_alu_op && op_hst_clrmask && !mode_set;
+assign start_in_jmp_mode         = alu_start_ev && i_ins_alu_op && op_jump && src1_IMM && !mode_set;
+assign start_in_alu_mode         = alu_start_ev && i_ins_alu_op && !mode_not_alu && !f_mode_alu;
 
 assign o_alu_stall_dec = alu_initializing || i_stalled || stall_modes;
 
-  
 /*
  * wires for all modes
  */
@@ -358,6 +361,7 @@ wire [0:0] op_jmp_rel_2;
 wire [0:0] op_jmp_rel_3;
 wire [0:0] op_jmp_rel_4;
 wire [0:0] op_jmp_abs_5;
+wire [0:0] op_clr_mask;
 
 wire [0:0] op_inc_p;
 wire [0:0] op_dec_p;
@@ -368,6 +372,8 @@ wire [0:0] op_copy_c_to_p;
 wire [0:0] op_st_rst_bit;
 wire [0:0] op_st_set_bit;
 wire [0:0] op_st_bit;
+
+wire [0:0] op_hst_clrmask;
 
 wire [0:0] op_1_cycle_p;
 wire [0:0] op_jump;
@@ -381,6 +387,7 @@ assign op_jmp_rel_2   = (i_alu_op == `ALU_OP_JMP_REL2);
 assign op_jmp_rel_3   = (i_alu_op == `ALU_OP_JMP_REL3);
 assign op_jmp_rel_4   = (i_alu_op == `ALU_OP_JMP_REL4);
 assign op_jmp_abs_5   = (i_alu_op == `ALU_OP_JMP_ABS5);
+assign op_clr_mask    = (i_alu_op == `ALU_OP_CLR_MASK);
 
 assign op_inc_p       = op_inc && src1_P && dest_P;
 assign op_dec_p       = op_dec && src1_P && dest_P;
@@ -391,6 +398,9 @@ assign op_copy_c_to_p = op_copy && src1_C && dest_P;
 assign op_st_rst_bit  = op_rst_bit && dest_ST && src1_IMM;
 assign op_st_set_bit  = op_set_bit && dest_ST && src1_IMM;
 assign op_st_bit      = op_st_rst_bit || op_st_set_bit;
+
+assign op_hst_clrmask = op_clr_mask && dest_HST && src1_IMM;
+
 assign op_1_cycle_p   = op_inc_p || op_dec_p || op_set_p || op_copy_p_to_c || op_copy_c_to_p;
 assign op_jump        = op_jmp_rel_2 || op_jmp_rel_3 || op_jmp_rel_4 || op_jmp_abs_5;
 
@@ -416,6 +426,7 @@ wire [0:0] dest_D0;
 wire [0:0] dest_D1;
 wire [0:0] dest_DAT0;
 wire [0:0] dest_DAT1;
+wire [0:0] dest_HST;
 wire [0:0] dest_ST;
 wire [0:0] dest_P;
 
@@ -425,6 +436,7 @@ assign dest_D0   = (i_reg_dest == `ALU_REG_D0);
 assign dest_D1   = (i_reg_dest == `ALU_REG_D1);
 assign dest_DAT0 = (i_reg_dest == `ALU_REG_DAT0);
 assign dest_DAT1 = (i_reg_dest == `ALU_REG_DAT1);
+assign dest_HST  = (i_reg_dest == `ALU_REG_HST);
 assign dest_ST   = (i_reg_dest == `ALU_REG_ST);
 assign dest_P    = (i_reg_dest == `ALU_REG_P);
 
@@ -845,6 +857,18 @@ always @(posedge i_clk) begin
   if (start_in_st_bit_mode) begin
     $display("ALU      %0d: [%d] ST[%0d] = %b", phase, i_cycle_ctr, i_imm_value, op_set_bit);
     ST[i_imm_value] <= op_set_bit;
+  end
+
+  /* XM=0
+   * SB=0
+   * ST=0
+   * MP=0
+   * CLRHST
+   * CLRHST <mask>
+   */
+  if (start_in_hst_clrmask_mode) begin
+    $display("ALU      %0d: [%d] HST = %h & ~%h", phase, i_cycle_ctr, HST, i_imm_value);
+    HST <= HST & ~i_imm_value;
   end
 
 end
