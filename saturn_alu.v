@@ -38,13 +38,8 @@
 module saturn_alu (
     i_clk,
     i_reset,
-    i_clk_ph,
+    i_phases,
     i_cycle_ctr,
-    i_en_alu_dump,
-	  i_en_alu_prep,
-	  i_en_alu_calc,
-    i_en_alu_init,
-	  i_en_alu_save,
     i_stalled,
 
     o_bus_address,
@@ -100,13 +95,8 @@ module saturn_alu (
 
 input   wire [0:0]  i_clk;
 input   wire [0:0]  i_reset;
-input   wire [1:0]  i_clk_ph;
+input   wire [3:0]  i_phases;
 input   wire [31:0] i_cycle_ctr;
-input   wire [0:0]  i_en_alu_dump;
-input   wire [0:0]  i_en_alu_prep;
-input   wire [0:0]  i_en_alu_calc;
-input   wire [0:0]  i_en_alu_init;
-input   wire [0:0]  i_en_alu_save;
 input   wire [0:0]  i_stalled;
 
 /*
@@ -178,18 +168,28 @@ assign o_pc    = PC;
  *
  */
 
-wire [1:0] phase;
-assign phase = i_clk_ph - 2'b01;
-
 wire [0:0] phase_0;
 wire [0:0] phase_1;
 wire [0:0] phase_2;
 wire [0:0] phase_3;
 
-assign phase_0 = (phase == 0);
-assign phase_1 = (phase == 1);
-assign phase_2 = (phase == 2);
-assign phase_3 = (phase == 3); 
+assign phase_0 = i_phases[0];
+assign phase_1 = i_phases[1];
+assign phase_2 = i_phases[2];
+assign phase_3 = i_phases[3]; 
+
+reg [1:0] phase;
+
+always @(*) begin
+  phase = 2'd0;
+  case (1'b1)
+  phase_0: phase = 2'd0;
+  phase_1: phase = 2'd1;
+  phase_2: phase = 2'd2;
+  phase_3: phase = 2'd3;
+  default: phase = 2'd0;
+  endcase
+end
 
 wire alu_active;
 
@@ -456,6 +456,7 @@ assign dest_ptr  = dest_D0 || dest_D1;
 reg  [0:0]  just_reset;
 
 always @(posedge i_clk) begin
+
   if (just_reset && !i_reset)
     $display("ALU_INIT %0d: [%d] CLEARING JUST_RESET", phase, i_cycle_ctr);
 
@@ -1085,9 +1086,9 @@ end
 `ifdef SIM
 wire do_reg_dump;
 wire do_alu_shpc;
-assign do_reg_dump = alu_active && i_en_alu_dump && !o_bus_load_pc &&
+assign do_reg_dump = alu_active && phase_0 && !o_bus_load_pc &&
                      i_ins_decoded && !o_alu_stall_dec;
-assign do_alu_shpc = alu_active && i_en_alu_dump;
+assign do_alu_shpc = alu_active && phase_0;
 `endif
 
 

@@ -130,8 +130,8 @@ saturn_decoder	m_decoder (
 	.i_clk			    (i_clk),
 	.i_reset		    (i_reset),
 	.i_cycles		    (cycle_ctr),
-	.i_en_dbg       (ck_debugger),
-	.i_en_dec		    (ck_inst_dec),
+	.i_en_dbg       (phase_0),
+	.i_en_dec		    (phase_2),
 	.i_pc			      (reg_pc),
 	.i_bus_load_pc  (alu_bus_load_pc),
 	.i_stalled      (dec_stalled),
@@ -215,13 +215,8 @@ wire [0:0]      ins_unconfig;
 saturn_alu		m_alu (
 	.i_clk					 (i_clk),
 	.i_reset				 (i_reset),
-	.i_clk_ph        (clk_phase[1:0]),
+	.i_phases        (clk_phases),
 	.i_cycle_ctr     (cycle_ctr),
-	.i_en_alu_dump   (ck_alu_dump),
-	.i_en_alu_prep	 (ck_alu_prep),
-	.i_en_alu_calc	 (ck_alu_calc),
-	.i_en_alu_init   (ck_alu_init),
-	.i_en_alu_save 	 (ck_alu_save),
 	.i_stalled			 (alu_stalled),
 
 	.o_bus_address    (alu_bus_address),
@@ -303,7 +298,7 @@ saturn_bus_ctrl m_bus_ctrl (
   // basic stuff
 	.i_clk              (i_clk),
   .i_reset            (i_reset),
-	.i_phase            (o_phase),
+	.i_phases           (clk_phases),
 	.i_cycle_ctr        (cycle_ctr),
   .i_stalled          (mem_ctrl_stall),
 	.i_alu_busy         (dec_stalled),
@@ -346,25 +341,10 @@ wire [3:0] ctrl_bus_nibble_in;
 // `define DEBUG_CLOCKS
 
 initial	begin
-		clk_phase 		= 0;
+		clk_phases 		 = 0;
 
-		ck_debugger 	= 0;	// phase 0
-
-		ck_bus_send 	= 0;	// phase 0
-		ck_bus_recv 	= 0;	// phase 1
-		ck_bus_ecmd   = 0;  // phase 3
-
-		ck_inst_dec 	= 0;	// phase 2
-		ck_inst_exe   = 0;  // phase 3
-
-		ck_alu_dump   = 0;
-		ck_alu_prep 	= 0;	// phase 1
-		ck_alu_calc 	= 0;	// phase 2
-		ck_alu_init   = 0;  // phase 0
-		ck_alu_save 	= 0;	// phase 3
-
-		clock_end			= 0;
-		cycle_ctr			= 0;
+		clock_end			 = 0;
+		cycle_ctr		 	 = 0;
 
 		mem_ctrl_stall = 0;
 
@@ -384,57 +364,39 @@ initial	begin
 //
 //--------------------------------------------------------------------------------------------------
 
+reg [3:0] clk_phases;
+
+wire phase_0;
+wire phase_1;
+wire phase_2;
+wire phase_3;
+
+assign phase_0 = clk_phases[0];
+assign phase_1 = clk_phases[1];
+assign phase_2 = clk_phases[2];
+assign phase_3 = clk_phases[3];
+ 
 always @(posedge i_clk) begin
-	if (!i_reset) begin
-		clk_phase    <= clk_phase + 1;
-		ck_debugger  <= clk_phase[1:0] == `PH_DEBUGGER;
 
-		ck_bus_send  <= clk_phase[1:0] == `PH_BUS_SEND;
-		ck_bus_recv  <= clk_phase[1:0] == `PH_BUS_RECV;
-		ck_bus_ecmd  <= clk_phase[1:0] == `PH_BUS_ECMD;
+	clk_phases <= {clk_phases[2:0], clk_phases[3]};
 
-		ck_inst_dec  <= clk_phase[1:0] == `PH_INST_DEC;
-		ck_inst_exe  <= clk_phase[1:0] == `PH_INST_EXE;
+	cycle_ctr    <= cycle_ctr + { {31{1'b0}}, phase_0 };
+	if (cycle_ctr == (max_cycle + 1)) begin
+		$display(".-----------------------------.");
+		$display("|   OUT OF CYCLES %d  |", cycle_ctr);
+		$display("`-----------------------------´");
+		clock_end <= 1;
+	end
 
-		ck_alu_dump  <= clk_phase[1:0] == `PH_ALU_DUMP;
-		ck_alu_init  <= clk_phase[1:0] == `PH_ALU_INIT;
-		ck_alu_prep  <= clk_phase[1:0] == `PH_ALU_PREP;
-		ck_alu_calc  <= clk_phase[1:0] == `PH_ALU_CALC;
-		ck_alu_save  <= clk_phase[1:0] == `PH_ALU_SAVE;
+	if (i_reset) begin
 
-		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, (clk_phase[1:0] == `PH_BUS_SEND) };
-		if (cycle_ctr == (max_cycle + 1)) begin
-		  $display(".-----------------------------.");
-			$display("|   OUT OF CYCLES %d  |", cycle_ctr);
-			$display("`-----------------------------´");
-			clock_end <= 1;
-		end
-	end else begin
-		clk_phase 	  <= ~0;
-
-		ck_debugger   <= 0;
-
-		ck_bus_send   <= 0;
-		ck_bus_recv   <= 0;
-		ck_bus_ecmd   <= 0;
-
-		ck_inst_dec   <= 0;
-		ck_inst_exe   <= 0;
-
-		ck_alu_dump   <= 0;
-		ck_alu_init   <= 0;
-		ck_alu_prep   <= 0;
-		ck_alu_calc   <= 0;
-		ck_alu_save   <= 0;
+		clk_phases 	  <= 4'b0001;
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
 		max_cycle     <= 100;
 
 		mem_ctrl_stall <= 0;
-`ifndef SIM
-		led[7:0]      <= reg_pc[7:0];
-`endif
 	end
 end
 
@@ -485,8 +447,6 @@ saturn_core saturn (
 );
 
 saturn_test_rom rom (
-  .i_phase        (core_phase),
-
 	.i_reset        (core_bus_reset),
 	.i_bus_data_in  (core_bus_data_out),
 	.o_bus_data_out (core_bus_data_in),

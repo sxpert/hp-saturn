@@ -30,7 +30,6 @@
  ****************************************************************************/
 
 module saturn_test_rom (
-  i_phase,
   i_reset,
   i_bus_data_in,
   o_bus_data_out,
@@ -73,8 +72,8 @@ assign s_dp_read  = (last_bus_cmd == `BUSCMD_DP_READ);
 assign s_dp_write = (last_bus_cmd == `BUSCMD_DP_WRITE); 
 
 initial begin
-  // $readmemh("rom-gx-r.hex", rom, 0, 2**`ROMBITS-1);
-  $readmemh("testrom-2.hex", rom, 0, 2**`ROMBITS-1);
+  $readmemh("rom-gx-r.hex", rom, 0, 2**`ROMBITS-1);
+  // $readmemh("testrom-2.hex", rom, 0, 2**`ROMBITS-1);
   // $monitor("rst %b | strb %b | c/d %b | bus_i %h | bus_o %h | last %h | slpc %b | addr_c %0d | lpc %5h | ldp %5h",
   //         i_reset, i_bus_strobe, i_bus_cmd_data, i_bus_data_in, o_bus_data_out, 
   // 				last_bus_cmd, s_load_pc, addr_c, local_pc, local_dp);
@@ -96,7 +95,7 @@ always @(posedge i_bus_strobe) begin
 
   if (!i_bus_cmd_data) begin
 
-    $write("ROM      %0d: [%d] COMMAND ", i_phase, cycles);
+    $write("ROM       : [%d] COMMAND ", cycles);
     case (i_bus_data_in) 
       `BUSCMD_PC_READ:   $write("PC_READ");            // 2
       `BUSCMD_DP_WRITE:  $write("DP_WRITE");					 // 5
@@ -111,7 +110,7 @@ always @(posedge i_bus_strobe) begin
   end 
 
   if (i_bus_cmd_data && s_load_pc) begin
-    $display("ROM      %0d: [%d] ADDR_IN(%0d) %h => PC [%5h]", i_phase, cycles, addr_c, i_bus_data_in, local_pc);
+    $display("ROM       : [%d] ADDR_IN(%0d) %h => PC [%5h]", cycles, addr_c, i_bus_data_in, local_pc);
     local_pc[addr_c*4+:4] <= i_bus_data_in;
     if (addr_c == 4) $display("ROM       : [%d] auto PC_READ [%5h]", cycles, {i_bus_data_in, local_pc[15:0]});
     last_bus_cmd <= (addr_c == 4)?`BUSCMD_PC_READ:last_bus_cmd;
@@ -119,7 +118,7 @@ always @(posedge i_bus_strobe) begin
   end
 
   if (i_bus_cmd_data && s_load_dp) begin
-    $display("ROM      %0d: [%d] ADDR_IN(%0d) %h => DP [%5h]", i_phase, cycles, addr_c, i_bus_data_in, local_dp);
+    $display("ROM       : [%d] ADDR_IN(%0d) %h => DP [%5h]", cycles, addr_c, i_bus_data_in, local_dp);
     local_dp[addr_c*4+:4] <= i_bus_data_in;
     if (addr_c == 4) $display("ROM       : [%d] auto DP_READ [%5h]", cycles, {i_bus_data_in, local_dp[15:0]});
     last_bus_cmd <= (addr_c == 4)?`BUSCMD_DP_READ:last_bus_cmd;
@@ -128,18 +127,18 @@ always @(posedge i_bus_strobe) begin
 
   if (i_bus_cmd_data && s_pc_read) begin
     o_bus_data_out <= rom[local_pc[`ROMBITS-1:0]];
-    $display("ROM      %0d: [%d] %h <= PC_READ  [%5h]", i_phase, cycles, rom[local_pc[`ROMBITS-1:0]], local_pc);
+    $display("ROM       : [%d] %h <= PC_READ  [%5h]", cycles, rom[local_pc[`ROMBITS-1:0]], local_pc);
     local_pc <= local_pc + 1;
   end
 
   if (i_bus_cmd_data && s_dp_read) begin
     o_bus_data_out <= rom[local_dp[`ROMBITS-1:0]];
-    $display("ROM      %0d: [%d] %h <= DP_READ  [%5h]", i_phase, cycles, rom[local_dp[`ROMBITS-1:0]], local_dp);
+    $display("ROM       : [%d] %h <= DP_READ  [%5h]", cycles, rom[local_dp[`ROMBITS-1:0]], local_dp);
     local_dp <= local_dp + 1;
   end
 
   if (i_bus_cmd_data && s_dp_write) begin
-    $display("ROM      %0d: [%d] %h => DP_WRITE [%5h] (ignored)", i_phase, cycles, i_bus_data_in, local_dp);
+    $display("ROM       : [%d] %h => DP_WRITE [%5h] (ignored)", cycles, i_bus_data_in, local_dp);
     local_dp <= local_dp + 1;
   end
 
