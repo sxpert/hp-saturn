@@ -394,7 +394,7 @@ always @(posedge i_clk) begin
 
 		clock_end	    <= 0;
 		cycle_ctr	    <= ~0;
-		max_cycle     <= 100;
+		max_cycle     <= 125;
 
 		mem_ctrl_stall <= 0;
 	end

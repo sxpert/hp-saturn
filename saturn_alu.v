@@ -222,10 +222,6 @@ reg [0:0] is_zero;
 
 /* alu status */
 
-reg        alu_run;
-reg        alu_done;
-reg        alu_go_test;
-
 reg  [2:0]       rstk_ptr;
 
 /* public registers */
@@ -256,8 +252,6 @@ reg  [15:0]      ST;
 reg  [19:0]      RSTK[0:7];
 
 
-initial begin
-end
 
 /******************************************************************************
  *
@@ -292,12 +286,14 @@ assign alu_debug_pc   = `ALU_DEBUG_PC   || i_alu_debug;
 
 // the ALU is in memory transfer mode
 reg [0:0] f_mode_xfr;
+reg [0:0] f_mode_config;
 reg [0:0] f_mode_load_ptr;
 reg [0:0] f_mode_ldreg;
 reg [0:0] f_mode_jmp;
 reg [0:0] f_mode_alu;
 
 wire mode_xfr;
+wire mode_config;
 wire mode_load_ptr;
 wire mode_ldreg;
 wire mode_p;
@@ -307,6 +303,7 @@ wire mode_jmp;
 wire mode_alu;
 
 assign mode_xfr         = start_in_xfr_mode      || f_mode_xfr;
+assign mode_config      = start_in_config_mode   || f_mode_config;
 assign mode_load_ptr    = start_in_load_ptr_mode || f_mode_load_ptr;
 assign mode_ldreg       = start_in_ldreg_mode    || f_mode_ldreg;
 assign mode_p           = start_in_p_mode;
@@ -321,6 +318,7 @@ wire [0:0] stall_modes;
 wire [0:0] alu_start_ev;
 
 wire [0:0] start_in_xfr_mode;
+wire [0:0] start_in_config_mode;
 wire [0:0] start_in_load_ptr_mode;
 wire [0:0] start_in_ldreg_mode;
 wire [0:0] start_in_p_mode;
@@ -329,13 +327,14 @@ wire [0:0] start_in_hst_clrmask_mode;
 wire [0:0] start_in_jmp_mode;
 wire [0:0] start_in_alu_mode;
 
-assign mode_not_alu              = mode_xfr || mode_load_ptr || mode_ldreg || mode_p || mode_st_bit || mode_hst_clrmask || mode_jmp;
-assign mode_set                  = f_mode_xfr || f_mode_load_ptr || f_mode_ldreg || f_mode_jmp || f_mode_alu;
-assign stall_modes               = f_mode_xfr || f_mode_alu;
+assign mode_not_alu              = mode_xfr || mode_config || mode_load_ptr || mode_ldreg || mode_p || mode_st_bit || mode_hst_clrmask || mode_jmp;
+assign mode_set                  = f_mode_xfr || f_mode_config || f_mode_load_ptr || f_mode_ldreg || f_mode_jmp || f_mode_alu;
+assign stall_modes               = mode_xfr || f_mode_config || mode_alu;
 
 assign alu_start_ev              = alu_active && phase_3;
 
 assign start_in_xfr_mode         = alu_start_ev && i_ins_mem_xfr && !mode_set;
+assign start_in_config_mode      = alu_start_ev && i_ins_config && !mode_set;
 assign start_in_load_ptr_mode    = alu_start_ev && i_ins_alu_op && op_copy && dest_ptr && src1_IMM && !mode_set;
 assign start_in_ldreg_mode       = alu_start_ev && i_ins_alu_op && op_copy && dest_A_C && src1_IMM && !mode_set;
 assign start_in_p_mode           = alu_start_ev && i_ins_alu_op && op_1_cycle_p && !mode_set; 
@@ -345,6 +344,7 @@ assign start_in_jmp_mode         = alu_start_ev && i_ins_alu_op && op_jump && sr
 assign start_in_alu_mode         = alu_start_ev && i_ins_alu_op && !mode_not_alu && !f_mode_alu;
 
 assign o_alu_stall_dec = alu_initializing || i_stalled || stall_modes;
+
 
 /*
  * wires for all modes
@@ -470,6 +470,14 @@ always @(posedge i_clk) begin
     f_mode_xfr <= 1'b1;
   end
 
+  if (start_in_config_mode) begin
+    $display("ALU      %0d: [%d] config command", phase, i_cycle_ctr);
+    $display("ALU      %0d: [%d] addr_src A %b | C %b | D0 %b | D1 %b | src %2b", phase, i_cycle_ctr, 
+             addr_src_A, addr_src_C, addr_src_D0, addr_src_D1, addr_src);
+    $display("ALU      %0d: [%d] stall the decoder",phase, i_cycle_ctr);
+    f_mode_config <= 1'b1;
+  end
+
   if (alu_active && f_mode_xfr && i_bus_done)
     $display("ALU      %0d: [%d] resetting variables after data transfer", phase, i_cycle_ctr);
 
@@ -511,10 +519,13 @@ always @(posedge i_clk) begin
 
   if (i_reset || 
       alu_active && f_mode_xfr && i_bus_done ||
+      alu_active && f_mode_config && !o_bus_config ||
       do_load_register_done ||
       do_apply_jump) 
   begin
+    $display("ALU      %0d: [%d] cleanup of all modes", phase, i_cycle_ctr);
     f_mode_xfr      <= 1'b0;
+    f_mode_config   <= 1'b0;
     f_mode_load_ptr <= 1'b0;
     f_mode_ldreg    <= 1'b0;
     f_mode_jmp      <= 1'b0;
@@ -571,6 +582,9 @@ assign addr_src_D1       = ( mode_xfr) && (src1_DAT1 || dest_DAT1);
 
 always @(*) begin
   addr_src = 0;
+  if (mode_config) begin
+    if (addr_src_C) addr_src = 2'b01;
+  end
   if (mode_xfr) begin
     // assert(!addr_src_A && !addr_src_C) $display("we got address source A or C where we shouldn't");
     if (addr_src_D0) addr_src = 2'b10;
@@ -579,7 +593,7 @@ always @(*) begin
 end
 
 assign copy_done         = data_counter == 5;
-assign copy_address      = alu_active && mode_xfr && !copy_done && !xfr_init_done;
+assign copy_address      = alu_active && (mode_xfr || mode_config) && !copy_done && !(xfr_init_done || config_init_done);
 assign start_load_dp     = start_in_xfr_mode;
 
 // now copy the data aligning the first nibble with index 0 of the buffer
@@ -598,6 +612,15 @@ assign xfr_data_ctr      = data_counter + i_field_start;
 assign xfr_copy_done     = alu_active && xfr_init_done && copy_done && !xfr_data_init && !xfr_data_done;
 assign xfr_data_copy     = alu_active && (xfr_data_init || xfr_init_done && !xfr_data_done && !copy_done && !xfr_copy_done);
 
+// config
+
+reg  [0:0] config_init_done;
+wire [0:0] start_configure;
+wire [0:0] config_wait;
+assign start_configure   = start_in_config_mode;
+
+assign config_wait       = !i_reset && mode_config && copy_done && !config_init_done;
+
 /*
  * the same counter is used for both sources when two sources are used
  */
@@ -610,6 +633,8 @@ always @(*) begin
   if (xfr_data_copy) source_counter = xfr_data_ctr;
 end
 
+reg [0:0] bus_is_done;
+
 assign source_counter_ptr = source_counter[2:0];
 
 always @(posedge i_clk) begin
@@ -619,6 +644,7 @@ always @(posedge i_clk) begin
     data_counter  <= 0;
     xfr_init_done <= 0;
     xfr_data_done <= 0;
+    config_init_done <= 0;
   end
 
   // always update the data out to the controller
@@ -634,6 +660,11 @@ always @(posedge i_clk) begin
   if (start_load_dp) begin
     o_bus_load_dp <= 1;
   end
+
+  if (start_configure) begin
+    o_bus_config <= 1;
+  end
+
 
   if (copy_address) begin
     $write("ALU      %0d: [%d] xfr_data[%0d] = ", phase, i_cycle_ctr, data_counter);
@@ -685,6 +716,15 @@ always @(posedge i_clk) begin
     o_bus_xfr_cnt  <= (i_field_last - i_field_start);
   end
 
+  /* config
+   */
+    // do not need to update the data counter, which is already at 5
+  if (config_wait) begin
+    $display("ALU      %0d: [%d] wait for the end of the config command",phase, i_cycle_ctr, i_field_start, i_field_last, xfr_data_ctr);
+    config_init_done <= 1;
+  end
+
+
   /****************************************************************************
    *
    * reset all things that were changed
@@ -697,9 +737,11 @@ always @(posedge i_clk) begin
     data_counter  <= 0;
     xfr_init_done <= 0;
     xfr_data_done <= 0;
+    config_init_done <= 0;
 
     /* bus controller control lines */
     o_bus_dp_write <= 0;
+    o_bus_config   <= 0;
     o_bus_dp_read  <= 0;
     o_bus_xfr_cnt  <= 0;
   end
@@ -873,6 +915,15 @@ always @(posedge i_clk) begin
     HST <= HST & ~i_imm_value;
   end
 
+  /*
+   * set or clear the carry in case of RTNCC / RTNSC
+   */
+  if (alu_active && phase_3 && i_ins_rtn && i_set_carry) begin
+     $display("ALU      %0d: [%d] %s CARRY", phase, i_cycle_ctr, i_carry_val?"SET":"RST");
+    CARRY <= i_carry_val;
+  end
+
+
 end
 
 /* module 5:
@@ -946,12 +997,15 @@ wire [19:0] next_pc;
 wire [0:0]  update_pc;
 wire [0:0]  reload_pc;
 wire [0:0]  pop_pc;
+wire [0:0]  push_pc;
 wire [0:0]  pc_lines_cleanup;
 
 assign next_pc   = (jump_done)?jump_pc:PC + 1;
 assign update_pc = (!i_reset && just_reset) || alu_active && phase_3 && (!o_alu_stall_dec) /* || exec_unc_jmp || exec_jmp_rel2 */;
-assign pop_pc    = i_pop && i_ins_rtn && ((!i_ins_test_go) || (i_ins_test_go && CARRY));
-assign reload_pc = (!i_reset && just_reset) || do_apply_jump;
+
+assign pop_pc    = alu_active && phase_3 && i_pop && i_ins_rtn && ((!i_ins_test_go) || (i_ins_test_go && CARRY));
+assign push_pc   = alu_active && i_push && do_apply_jump;
+assign reload_pc = (!i_reset && just_reset) || do_apply_jump || pop_pc;
 
 assign pc_lines_cleanup = alu_active && phase_0;
 
@@ -1010,28 +1064,32 @@ always @(posedge i_clk) begin
 
   if (update_pc) begin
     // $display("ALU_PC   %0d: [%d] update pc to %h", phase, i_cycle_ctr, next_pc);
-    PC <= /*pop_pc ? RSTK[rstk_ptr - 1] : */next_pc;
+    PC <= pop_pc ? RSTK[rstk_ptr - 3'b1] : next_pc;
+  end
+
+
+  if (push_pc) begin
+    $display("ALU_PC   %0d: [%d] PUSH PC %5h to RSTK[%0d]", phase, i_cycle_ctr, (PC + 20'd1), rstk_ptr);
+    RSTK[rstk_ptr] <= PC + 20'd1;
+    rstk_ptr       <= rstk_ptr + 1;
+  end
+  
+    // $display("pop %b && rtn %b && ((!go %b) || (go %b && c %b))", 
+            // i_pop, i_ins_rtn, !i_ins_test_go, i_ins_test_go, c_carry);
+  if (pop_pc) begin
+    $display("ALU_PC   %0d: [%d] POP RSTK[%0d] to PC %5h", phase, i_cycle_ctr, rstk_ptr - 3'b1, RSTK[rstk_ptr - 3'b1]);
+    rstk_ptr <= rstk_ptr - 3'b1;
+    RSTK[rstk_ptr - 3'b1] <= 20'b0;
   end
 
   if (reload_pc) begin
-    // $display("ALU_PC   %0d: [%d] $$$$ RELOADING PC to %h $$$$", phase, i_cycle_ctr, next_pc);
-    o_bus_address <= pop_pc ? RSTK[rstk_ptr-1] : next_pc;
+    $display("ALU_PC   %0d: [%d] $$$$ RELOADING PC to %h $$$$", 
+             phase, i_cycle_ctr, (pop_pc ? RSTK[rstk_ptr - 3'b1] : next_pc));
+    o_bus_address <= pop_pc ? RSTK[rstk_ptr - 3'b1] : next_pc;
     o_bus_load_pc <= 1;
   end
 
-//     // $display("pop %b && rtn %b && ((!go %b) || (go %b && c %b))", 
-//     //          i_pop, i_ins_rtn, !i_ins_test_go, i_ins_test_go, c_carry);
-//     if (pop_pc) begin
-//       $display("POP RSTK[%0d] to PC %5h", rstk_ptr-1, RSTK[rstk_ptr - 1]);
-//       RSTK[rstk_ptr - 1] <= 0;
-//       rstk_ptr <= rstk_ptr - 1;
-//     end
 
-//     if (push_pc) begin
-//       $display("PUSH PC %5h to RSTK[%0d]", PC, rstk_ptr);
-//       RSTK[rstk_ptr] <= PC;
-//       rstk_ptr       <= rstk_ptr + 1;
-//     end
 
   if (pc_lines_cleanup && o_bus_load_pc)
     o_bus_load_pc <= 0;
@@ -1080,85 +1138,6 @@ end
 
 
 
-/*
- * simulation only states, when alu is active
- */
-`ifdef SIM
-wire do_reg_dump;
-wire do_alu_shpc;
-assign do_reg_dump = alu_active && phase_0 && !o_bus_load_pc &&
-                     i_ins_decoded && !o_alu_stall_dec;
-assign do_alu_shpc = alu_active && phase_0;
-`endif
-
-
-// wire do_busclean;
-// wire do_alu_init;
-// wire do_alu_prep;
-// wire do_alu_calc;
-// wire do_alu_save;
-// wire do_alu_pc;
-// wire do_alu_mode;
-
-// assign do_busclean = alu_active && i_en_alu_dump;
-// assign do_alu_init = alu_active && i_en_alu_init && i_ins_alu_op && !alu_run && 
-//                      !write_done && !do_exec_p_eq && !o_bus_config; 
-// assign do_alu_prep = alu_active && i_en_alu_prep && alu_run;
-// assign do_alu_calc = alu_active && i_en_alu_calc && alu_run;
-// assign do_alu_save = alu_active && i_en_alu_save && alu_run;
-// assign do_alu_pc   = alu_active && i_en_alu_save;
-// assign do_alu_mode = alu_active && i_en_alu_save && i_ins_set_mode;
-
-// wire do_go_init;
-// wire do_go_prep;
-
-// assign do_go_init  = alu_active && i_en_alu_save && i_ins_test_go;
-// assign do_go_prep  = alu_active && i_en_alu_prep && i_ins_test_go;
-
-// now for the fine tuning ;-)
-
-// save one cycle on P= n!
-// wire   is_alu_op_copy;
-// wire   is_reg_dest_p;
-// wire   is_reg_src1_imm;
-// wire   do_exec_p_eq;
-
-// assign is_alu_op_copy  = (i_alu_op == `ALU_OP_COPY);
-// assign is_reg_dest_p   = (i_reg_dest == `ALU_REG_P);
-// assign is_reg_src1_imm = (i_reg_src1 == `ALU_REG_IMM);
-// assign do_exec_p_eq    = alu_active && i_en_alu_save && i_ins_alu_op && is_alu_op_copy && is_reg_dest_p && is_reg_src1_imm;
-
-// the decoder may request the ALU to not stall it
-
-// wire bus_commands;
-// assign bus_commands = o_bus_config ;
-
-// assign o_alu_stall_dec = alu_initializing || 
-//                          (alu_run && (!i_alu_no_stall || alu_finish || i_ins_mem_xfr)) || 
-//                          i_stalled || bus_commands || stall_modes;
-
-
-// wire       alu_start;
-// wire       alu_finish;
-// wire [3:0] f_next;
-
-// assign alu_start  = f_cur == f_first;
-// assign alu_finish = f_cur == f_last;
-// assign f_next     = (f_cur + 1) & 4'hF;
-
-/*
- * test things on alu_op
- */
-
-// wire is_alu_op_unc_jump;
-// assign is_alu_op_unc_jump = ((alu_op == `ALU_OP_JMP_REL3) ||
-//                              (alu_op == `ALU_OP_JMP_REL4) ||
-//                              (alu_op == `ALU_OP_JMP_ABS5) ||
-//                              i_ins_rtn);
-// wire is_alu_op_test;
-// assign is_alu_op_test = ((alu_op == `ALU_OP_TEST_EQ) ||
-//                          (alu_op == `ALU_OP_TEST_NEQ));
-
 /*****************************************************************************
  *
  * Dump all registers at the end of each instruction's execution cycle
@@ -1166,29 +1145,18 @@ assign do_alu_shpc = alu_active && phase_0;
  ****************************************************************************/
 
 `ifdef SIM
+wire do_reg_dump;
+wire do_alu_shpc;
+assign do_reg_dump = alu_active && phase_0 && !o_bus_load_pc &&
+                     i_ins_decoded && !o_alu_stall_dec;
+assign do_alu_shpc = alu_active && phase_0;
+
 reg [4:0] alu_dbg_ctr;
-`endif
 
 always @(posedge i_clk) begin
 
-`ifdef SIM
-//   if (i_stalled && i_en_alu_dump) 
-//     $display("ALU STALLED");
-`endif
-
-// `ifdef ALU_DEBUG_DBG
-//   $display("iad %b | AD %b | ad %b | ADD %b | add %b | ADJ %b | adj %b | ADP %b | adp %b",
-//            i_alu_debug, 
-//            `ALU_DEBUG,      i_alu_debug, 
-//            `ALU_DEBUG_DUMP, alu_debug_dump, 
-//            `ALU_DEBUG_JUMP, alu_debug_jump,
-//            `ALU_DEBUG_PC,   alu_debug_pc );
-// `endif
-
-`ifdef SIM
   if (do_reg_dump && alu_debug_dump) begin
 
-    $display("ALU_DUMP 0: run %b | done %b", alu_run, alu_done);
     // display registers
     $display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", 
              PC, CARRY, DEC?"DEC":"HEX", rstk_ptr, RSTK[7]);
@@ -1240,102 +1208,9 @@ always @(posedge i_clk) begin
     $display("         ADDR: %5h                            RSTK0: %5h", 
              o_bus_address, RSTK[0]);
   end
-`endif
 end
 
-/*****************************************************************************
- *
- * Initialize the ALU, to prepare it to execute the instruction 
- *
- ****************************************************************************/
-
-// wire [0:0] is_mem_read; 
-// wire [0:0] is_mem_write;
-// wire [0:0] is_mem_xfer;
-// wire [4:0] mem_reg;
-// assign is_mem_read  = (i_reg_src1 == `ALU_REG_DAT0) || (i_reg_src1 == `ALU_REG_DAT1);
-// assign is_mem_write = (i_reg_dest == `ALU_REG_DAT0) || (i_reg_dest == `ALU_REG_DAT1);
-// assign is_mem_xfer  = is_mem_read || is_mem_write;
-// assign mem_reg      = is_mem_read?i_reg_src1:i_reg_dest; 
-
-// always @(posedge i_clk) begin
-
-//   if (i_reset) begin
-//     alu_op   <= 0;
-//     reg_dest <= 0;
-//     reg_src1 <= 0;
-//     reg_src2 <= 0;
-//     f_last   <= 0;
-//   end
-
-//   // this happens in phase 3, right after the instruction decoder (in phase 2) is finished
-//   if (do_alu_init) begin
-
-// `ifdef SIM
-//     if (alu_debug)
-//       $display({"ALU_INIT 3: run %b | done %b | stall %b | op %d | s %h | l %h ",
-//                 "| ialu %b | dest %d | src1 %d | src2 %d | imm %h"},
-//                alu_run, alu_done, o_alu_stall_dec, i_alu_op,i_field_start, i_field_last,  
-//                i_ins_alu_op, i_reg_dest, i_reg_src1, i_reg_src2, i_imm_value);
-// `endif
-
-//     alu_op   <= i_alu_op;
-//     reg_dest <= i_reg_dest;
-//     reg_src1 <= i_reg_src1;
-//     reg_src2 <= i_reg_src2;
-//     f_last   <= i_field_last;
-
-//   end
-// end
-
-/*
- * handles f_start, alu_run and alu_done
- */
-
-// always @(posedge i_clk) begin
-
-//   if (i_reset) begin
-//     alu_run  <= 0;
-//     alu_done <= 0;
-//     f_first  <= 0;
-//     f_cur    <= 0;
-//   end
-
-//   if (alu_initializing) 
-//     f_cur <= f_cur + 1;
-
-//   if (do_alu_init) begin
-//     $display("ALU %0d - -------------------------------------------------  DO_ALU_INIT", phase);
-//     alu_run <= 1;
-//     f_first <= i_field_start;
-//     f_cur   <= i_field_start;
-
-//     alu_go_test <= is_alu_op_test;
-//   end
-
-//   if (do_alu_prep) begin
-//     // $display("ALU_TEST 1: tf %b | nxt %h", test_finish, f_next);
-//     alu_done <= 0;
-//   end
-
-//   if (do_alu_calc) begin
-//     // $display("ALU_TEST 2: tf %b | nxt %h", test_finish, f_next);
-//     alu_done <= alu_finish; 
-//     // f_next  <= (f_start + 1) & 4'hF;
-//   end
-
-//   if (do_alu_save) begin
-//     // $display("ALU_TEST 3: tf %b | nxt %h", test_finish, f_next);    
-//     f_cur  <= f_next;
-//   end    
-
-//   if (do_alu_save && alu_done) begin
-//     alu_run <= 0;
-//     alu_done <= 0;
-//   end
-
-// end
-
+`endif
 
 
 // always @(posedge i_clk) begin
@@ -1561,15 +1436,6 @@ end
   //   end
   // end
 
-  /*
-   *
-   * Epic shortcut for P= n case
-   *
-   */
-
-  // if (do_exec_p_eq) begin
-  //   P <= i_imm_value;
-  // end
 
   /*
    * normal way for the ALU to save results. 
@@ -1723,23 +1589,6 @@ end
 //     o_bus_config <= 0;
 //   end
 
-// end
-
-/*****************************************************************************
- *
- * execute SETHEX and SETDEC 
- *
- ****************************************************************************/
-
-// always @(posedge i_clk) begin
-//   if (i_reset) 
-//     DEC <= 0;
-
-//   // changing calculation modes
-//   if (do_alu_mode) begin
-//     $display("SETTING MODE TO %s", i_mode_dec?"DEC":"HEX");
-//     DEC <= i_mode_dec;
-//   end
 // end
 
 

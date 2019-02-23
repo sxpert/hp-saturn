@@ -37,8 +37,6 @@ module saturn_test_rom (
   i_bus_cmd_data
 );
 
-input  wire [1:0] i_phase;
-
 input  wire [0:0] i_reset;
 input  wire [3:0] i_bus_data_in;
 output reg  [3:0] o_bus_data_out;

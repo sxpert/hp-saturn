@@ -667,13 +667,23 @@ always @(posedge i_clk) begin
     last_cmd         <= `BUSCMD_CONFIGURE;
     o_bus_data       <= `BUSCMD_CONFIGURE;
     o_bus_cmd_data   <= 0;
-    o_stall_alu      <= 1;
     init_addr_loop   <= 1;
   end
 
   if (cmd_CONFIGURE_1) begin
     $display("BUS_CTRL %1d: [%d] set cmd_CONFIGURE_F1", phase, i_cycle_ctr);
     cmd_CONFIGURE_F1  <= 1;
+  end
+
+  if (cmd_CONFIGURE_US0) begin
+    $display("BUS_CTRL %1d: [%d] cmd_CONFIGURE_US0 (signal done)", phase, i_cycle_ctr);
+    o_bus_done <= 1;
+    o_stall_alu <= 0;
+  end
+
+  if (cmd_CONFIGURE_C) begin
+    $display("BUS_CTRL %1d: [%d] cmd_CONFIGURE_C", phase, i_cycle_ctr);
+    o_bus_done <= 0;
   end
 
 /******************************************************************************
