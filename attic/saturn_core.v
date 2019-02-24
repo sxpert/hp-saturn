@@ -41,14 +41,14 @@ module saturn_core (
 	i_clk,
 	i_reset,
 	o_halt,
+
+	o_stall,
 	
 	o_bus_reset,
   i_bus_data_in,
   o_bus_data_out,
   o_bus_strobe,
-  o_bus_cmd_data,
-
-	o_phase
+  o_bus_cmd_data
 );
 
 input  wire [0:0] i_clk;
@@ -61,13 +61,13 @@ module saturn_core (
 	btn,
 	led,
 
+	o_stall,
+
 	o_bus_reset,
   i_bus_data_in,
   o_bus_data_out,
   o_bus_strobe,
-  o_bus_cmd_data,
-
-	o_phase
+  o_bus_cmd_data
 );
 
 input wire [0:0] clk_25mhz;
@@ -82,9 +82,7 @@ assign i_reset = btn[1];
 
 `endif
 
-output wire [1:0] o_phase;
-
-assign o_phase = clk_phase + 3;
+output wire [0:0] o_stall;
 
 output wire [0:0] o_bus_reset;
 input  wire [3:0] i_bus_data_in;
@@ -213,11 +211,13 @@ wire [0:0]      ins_unconfig;
 
 
 saturn_alu		m_alu (
-	.i_clk					 (i_clk),
-	.i_reset				 (i_reset),
-	.i_phases        (clk_phases),
-	.i_cycle_ctr     (cycle_ctr),
-	.i_stalled			 (alu_stalled),
+	.i_clk					  (i_clk),
+	.i_reset				  (i_reset),
+	.i_phases         (clk_phases),
+	.i_cycle_ctr      (cycle_ctr),
+	.i_stalled			  (alu_stalled),
+	.o_en_cycle_cnt		(alu_en_cycle_cnt),
+	.o_reg_dump				(alu_reg_dump),
 
 	.o_bus_address    (alu_bus_address),
 	.i_bus_data_ptr		(ctrl_bus_data_ptr),
@@ -270,6 +270,8 @@ saturn_alu		m_alu (
 	.o_pc			       (reg_pc)
 );
 
+wire [0:0]    alu_en_cycle_cnt;
+wire [0:0]    alu_reg_dump;
 
 // interconnections
 wire [19:0]   alu_bus_address;
@@ -332,7 +334,7 @@ saturn_bus_ctrl m_bus_ctrl (
   .o_nibble           (ctrl_bus_nibble_in)
 );
 
-reg  [0:0] mem_ctrl_stall;
+wire [0:0] mem_ctrl_stall;
 wire [0:0] bus_stalls_core;
 wire [0:0] ctrl_bus_done;
 wire [3:0] ctrl_bus_data_ptr;
@@ -341,12 +343,10 @@ wire [3:0] ctrl_bus_nibble_in;
 // `define DEBUG_CLOCKS
 
 initial	begin
-		clk_phases 		 = 0;
+		clk_phases 		 = 4'b0001;
 
-		clock_end			 = 0;
-		cycle_ctr		 	 = 0;
-
-		mem_ctrl_stall = 0;
+		clock_end			 = 1'b0;
+		cycle_ctr		 	 = 32'b0;
 
 `ifdef DEBUG_CLOCKS
 		$monitor("RST %b | CLK %b | CLKP %d | CYCL %d | PC %5h | eRST %b | eDBG %b | eBSND %b | eBRECV %b | eAPR %b | eACALC %b | eINDC %b | eASAVE %b | eINDX %b",
@@ -379,24 +379,26 @@ assign phase_3 = clk_phases[3];
 always @(posedge i_clk) begin
 
 	clk_phases <= {clk_phases[2:0], clk_phases[3]};
+	if (alu_en_cycle_cnt) begin
+		// if (phase_1) $display("TIMING   1: [%d] increment cycle counter", cycle_ctr);
+		cycle_ctr    <= cycle_ctr + { {31{1'b0}}, phase_0 };
 
-	cycle_ctr    <= cycle_ctr + { {31{1'b0}}, phase_0 };
-	if (cycle_ctr == (max_cycle + 1)) begin
-		$display(".-----------------------------.");
-		$display("|   OUT OF CYCLES %d  |", cycle_ctr);
-		$display("`-----------------------------´");
-		clock_end <= 1;
+		if (cycle_ctr == (max_cycle + 1)) begin
+			$display(".-----------------------------.");
+			$display("|   OUT OF CYCLES %d  |", cycle_ctr);
+			$display("`-----------------------------´");
+			clock_end <= 1;
+		end
 	end
 
 	if (i_reset) begin
 
 		clk_phases 	  <= 4'b0001;
+		cycle_ctr	    <= ~0;
 
 		clock_end	    <= 0;
-		cycle_ctr	    <= ~0;
-		max_cycle     <= 125;
+		max_cycle     <= 70;
 
-		mem_ctrl_stall <= 0;
 	end
 end
 
@@ -409,10 +411,13 @@ end
 wire	 dec_stalled;
 wire	 alu_stalled;
 assign dec_stalled = alu_stalls_dec || bus_stalls_core;
-assign alu_stalled = bus_stalls_core;
+assign alu_stalled = bus_stalls_core || mem_ctrl_stall;
 `ifdef SIM
 assign o_halt = clock_end || inv_opcode;
 `endif
+
+assign mem_ctrl_stall = alu_reg_dump;
+assign o_stall = alu_reg_dump;
 
 // Verilator lint_off UNUSED
 //wire [N-1:0] unused;
@@ -437,16 +442,17 @@ saturn_core saturn (
 	.i_clk						(clk),
 	.i_reset          (reset),
 	.o_halt           (halt),
+	.o_stall          (dbg_stall),
 	.o_bus_reset      (core_bus_reset),
   .i_bus_data_in    (core_bus_data_in),
   .o_bus_data_out   (core_bus_data_out),
   .o_bus_strobe     (core_bus_strobe),
-  .o_bus_cmd_data   (core_bus_cmd_data),
-
-	.o_phase          (core_phase)
+  .o_bus_cmd_data   (core_bus_cmd_data)
 );
 
 saturn_test_rom rom (
+	.i_stalled			(dbg_stall),
+
 	.i_reset        (core_bus_reset),
 	.i_bus_data_in  (core_bus_data_out),
 	.o_bus_data_out (core_bus_data_in),
@@ -458,13 +464,13 @@ reg	 [0:0] clk;
 reg	 [0:0] reset;
 wire [0:0] halt;
 
+wire [0:0] dbg_stall;
+
 wire [0:0] core_bus_reset;
 wire [3:0] core_bus_data_in;
 wire [3:0] core_bus_data_out;
 wire [0:0] core_bus_strobe;
 wire [0:0] core_bus_cmd_data;
-
-wire [1:0] core_phase;
 
 always 
     #10 clk = (clk === 1'b0);

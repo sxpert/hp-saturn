@@ -80,6 +80,8 @@ always @(posedge i_clk) begin
     o_field           <= 0;
     o_field_valid     <= 0;
     case (i_nibble)
+    4'h3: // LC 
+      o_field_start <= i_reg_p;
     4'h4, 4'h5: begin // RTNC / GOC / RTNNC / GONC
       $display("------------------------------------------------ 4/5xx JUMP setting fields");
       o_field_start     <= 0;
@@ -168,7 +170,6 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_3x) begin
-    o_field_start <= i_reg_p;
     o_field_last  <= (i_nibble + i_reg_p) & 4'hF;
   end
 

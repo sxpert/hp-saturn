@@ -47,24 +47,29 @@ assign reg_A_C      = { 3'b000,   i_nibble[2],   1'b0};
 always @(posedge i_clk) begin
 
   if (i_reset) begin
-    o_reg_dest        <= 0;
-    o_reg_src1        <= 0;
-    o_reg_src2        <= 0;
+    o_reg_dest        <= `ALU_REG_NOPE;
+    o_reg_src1        <= `ALU_REG_NOPE;
+    o_reg_src2        <= `ALU_REG_NOPE;
     inval_opcode_regs <= 0;
   end
 
   if (do_on_first_nibble) begin
     // reset values on instruction decode start
     case (i_nibble)
-    4'h4, 4'h5, 4'h6, 4'h7: begin
-      o_reg_dest        <= 0;
+    4'h3: begin
+      o_reg_dest        <= `ALU_REG_C;
       o_reg_src1        <= `ALU_REG_IMM;
-      o_reg_src2        <= 0;
+      o_reg_src2        <= `ALU_REG_NOPE;
+    end
+    4'h4, 4'h5, 4'h6, 4'h7: begin
+      o_reg_dest        <= `ALU_REG_NOPE;
+      o_reg_src1        <= `ALU_REG_IMM;
+      o_reg_src2        <= `ALU_REG_NOPE;
     end
     default: begin
-      o_reg_dest        <= 0;
-      o_reg_src1        <= 0;
-      o_reg_src2        <= 0;
+      o_reg_dest        <= `ALU_REG_NOPE;
+      o_reg_src1        <= `ALU_REG_NOPE;
+      o_reg_src2        <= `ALU_REG_NOPE;
     end
     endcase
     inval_opcode_regs <= 0;
@@ -78,6 +83,7 @@ always @(posedge i_clk) begin
   ************************************************************************/
 
   if (do_block_0x) begin
+    o_reg_src2 <= `ALU_REG_NOPE;
     case (i_nibble)
     4'h6: begin
       o_reg_dest <= `ALU_REG_RSTK;
@@ -87,7 +93,10 @@ always @(posedge i_clk) begin
       o_reg_dest <= `ALU_REG_C;
       o_reg_src1 <= `ALU_REG_RSTK;
     end
-    4'h8: o_reg_dest <= `ALU_REG_ST;
+    4'h8: begin
+      o_reg_dest <= `ALU_REG_ST;
+      o_reg_src1 <= `ALU_REG_NOPE;
+    end
     4'h9, 4'hB: begin
       o_reg_dest <= `ALU_REG_C;
       o_reg_src1 <= `ALU_REG_ST;
@@ -113,6 +122,7 @@ always @(posedge i_clk) begin
   end   
 
   if (do_block_1x) begin
+    o_reg_src2 <= `ALU_REG_NOPE;
     case (i_nibble)
       4'h6, 4'h8: begin
         o_reg_dest <= `ALU_REG_D0;
@@ -137,11 +147,13 @@ always @(posedge i_clk) begin
   if (do_block_save_to_R_W) begin
     o_reg_dest <= {2'b01,  i_nibble[2:0]};
     o_reg_src1 <= {3'b000, i_nibble[3]?2'b10:2'b00};
+    o_reg_src2 <= `ALU_REG_NOPE;
   end
   
   if (do_block_rest_from_R_W || do_block_exch_with_R_W) begin
     o_reg_dest <= {3'b000, i_nibble[3]?2'b10:2'b00};
     o_reg_src1 <= {2'b01,  i_nibble[2:0]};
+    o_reg_src2 <= `ALU_REG_NOPE;
   end
 
   if (do_block_13x) begin
@@ -153,32 +165,31 @@ always @(posedge i_clk) begin
   if (do_block_14x_15xx) begin
     o_reg_dest <= i_nibble[1]?reg_A_C:reg_DAT0DAT1;
     o_reg_src1 <= i_nibble[1]?reg_DAT0DAT1:reg_A_C;
+    o_reg_src2 <= i_nibble[0]?`ALU_REG_D1:`ALU_REG_D0;
   end
 
   if (do_block_pointer_arith_const) begin
+    o_reg_dest <= `ALU_REG_NOPE;
+    o_reg_dest <= `ALU_REG_NOPE;
     o_reg_src2 <= `ALU_REG_IMM;
   end
 
   if (do_block_2x) begin
     o_reg_dest <= `ALU_REG_P;
     o_reg_src1 <= `ALU_REG_IMM;
-  end
-
-  if (do_block_3x) begin
-    o_reg_dest <= `ALU_REG_C;
-    o_reg_src1 <= `ALU_REG_IMM;
+    o_reg_src2 <= `ALU_REG_NOPE;
   end
 
   if (do_block_8x) begin
+    o_reg_src2 <= `ALU_REG_NOPE;
     case (i_nibble)
       4'h4, 4'h5, 4'h6, 4'h7: begin
         o_reg_dest        <= `ALU_REG_ST;
         o_reg_src1        <= `ALU_REG_IMM;
       end
       4'hC, 4'hD, 4'hE, 4'hF: begin
-        o_reg_dest        <= 0;
+        o_reg_dest        <= `ALU_REG_NOPE;
         o_reg_src1        <= `ALU_REG_IMM;
-        o_reg_src2        <= 0;
       end
     endcase
   end
@@ -190,25 +201,24 @@ always @(posedge i_clk) begin
         o_reg_src1        <= `ALU_REG_C;
         o_reg_src2        <= `ALU_REG_NOPE;
       end
+      4'hC: begin
+        o_reg_dest        <= `ALU_REG_C;
+        o_reg_src1        <= `ALU_REG_P;
+        o_reg_src2        <= `ALU_REG_NOPE;
+      end
     endcase
-  end
-
-  if (do_block_80Cx) begin
-    o_reg_dest        <= `ALU_REG_C;
-    o_reg_src1        <= `ALU_REG_P;
-    o_reg_src2        <= `ALU_REG_NOPE;
   end
 
   if (do_block_81Af0x) begin
     o_reg_dest        <= { 2'b01, i_nibble[2:0]};
     o_reg_src1        <= i_nibble[3]?`ALU_REG_C:`ALU_REG_A;
-    o_reg_src2        <= 0;
+    o_reg_src2        <= `ALU_REG_NOPE;
   end
 
   if (do_block_81Af1x) begin
     o_reg_dest        <= i_nibble[3]?`ALU_REG_C:`ALU_REG_A;
     o_reg_src1        <= { 2'b01, i_nibble[2:0]};
-    o_reg_src2        <= 0;
+    o_reg_src2        <= `ALU_REG_NOPE;
   end
 
   if (do_block_81Af2x) begin
@@ -236,21 +246,19 @@ always @(posedge i_clk) begin
   end
 
   if (do_block_Abx || do_block_Dx) begin
+    o_reg_src2      <= `ALU_REG_NOPE;
     case ({i_nibble[3],i_nibble[2]})
       2'b00: begin
         o_reg_dest      <= reg_ABCD;
         o_reg_src1      <= `ALU_REG_ZERO;
-        o_reg_src2        <= 0;
       end
       2'b01: begin
         o_reg_dest      <= reg_ABCD;
         o_reg_src1      <= reg_BCAC;
-        o_reg_src2        <= 0;
       end
       2'b10: begin
         o_reg_dest      <= reg_BCAC;
         o_reg_src1      <= reg_ABCD;
-        o_reg_src2        <= 0;
       end
       2'b11: begin // exch
         o_reg_dest      <= reg_ABAC;
@@ -270,7 +278,7 @@ always @(posedge i_clk) begin
       2'b01: begin
         o_reg_dest <= reg_ABCD;
         o_reg_src1 <= reg_ABCD;
-        o_reg_src2 <= 0;
+        o_reg_src2 <= `ALU_REG_NOPE;
       end
       2'b10: begin
         o_reg_dest <= reg_BCAC;
@@ -288,7 +296,7 @@ always @(posedge i_clk) begin
   if (do_block_Bbx) begin
     o_reg_dest <= reg_ABCD;
     o_reg_src1 <= reg_ABCD;
-    o_reg_src2 <= 0;
+    o_reg_src2 <= `ALU_REG_NOPE;
   end
 
   if (do_block_Cx) begin
@@ -311,12 +319,13 @@ always @(posedge i_clk) begin
     2'b11: begin // reg = reg - 1
       o_reg_dest      <= reg_ABCD;
       o_reg_src1      <= reg_ABCD;
-      o_reg_src2      <= 0;
+      o_reg_src2      <= `ALU_REG_NOPE;
     end
     endcase
   end
 
   if (do_block_Fx) begin
+    o_reg_src2 <= `ALU_REG_NOPE;
     case (i_nibble)
       4'h8, 4'h9, 4'hA, 4'hB: begin
         o_reg_dest        <= reg_ABCD;

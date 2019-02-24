@@ -106,6 +106,7 @@
   if (do_block_80Cx) begin
     o_ins_alu_op   <= 1;
     o_alu_op       <= `ALU_OP_COPY;
+    o_imm_value    <= i_reg_p;
     next_nibble    <= 0;
     o_ins_decoded  <= 1;
     block_80Cx     <= 0;

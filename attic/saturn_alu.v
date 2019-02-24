@@ -19,12 +19,14 @@
 
  */
 
-`default_nettype none //
+`include "saturn_alu_pc.v"
+`include "saturn_alu_registers.v"
+`include "def-alu.v"
 
 `ifndef _SATURN_ALU
 `define _SATURN_ALU
 
-`include "def-alu.v"
+`default_nettype none //
 
 `ifdef SIM
 // `define ALU_DEBUG_DBG
@@ -41,6 +43,8 @@ module saturn_alu (
     i_phases,
     i_cycle_ctr,
     i_stalled,
+    o_en_cycle_cnt,
+    o_reg_dump,
 
     o_bus_address,
     i_bus_data_ptr,
@@ -98,13 +102,16 @@ input   wire [0:0]  i_reset;
 input   wire [3:0]  i_phases;
 input   wire [31:0] i_cycle_ctr;
 input   wire [0:0]  i_stalled;
-
+output  wire [0:0]  o_en_cycle_cnt;
+output  wire [0:0]  o_reg_dump;
+        wire [0:0]  i_reg_dump;
+ 
 /*
  * I/O to the bus controller
  */
 
 /* data to and from the bus controller */
-output  reg  [19:0] o_bus_address;
+output  wire [19:0] o_bus_address;
 input   wire [3:0]  i_bus_data_ptr;
 output  reg  [3:0]  o_bus_data_nibl;
 output  reg  [3:0]  o_bus_xfr_cnt;
@@ -115,7 +122,7 @@ output  reg  [3:0]  o_bus_nibble_out;
 output  reg  [0:0]  o_bus_pc_read;
 output  reg  [0:0]  o_bus_dp_read;
 output  reg  [0:0]  o_bus_dp_write;
-output  reg  [0:0]  o_bus_load_pc;
+output  wire [0:0]  o_bus_load_pc;
 output  reg  [0:0]  o_bus_load_dp;
 output  reg  [0:0]  o_bus_config;
 input   wire [0:0]  i_bus_done;
@@ -159,8 +166,6 @@ output  wire [3:0]  o_reg_p;
 output  wire [19:0] o_pc;
 
 assign o_reg_p = P;
-assign o_pc    = PC;
-
 
 /*
  * 
@@ -193,7 +198,117 @@ end
 
 wire alu_active;
 
-assign alu_active = !i_reset && !i_stalled;
+assign alu_active = !i_reset && !i_stalled && !i_reg_dump;
+
+/*
+ * this module handles the PC and the RSTK
+ *
+ *
+ */
+
+saturn_alu_pc pc_management (
+  .i_clk                (i_clk),
+  .i_reset              (i_reset),
+  .i_stalled            (i_stalled),
+  .i_just_reset         (just_reset),
+  .i_alu_active         (alu_active),
+  .i_cycle_ctr          (i_cycle_ctr),
+  .i_phase              (phase),
+  .i_phase_0            (phase_0),
+  .i_phase_2            (phase_2),
+  .i_phase_3            (phase_3),
+
+  .i_alu_initializing   (alu_initializing),
+  .i_v_dest_counter_ptr (v_dest_counter_ptr),
+
+  .o_bus_address        (o_bus_address),
+  .o_bus_load_pc        (o_bus_load_pc),
+  .i_bus_nibble_in      (i_bus_nibble_in),
+
+  .i_alu_stall_dec      (o_alu_stall_dec),
+  .i_ins_rtn            (i_ins_rtn),
+  .i_ins_test_go        (i_ins_test_go),
+  .i_push               (i_push),
+  .i_pop                (i_pop),
+
+  .i_mode_jmp           (mode_jmp),
+  .i_carry              (CARRY),
+
+  .i_op_jump            (op_jump),
+  .i_op_jmp_rel_2       (op_jmp_rel_2),
+  .i_op_jmp_rel_3       (op_jmp_rel_3),
+  .i_op_jmp_rel_4       (op_jmp_rel_4),
+  .i_op_jmp_abs_5       (op_jmp_abs_5),
+
+  .o_do_apply_jump      (do_apply_jump),
+
+`ifdef SIM
+  .o_pc                 (o_pc),
+  .o_rstk_ptr           (rstk_ptr),
+  .o_rstk_0             (rstk_0),
+  .o_rstk_1             (rstk_1),
+  .o_rstk_2             (rstk_2),
+  .o_rstk_3             (rstk_3),
+  .o_rstk_4             (rstk_4),
+  .o_rstk_5             (rstk_5),
+  .o_rstk_6             (rstk_6),
+  .o_rstk_7             (rstk_7)
+`else
+  .o_pc                 (o_pc)
+`endif
+);
+
+wire [0:0] do_apply_jump;
+`ifdef SIM
+wire [2:0]  rstk_ptr;
+wire [19:0] rstk_0;
+wire [19:0] rstk_1;
+wire [19:0] rstk_2;
+wire [19:0] rstk_3;
+wire [19:0] rstk_4;
+wire [19:0] rstk_5;
+wire [19:0] rstk_6;
+wire [19:0] rstk_7;
+`endif
+
+/*
+ * This module handles the data and pointer registers
+ *
+ *
+ */
+
+saturn_alu_registers registers (
+  .i_clk              (i_clk),
+  .i_reset            (i_reset),
+  .i_stalled          (i_stalled),
+  .i_phase            (phase),
+  .i_phase_3          (phase_3),
+  .i_cycle_ctr        (i_cycle_ctr),
+  .i_alu_initializing (alu_initializing),
+  .i_ins_decoded      (i_ins_decoded),
+
+  .i_src_ptr          (source_counter),  
+  .i_src_1            (i_reg_src1),
+  .o_src_1_nbl        (rp_src_1),
+  .o_src_1_valid      (rp_src_1_valid),
+  .i_src_2            (i_reg_src2),
+  .o_src_2_nbl        (rp_src_2),
+  .o_src_2_valid      (rp_src_2_valid),
+
+  .i_dest_ptr         (v_dest_ptr),
+  .i_dest_1           (i_reg_dest),
+  .i_dest_1_nbl       (rc_res_1),
+  .i_dest_2           (i_reg_src2),
+  .i_dest_2_nbl       (c_res_2)
+
+`ifdef SIM
+  ,
+  .i_dbg_src          (alu_dbg_src),
+  .i_dbg_ptr          (alu_dbg_ctr[3:0]),
+  .o_dbg_nbl          (alu_dbg_nbl)
+`endif
+);
+
 
 /*
  *
@@ -212,46 +327,35 @@ reg [3:0] f_last;
 
 /* internal pointers */
 
+wire [3:0] rp_src_1;
+wire [0:0] rp_src_1_valid;
+wire [3:0] rp_src_2;
+wire [0:0] rp_src_2_valid;
+
+
 reg [3:0] p_src1;
 reg [3:0] p_src2;
 reg [0:0] p_carry;
-reg [3:0] c_res1;
-reg [3:0] c_res2;
+
+
+reg [3:0] c_res_1;
+reg [3:0] c_res_2;
 reg [0:0] c_carry;
 reg [0:0] is_zero;
 
-/* alu status */
+reg [3:0] rc_res_1;
 
-reg  [2:0]       rstk_ptr;
-
-/* public registers */
-
-reg  [19:0]      PC;
-
-reg  [3:0]       D0[0:4];
-reg  [3:0]       D1[0:4];
-
-//reg  [63:0]      A;
-reg  [3:0]       A[0:15];
-reg  [3:0]       B[0:15];
-reg  [3:0]       C[0:15];
-reg  [3:0]       D[0:15];
-
-reg  [3:0]      R0[0:15];
-reg  [3:0]      R1[0:15];
-reg  [3:0]      R2[0:15];
-reg  [3:0]      R3[0:15];
-reg  [3:0]      R4[0:15];
+always @(*) begin
+  rc_res_1 = c_res_1;
+  if (src1_IMM) rc_res_1 = i_imm_value;
+  if (src1_P)   rc_res_1 = P;
+end
 
 reg  [0:0]       CARRY;
 reg  [0:0]       DEC;
 reg  [3:0]       P;
 reg  [3:0]       HST;
 reg  [15:0]      ST;
-
-reg  [19:0]      RSTK[0:7];
-
-
 
 /******************************************************************************
  *
@@ -343,7 +447,7 @@ assign start_in_hst_clrmask_mode = alu_start_ev && i_ins_alu_op && op_hst_clrmas
 assign start_in_jmp_mode         = alu_start_ev && i_ins_alu_op && op_jump && src1_IMM && !mode_set;
 assign start_in_alu_mode         = alu_start_ev && i_ins_alu_op && !mode_not_alu && !f_mode_alu;
 
-assign o_alu_stall_dec = alu_initializing || i_stalled || stall_modes;
+assign o_alu_stall_dec = alu_initializing || i_stalled || stall_modes || i_reg_dump;
 
 
 /*
@@ -507,7 +611,7 @@ always @(posedge i_clk) begin
   end
 
   if (do_apply_jump)
-    $display("ALU      %0d: [%d] end of jmp mode", phase, i_cycle_ctr);
+      $display("ALU      %0d: [%d] end of jmp mode", phase, i_cycle_ctr);
 
   /* general ALU mode (when there is no optimization)
    */
@@ -517,9 +621,12 @@ always @(posedge i_clk) begin
     f_mode_alu <= 1'b1;
   end
 
+
+
   if (i_reset || 
       alu_active && f_mode_xfr && i_bus_done ||
       alu_active && f_mode_config && !o_bus_config ||
+      do_load_pointer_done ||
       do_load_register_done ||
       do_apply_jump) 
   begin
@@ -667,26 +774,20 @@ always @(posedge i_clk) begin
 
 
   if (copy_address) begin
+    // we get the address source from src2
+
+`ifdef SIM
     $write("ALU      %0d: [%d] xfr_data[%0d] = ", phase, i_cycle_ctr, data_counter);
-    case (addr_src)
-    2'b00: begin
-      $display("A[%0d] %h", source_counter, A[source_counter]);
-      xfr_data[data_counter] <= A[source_counter];
-    end
-    2'b01: begin
-      $display("C[%0d] %h", source_counter, C[source_counter]);
-      xfr_data[data_counter] <= C[source_counter];
-    end
-    2'b10: begin
-      $display("D0[%0d] %h", source_counter, D0[source_counter_ptr]);
-      xfr_data[data_counter] <= D0[source_counter_ptr];
-    end
-    2'b11: begin
-      $display("D1[%0d] %h", source_counter, D1[source_counter_ptr]);
-      xfr_data[data_counter] <= D1[source_counter_ptr];
-    end
-    default: begin end
+    case (i_reg_src2)
+    `ALU_REG_A:  $write("A");
+    `ALU_REG_C:  $write("C");
+    `ALU_REG_D0: $write("D0");
+    `ALU_REG_D1: $write("D1");
+    default: $write("[invalid register %0d]", i_reg_src2);
     endcase
+    $display("[%0d] %h", source_counter, rp_src_2);
+`endif
+    xfr_data[data_counter] <= rp_src_2;
     data_counter <= data_counter + 1;
   end
 
@@ -700,8 +801,8 @@ always @(posedge i_clk) begin
   // two sources are possible, A and C, a conditional will suffice
   if (xfr_data_copy) begin
     $display("ALU      %0d: [%d] copy data DAT[%b][%2d] <= %c[%2d] %h",
-             phase, i_cycle_ctr, dest_DAT1, data_counter, src1_A?"A":"C", source_counter, (src1_A)?A[source_counter]:C[source_counter]);
-    xfr_data[data_counter] <=  (src1_A)?A[source_counter]:C[source_counter];
+             phase, i_cycle_ctr, dest_DAT1, data_counter, src1_A?"A":"C", source_counter, rp_src_1);
+    xfr_data[data_counter] <= rp_src_1;
     data_counter           <= data_counter + 1;
   end
 
@@ -756,9 +857,12 @@ end
  *
  */
 
-// always @(*) begin
+always @(posedge i_clk) begin
+  if (i_reset) begin
+    c_res_1 <= 4'b0;
+  end
 
-// end
+end
 
 /*
  * moduls 4:
@@ -776,8 +880,14 @@ reg  [3:0] v_dest_counter;
 reg  [3:0] v_max_counter;
 wire [2:0] v_dest_counter_ptr;
 wire [1:0] v_dest_counter_hst;
+reg  [3:0] v_dest_ptr;
 assign v_dest_counter_ptr = v_dest_counter[2:0];
 assign v_dest_counter_hst = v_dest_counter[1:0];
+
+always @(*) begin
+  v_dest_ptr = v_dest_counter;
+  if (op_copy_p_to_c) v_dest_ptr = i_field_start;
+end                    
 
 wire [0:0] do_load_pointer;
 wire [0:0] do_load_pointer_done;
@@ -811,17 +921,6 @@ always @(posedge i_clk) begin
    */
   if (!i_reset && alu_initializing) begin
     $display("ALU_INIT %0d: [%d] init %0d", phase, i_cycle_ctr, v_dest_counter);
-    A[v_dest_counter]       <= 0;
-    B[v_dest_counter]       <= 0;
-    C[v_dest_counter]       <= 0;
-    D[v_dest_counter]       <= 0;
-    D0[v_dest_counter_ptr]  <= 0;
-    D1[v_dest_counter_ptr]  <= 0;
-    R0[v_dest_counter]      <= 0;
-    R1[v_dest_counter]      <= 0;
-    R2[v_dest_counter]      <= 0;
-    R3[v_dest_counter]      <= 0;
-    R4[v_dest_counter]      <= 0;
     ST[v_dest_counter]      <= 0;
     HST[v_dest_counter_hst] <= 0;
     alu_initializing        <= (v_dest_counter != 15);
@@ -839,18 +938,17 @@ always @(posedge i_clk) begin
 
   if (do_load_pointer) begin
     $display("ALU      %0d: [%d] loading pointer D%b[%0d] <= %h", phase, i_cycle_ctr, dest_D1, v_dest_counter, i_bus_nibble_in);
-    case (dest_D1)
-      0: D0[v_dest_counter_ptr] <= i_bus_nibble_in;
-      1: D0[v_dest_counter_ptr] <= i_bus_nibble_in;
-      default: begin end
-    endcase
-    v_dest_counter <= v_dest_counter + 1;
+    // case (dest_D1)
+    //   0: D0[v_dest_counter_ptr] <= i_bus_nibble_in;
+    //   1: D0[v_dest_counter_ptr] <= i_bus_nibble_in;
+    //   default: begin end
+    // endcase
+   v_dest_counter <= v_dest_counter + 1;
   end
 
   if (do_load_pointer_done) begin
     $display("ALU      %0d: [%d] resetting variables after loading pointer", phase, i_cycle_ctr);
     v_dest_counter  <= 0;
-    f_mode_load_ptr <= 0;
   end
 
   /*
@@ -868,11 +966,11 @@ always @(posedge i_clk) begin
 
   if (do_load_register) begin
     $display("ALU      %0d: [%d] loading register %c[%0d] <= %h", phase, i_cycle_ctr, dest_A?"A":"C", v_dest_counter, i_bus_nibble_in);
-    case (dest_C)
-      0: A[v_dest_counter] <= i_bus_nibble_in;
-      1: C[v_dest_counter] <= i_bus_nibble_in;
-      default: begin end
-    endcase
+    // case (dest_C)
+    //   0: A[v_dest_counter] <= i_bus_nibble_in;
+    //   1: C[v_dest_counter] <= i_bus_nibble_in;
+    //   default: begin end
+    // endcase
     v_dest_counter <= v_dest_counter + 1;
   end
 
@@ -893,7 +991,8 @@ always @(posedge i_clk) begin
 
   if (start_in_p_mode && op_copy_p_to_c) begin
     $display("ALU      %0d: [%d] C=P %h", phase, i_cycle_ctr, i_field_start);
-    C[i_field_start] <= P;
+     v_dest_counter <= i_field_start;
+    //  C[i_field_start] <= P;
   end
 
   /* ST=[01] <bit>
@@ -923,176 +1022,6 @@ always @(posedge i_clk) begin
     CARRY <= i_carry_val;
   end
 
-
-end
-
-/* module 5:
- * manages all that is linked with the program counter
- */
-
-// assign goyes_off = {{12{i_imm_value[3]}}, i_imm_value, jump_off[3:0]};
-// assign goyes_pc  = jump_bse + goyes_off;
-// // rtnyes is already handled by i_ins_test_go
-// assign is_rtn_rel2    = (alu_op == `ALU_OP_JMP_REL2) && (goyes_off == 0);
-// assign is_jmp_rel2    = (alu_op == `ALU_OP_JMP_REL2) && !(goyes_off == 0); 
-// assign jmp_carry_test = (i_test_carry && (CARRY == i_carry_val));
-// assign exec_rtn_rel2  = is_rtn_rel2 && jmp_carry_test && alu_done;
-// // assign set_jmp_rel2   = is_jmp_rel2 && jmp_carry_test && alu_finish;
-// assign exec_jmp_rel2  = is_jmp_rel2 && jmp_carry_test && alu_done;
-
-/* jump values generator */
-
-reg [2:0]  jump_offset_counter;
-reg [19:0] jump_base;
-reg [15:0] jump_offset;
-reg [19:0] new_jump_offset;
-reg [0:0]  jump_start;
-reg [0:0]  jump_done;
-
-wire [0:0] jump_relative;
-assign jump_relative = op_jmp_rel_2 || op_jmp_rel_3 || op_jmp_rel_4;
-
-always @(*) begin
-  new_jump_offset = 0;
-  jump_start = 0;
-  jump_done = 0;
-  case (jump_offset_counter)
-  0: begin
-    new_jump_offset = {{16{i_bus_nibble_in[3] && jump_relative}}, i_imm_value};
-    jump_start = 1;
-  end
-  1: begin
-    new_jump_offset = {{12{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 3:0]};
-    if (op_jmp_rel_2) jump_done = 1;
-  end
-  2: begin
-    new_jump_offset = {{ 8{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[ 7:0]};
-    if (op_jmp_rel_3) jump_done = 1;
-  end
-  3: begin
-    new_jump_offset = {{ 4{i_bus_nibble_in[3] && jump_relative}}, i_imm_value, jump_offset[11:0]};
-    if (op_jmp_rel_4) jump_done = 1;
-  end
-  4: begin
-    new_jump_offset = {i_imm_value, jump_offset[15:0]};
-    if (op_jmp_abs_5) jump_done = 1;
-  end
-  default: begin end
-  endcase
-end
-
-wire [0:0] do_set_jump_base;
-wire [0:0] do_calc_jump;
-wire [0:0] do_apply_jump;
-assign do_set_jump_base = start_in_jmp_mode && !jump_done && jump_start; 
-assign do_calc_jump     = mode_jmp && phase_3 && !jump_done;
-assign do_apply_jump    = mode_jmp && phase_3 &&  jump_done;
-
-wire [19:0] jump_pc;
-assign jump_pc = jump_relative?(jump_base+new_jump_offset):new_jump_offset;
-
-/* pc update generator */
-
-wire [19:0] next_pc;
-wire [0:0]  update_pc;
-wire [0:0]  reload_pc;
-wire [0:0]  pop_pc;
-wire [0:0]  push_pc;
-wire [0:0]  pc_lines_cleanup;
-
-assign next_pc   = (jump_done)?jump_pc:PC + 1;
-assign update_pc = (!i_reset && just_reset) || alu_active && phase_3 && (!o_alu_stall_dec) /* || exec_unc_jmp || exec_jmp_rel2 */;
-
-assign pop_pc    = alu_active && phase_3 && i_pop && i_ins_rtn && ((!i_ins_test_go) || (i_ins_test_go && CARRY));
-assign push_pc   = alu_active && i_push && do_apply_jump;
-assign reload_pc = (!i_reset && just_reset) || do_apply_jump || pop_pc;
-
-assign pc_lines_cleanup = alu_active && phase_0;
-
-always @(posedge i_clk) begin
-
-  /*
-   * initializes default values
-   */
-  if (i_reset) begin
-    PC                  <= ~0;
-    o_bus_load_pc       <= 0;
-    rstk_ptr            <= 0;
-    jump_offset_counter <= 0;
-    jump_base           <= 0;
-    jump_offset         <= 0;
-  end
-
-  /*
-   * Similarly to the data registers,
-   * initializes the RSTK while the PC is first loaded
-   *
-   */
-  if (alu_initializing)
-    RSTK[v_dest_counter_ptr] <= 0;
-
-  /** 
-   * handles jumps
-   *
-   */
-  if (do_set_jump_base) begin
-    // $display("ALU_PC   %0d: [%d] set jump base %0d | nibble %h | rel %b | base %h | offset %h | jump_pc %h", 
-    //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, PC, new_jump_offset, jump_pc);
-    jump_base <= PC;
-  end
-
-  if (do_calc_jump) begin
-    // $display("ALU_PC   %0d: [%d] calc jump     %0d | nibble %h | rel %b | base %h | offset %h | jump_pc %h", 
-    //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, jump_base, new_jump_offset, jump_pc);
-    jump_offset <= new_jump_offset[15:0];
-    jump_offset_counter <= jump_offset_counter + 1;
-  end
-
-  if (do_apply_jump) begin
-    // $display("ALU_PC   %0d: [%d] apply jump    %0d | nibble %h | rel %b | base %h | offset %h | jump_pc %h",
-    //          phase, i_cycle_ctr, jump_offset_counter, i_imm_value, jump_relative, jump_base, new_jump_offset, jump_pc);
-    jump_offset_counter <= 0;
-  end
-
-  /**
-   *
-   * Update the PC.
-   * Request the new PC be loaded to the other modules through 
-   * the bus if necessary 
-   *
-   */
-
-  if (update_pc) begin
-    // $display("ALU_PC   %0d: [%d] update pc to %h", phase, i_cycle_ctr, next_pc);
-    PC <= pop_pc ? RSTK[rstk_ptr - 3'b1] : next_pc;
-  end
-
-
-  if (push_pc) begin
-    $display("ALU_PC   %0d: [%d] PUSH PC %5h to RSTK[%0d]", phase, i_cycle_ctr, (PC + 20'd1), rstk_ptr);
-    RSTK[rstk_ptr] <= PC + 20'd1;
-    rstk_ptr       <= rstk_ptr + 1;
-  end
-  
-    // $display("pop %b && rtn %b && ((!go %b) || (go %b && c %b))", 
-            // i_pop, i_ins_rtn, !i_ins_test_go, i_ins_test_go, c_carry);
-  if (pop_pc) begin
-    $display("ALU_PC   %0d: [%d] POP RSTK[%0d] to PC %5h", phase, i_cycle_ctr, rstk_ptr - 3'b1, RSTK[rstk_ptr - 3'b1]);
-    rstk_ptr <= rstk_ptr - 3'b1;
-    RSTK[rstk_ptr - 3'b1] <= 20'b0;
-  end
-
-  if (reload_pc) begin
-    $display("ALU_PC   %0d: [%d] $$$$ RELOADING PC to %h $$$$", 
-             phase, i_cycle_ctr, (pop_pc ? RSTK[rstk_ptr - 3'b1] : next_pc));
-    o_bus_address <= pop_pc ? RSTK[rstk_ptr - 3'b1] : next_pc;
-    o_bus_load_pc <= 1;
-  end
-
-
-
-  if (pc_lines_cleanup && o_bus_load_pc)
-    o_bus_load_pc <= 0;
 
 end
 
@@ -1144,70 +1073,178 @@ end
  *
  ****************************************************************************/
 
+`ifndef SIM
+assign i_reg_dump = 1'b0;
+assign o_reg_dump = 1'b0;
+`endif
+
 `ifdef SIM
 wire do_reg_dump;
 wire do_alu_shpc;
 assign do_reg_dump = alu_active && phase_0 && !o_bus_load_pc &&
-                     i_ins_decoded && !o_alu_stall_dec;
+                     i_ins_decoded && !o_alu_stall_dec && !reg_dump;
 assign do_alu_shpc = alu_active && phase_0;
 
-reg [4:0] alu_dbg_ctr;
+reg  [4:0] alu_dbg_src;
+wire [3:0] alu_dbg_nbl;
+reg  [4:0] alu_dbg_ctr;
+reg  [0:0] reg_dump; 
+reg  [0:0] reg_dump_done;
+
+assign i_reg_dump     = reg_dump;
+assign o_en_cycle_cnt = !(do_reg_dump || reg_dump) || (do_reg_dump && !reg_dump && reg_dump_done);
+assign o_reg_dump     = reg_dump;
 
 always @(posedge i_clk) begin
+  if (i_reset) begin
+    reg_dump      <= 1'b0;
+    reg_dump_done <= 1'b0;
+    alu_dbg_ctr   <= 5'b0;
+    alu_dbg_src   <= 5'b0;
+  end
 
-  if (do_reg_dump && alu_debug_dump) begin
+
+  // $display("do_reg_dump %b | !reg_dump %b | !reg_dump_done %b", do_reg_dump, !reg_dump, !reg_dump_done);
+  if (do_reg_dump && alu_debug_dump && !reg_dump && !reg_dump_done) begin
+    reg_dump <= 1;
 
     // display registers
     $display("PC: %05h               Carry: %b h: %s rp: %h   RSTK7: %05h", 
-             PC, CARRY, DEC?"DEC":"HEX", rstk_ptr, RSTK[7]);
+             o_pc, CARRY, DEC?"DEC":"HEX", rstk_ptr, rstk_7);
     $display("P:  %h  HST: %b        ST:  %b   RSTK6: %5h", 
-             P, HST, ST, RSTK[6]);
+             P, HST, ST, rstk_6);
 
     $write("A:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", A[alu_dbg_ctr]);
-    $write("    R0:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", R0[alu_dbg_ctr]);
-    $write("   RSTK5: %5h\n", RSTK[5]);
-
-    $write("B:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", B[alu_dbg_ctr]);
-    $write("    R1:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", R1[alu_dbg_ctr]);
-    $write("   RSTK4: %5h\n", RSTK[4]);
-
-    $write("C:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", C[alu_dbg_ctr]);
-    $write("    R2:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", R2[alu_dbg_ctr]);
-    $write("   RSTK3: %5h\n", RSTK[3]);
-
-    $write("D:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", D[alu_dbg_ctr]);
-    $write("    R3:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", R3[alu_dbg_ctr]);
-    $write("   RSTK2: %5h\n", RSTK[2]);
-
-    $write("D0: ");
-    for(alu_dbg_ctr=4;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", D0[alu_dbg_ctr]);
-    $write("  D1: "); 
-    for(alu_dbg_ctr=4;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", D1[alu_dbg_ctr]);
-    $write("    R4:  ");
-    for(alu_dbg_ctr=15;alu_dbg_ctr!=31;alu_dbg_ctr=alu_dbg_ctr-1)
-      $write("%h", R4[alu_dbg_ctr]);
-    $write("   RSTK1: %5h\n", RSTK[1]);
-    $display("         ADDR: %5h                            RSTK0: %5h", 
-             o_bus_address, RSTK[0]);
+    alu_dbg_ctr = 15;
+    alu_dbg_src = `ALU_REG_A;
   end
+
+  if (do_reg_dump && alu_debug_dump && !reg_dump && reg_dump_done) begin
+    // $display("ALU      %0d: [%d] register dump done", phase, i_cycle_ctr);
+    reg_dump_done <= 1'b0;
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_A)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("    R0:  ");
+      alu_dbg_src <= `ALU_REG_R0;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_R0)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("   RSTK5: %5h\n", rstk_5);
+      $write("B:  ");
+      alu_dbg_src <= `ALU_REG_B;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_B)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("    R1:  ");
+      alu_dbg_src <= `ALU_REG_R1;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_R1)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("   RSTK4: %5h\n", rstk_4);
+      $write("C:  ");
+      alu_dbg_src <= `ALU_REG_C;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_C)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("    R2:  ");
+      alu_dbg_src <= `ALU_REG_R2;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_R2)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("   RSTK3: %5h\n", rstk_3);
+      $write("D:  ");
+      alu_dbg_src <= `ALU_REG_D;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_D)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("    R3:  ");
+      alu_dbg_src <= `ALU_REG_R3;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_R3)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("   RSTK2: %5h\n", rstk_2);
+      $write("D0: ");
+      alu_dbg_src <= `ALU_REG_D0;
+      alu_dbg_ctr <= 4;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_D0)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("  D1: "); 
+      alu_dbg_src <= `ALU_REG_D1;
+      alu_dbg_ctr <= 4;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_D1)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("    R4:  ");
+      alu_dbg_src <= `ALU_REG_R4;
+      alu_dbg_ctr <= 15;
+    end
+  end
+
+  if (reg_dump && (alu_dbg_src==`ALU_REG_R4)) begin
+    $write("%h", alu_dbg_nbl);
+    alu_dbg_ctr <= alu_dbg_ctr - 5'b1;
+    if (alu_dbg_ctr == 0) begin 
+      $write("   RSTK1: %5h\n", rstk_1);
+      $display("         ADDR: %5h                            RSTK0: %5h", 
+               o_bus_address, rstk_0);
+      alu_dbg_src = `ALU_REG_NOPE;
+      reg_dump_done  <= 1'b1;
+    end
+  end
+
+  if (reg_dump && reg_dump_done && phase_3) begin
+    // $display("ALU      %0d: [%d] end register dump", phase, i_cycle_ctr);
+    reg_dump      <= 1'b0;
+  end
+
 end
 
 `endif
