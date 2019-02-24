@@ -10,7 +10,10 @@
 #     #exit
 # fi
 #iverilog -v -Wall -DSIM -o mask_gen_tb mask_gen.v
-iverilog -v -g2005-sv -gassertions -Wall -DSIM -o rom_tb saturn_core.v
+iverilog -v -Wall -DSIM -o z_saturn_test.iv -s saturn_top \
+    saturn_top.v \
+    saturn_bus.v saturn_hp48gx_rom.v \
+    saturn_bus_controller.v
 IVERILOG_STATUS=$?
 #./mask_gen_tb
 echo "--------------------------------------------------------------------"
@@ -18,7 +21,7 @@ echo "IVERILOG_STATUS ${IVERILOG_STATUS}"
 echo "--------------------------------------------------------------------"
 if [ "${IVERILOG_STATUS}" = "0" ] 
 then
-    ./rom_tb
+    ./z_saturn_test.iv
 fi
 #vvp mask_gen_tb -lxt2
 #gtkwave output.vcd

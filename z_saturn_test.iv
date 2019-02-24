@@ -1,0 +1,118 @@
+#! /usr/bin/vvp -v
+:ivl_version "11.0 (devel)" "(s20150603-597-gdc5429e5)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "system";
+:vpi_module "vhdl_sys";
+:vpi_module "vhdl_textio";
+:vpi_module "v2005_math";
+:vpi_module "va_math";
+S_0x559e7ded19c0 .scope module, "saturn_top" "saturn_top" 2 24;
+ .timescale 0 0;
+v0x559e7dee8e20_0 .var "clk", 0 0;
+v0x559e7dee8ee0_0 .net "halt", 0 0, L_0x559e7debc610;  1 drivers
+v0x559e7dee8fa0_0 .var "reset", 0 0;
+E_0x559e7decc190 .event posedge, v0x559e7dee8c20_0;
+E_0x559e7decc4b0 .event posedge, v0x559e7dee7370_0;
+S_0x559e7ded1b50 .scope module, "main_bus" "saturn_bus" 2 26, 3 21 0, S_0x559e7ded19c0;
+ .timescale 0 0;
+    .port_info 0 /INPUT 1 "i_clk";
+    .port_info 1 /INPUT 1 "i_reset";
+    .port_info 2 /OUTPUT 1 "o_halt";
+L_0x559e7debc610 .functor OR 1, v0x559e7dee8330_0, v0x559e7debc570_0, C4<0>, C4<0>;
+v0x559e7dee8330_0 .var "bus_halt", 0 0;
+v0x559e7dee8410_0 .net "ctrl_bus_clk_en", 0 0, v0x559e7dee7510_0;  1 drivers
+v0x559e7dee8520_0 .net "ctrl_bus_is_data", 0 0, v0x559e7dee7640_0;  1 drivers
+v0x559e7dee8610_0 .var "ctrl_bus_nibble_in", 3 0;
+v0x559e7dee86d0_0 .net "ctrl_bus_nibble_out", 3 0, v0x559e7dee7720_0;  1 drivers
+v0x559e7dee8810_0 .net "ctrl_bus_reset", 0 0, v0x559e7dee7800_0;  1 drivers
+v0x559e7dee8920_0 .net "ctrl_halt", 0 0, v0x559e7debc570_0;  1 drivers
+v0x559e7dee89e0_0 .net "i_clk", 0 0, v0x559e7dee8e20_0;  1 drivers
+v0x559e7dee8ad0_0 .net "i_reset", 0 0, v0x559e7dee8fa0_0;  1 drivers
+v0x559e7dee8c20_0 .net "o_halt", 0 0, L_0x559e7debc610;  alias, 1 drivers
+v0x559e7dee8d00_0 .net "rom_bus_nibble_out", 3 0, v0x559e7dee81b0_0;  1 drivers
+E_0x559e7deccf00 .event edge, v0x559e7dee81b0_0;
+S_0x559e7decf4f0 .scope module, "bus_controller" "saturn_bus_controller" 3 58, 4 21 0, S_0x559e7ded1b50;
+ .timescale 0 0;
+    .port_info 0 /INPUT 1 "i_clk";
+    .port_info 1 /INPUT 1 "i_reset";
+    .port_info 2 /OUTPUT 1 "o_bus_reset";
+    .port_info 3 /OUTPUT 1 "o_bus_clk_en";
+    .port_info 4 /OUTPUT 1 "o_bus_is_data";
+    .port_info 5 /OUTPUT 4 "o_bus_nibble_out";
+    .port_info 6 /INPUT 4 "i_bus_nibble_in";
+    .port_info 7 /OUTPUT 1 "o_halt";
+v0x559e7debc570_0 .var "bus_error", 0 0;
+v0x559e7debc730_0 .net "i_bus_nibble_in", 3 0, v0x559e7dee8610_0;  1 drivers
+v0x559e7dee7370_0 .net "i_clk", 0 0, v0x559e7dee8e20_0;  alias, 1 drivers
+v0x559e7dee7430_0 .net "i_reset", 0 0, v0x559e7dee8fa0_0;  alias, 1 drivers
+v0x559e7dee7510_0 .var "o_bus_clk_en", 0 0;
+v0x559e7dee7640_0 .var "o_bus_is_data", 0 0;
+v0x559e7dee7720_0 .var "o_bus_nibble_out", 3 0;
+v0x559e7dee7800_0 .var "o_bus_reset", 0 0;
+v0x559e7dee78e0_0 .net "o_halt", 0 0, v0x559e7debc570_0;  alias, 1 drivers
+S_0x559e7dee7ac0 .scope module, "hp48gx_rom" "saturn_hp48gx_rom" 3 38, 5 21 0, S_0x559e7ded1b50;
+ .timescale 0 0;
+    .port_info 0 /INPUT 1 "i_clk";
+    .port_info 1 /INPUT 1 "i_reset";
+    .port_info 2 /INPUT 1 "i_bus_reset";
+    .port_info 3 /INPUT 1 "i_bus_clk_en";
+    .port_info 4 /INPUT 1 "i_bus_is_data";
+    .port_info 5 /OUTPUT 4 "o_bus_nibble_out";
+    .port_info 6 /INPUT 4 "i_bus_nibble_in";
+v0x559e7dee7d20_0 .net "i_bus_clk_en", 0 0, v0x559e7dee7510_0;  alias, 1 drivers
+v0x559e7dee7de0_0 .net "i_bus_is_data", 0 0, v0x559e7dee7640_0;  alias, 1 drivers
+v0x559e7dee7e80_0 .net "i_bus_nibble_in", 3 0, v0x559e7dee7720_0;  alias, 1 drivers
+v0x559e7dee7f20_0 .net "i_bus_reset", 0 0, v0x559e7dee7800_0;  alias, 1 drivers
+v0x559e7dee7ff0_0 .net "i_clk", 0 0, v0x559e7dee8e20_0;  alias, 1 drivers
+v0x559e7dee80e0_0 .net "i_reset", 0 0, v0x559e7dee8fa0_0;  alias, 1 drivers
+v0x559e7dee81b0_0 .var "o_bus_nibble_out", 3 0;
+    .scope S_0x559e7dee7ac0;
+T_0 ;
+    %pushi/vec4 0, 0, 4;
+    %store/vec4 v0x559e7dee81b0_0, 0, 4;
+    %end;
+    .thread T_0;
+    .scope S_0x559e7decf4f0;
+T_1 ;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x559e7debc570_0, 0, 1;
+    %end;
+    .thread T_1;
+    .scope S_0x559e7ded1b50;
+T_2 ;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x559e7dee8330_0, 0, 1;
+    %end;
+    .thread T_2;
+    .scope S_0x559e7ded1b50;
+T_3 ;
+    %wait E_0x559e7deccf00;
+    %load/vec4 v0x559e7dee8d00_0;
+    %store/vec4 v0x559e7dee8610_0, 0, 4;
+    %jmp T_3;
+    .thread T_3, $push;
+    .scope S_0x559e7ded19c0;
+T_4 ;
+    %vpi_call 2 37 "$display", "starting the simulation" {0 0 0};
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x559e7dee8e20_0, 0;
+    %pushi/vec4 1, 0, 1;
+    %assign/vec4 v0x559e7dee8fa0_0, 0;
+    %wait E_0x559e7decc4b0;
+    %wait E_0x559e7decc4b0;
+    %wait E_0x559e7decc4b0;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x559e7dee8fa0_0, 0;
+    %wait E_0x559e7decc190;
+    %vpi_call 2 45 "$finish" {0 0 0};
+    %end;
+    .thread T_4;
+# The file index is used to find the file name in the following table.
+:file_names 6;
+    "N/A";
+    "<interactive>";
+    "saturn_top.v";
+    "saturn_bus.v";
+    "saturn_bus_controller.v";
+    "saturn_hp48gx_rom.v";
