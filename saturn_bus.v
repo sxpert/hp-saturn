@@ -18,6 +18,8 @@
 
  */
 
+`default_nettype none
+
 module saturn_bus (
     i_clk,
     i_reset,
@@ -38,8 +40,9 @@ output wire [0:0] o_halt;
 saturn_hp48gx_rom hp48gx_rom (
     .i_clk              (i_clk),
     .i_reset            (i_reset),
+    .i_phase            (phase),
+    .i_cycle_ctr        (cycle_ctr),
 
-    .i_bus_reset        (ctrl_bus_reset),
     .i_bus_clk_en       (ctrl_bus_clk_en),
     .i_bus_is_data      (ctrl_bus_is_data),
     .o_bus_nibble_out   (rom_bus_nibble_out),
@@ -58,8 +61,10 @@ wire [3:0] rom_bus_nibble_out;
 saturn_bus_controller bus_controller (
     .i_clk              (i_clk),
     .i_reset            (i_reset),
+    .i_phases           (phases),
+    .i_phase            (phase),
+    .i_cycle_ctr        (cycle_ctr),
 
-    .o_bus_reset        (ctrl_bus_reset),
     .o_bus_clk_en       (ctrl_bus_clk_en),
     .o_bus_is_data      (ctrl_bus_is_data),
     .o_bus_nibble_out   (ctrl_bus_nibble_out),
@@ -67,15 +72,16 @@ saturn_bus_controller bus_controller (
 
     // more ports should show up to allow for output to the serial port of debug information
 
+    .o_debug_cycle      (dbg_debug_cycle),
     .o_halt             (ctrl_halt)
 );
 
-wire [0:0] ctrl_bus_reset;
 wire [0:0] ctrl_bus_clk_en;
 wire [0:0] ctrl_bus_is_data;
 wire [3:0] ctrl_bus_nibble_out;
 reg  [3:0] ctrl_bus_nibble_in;
 
+wire [0:0] dbg_debug_cycle;
 wire [0:0] ctrl_halt;
 
 /**************************************************************************************************
@@ -85,8 +91,16 @@ wire [0:0] ctrl_halt;
  *
  *************************************************************************************************/
 
-reg bus_halt;
-initial bus_halt = 0;
+reg [0:0]  bus_halt;
+reg [3:0]  phases;
+reg [1:0]  phase;
+reg [31:0] cycle_ctr;
+
+initial begin
+    bus_halt  = 1'b0;
+    phases    = 4'b1;
+    cycle_ctr = 32'd0;
+end
 
 assign o_halt = bus_halt || ctrl_halt;
 
@@ -99,5 +113,27 @@ always @(*) begin
     ctrl_bus_nibble_in = rom_bus_nibble_out;
 end
 
+always @(*) begin
+    phase = 2'd0;
+    if (phases[1]) phase = 2'd1;
+    if (phases[2]) phase = 2'd2;
+    if (phases[3]) phase = 2'd3;
+end
+
+always @(posedge i_clk) begin
+    /* if we're not debugging, advance phase on each clock */
+    if (!dbg_debug_cycle) begin
+        phases <= {phases[2:0], phases[3]};
+        /* using phases[3] here becase it will be phase_0 on the next step, 
+         * so we get to a new cycle on the first phase...
+         */
+        cycle_ctr <= cycle_ctr + {31'b0, phases[3]};
+    end
+
+    if (i_reset) begin
+        phases    <= 4'b1;
+        cycle_ctr <= 32'd0;
+    end
+end
 
 endmodule

@@ -18,7 +18,7 @@
 
  */
 
-`default_nettype none //
+`default_nettype none
 
 `ifdef SIM
 module saturn_top;
