@@ -70,13 +70,34 @@ saturn_control_unit control_unit (
     .o_no_read         (ctrl_unit_no_read),
     .i_nibble          (i_bus_nibble_in),
 
-    .o_error           (ctrl_unit_error)
+    .o_error           (ctrl_unit_error),
+
+    /* debugger interface */
+    .o_alu_reg_dest    (dec_alu_reg_dest),
+    .o_alu_reg_src_1   (dec_alu_reg_src_1),
+    .o_alu_reg_src_2   (dec_alu_reg_src_2),
+    .o_alu_imm_value   (dec_alu_imm_value),
+    .o_alu_opcode      (dec_alu_opcode),
+
+    .o_instr_type      (dec_instr_type),
+    .o_instr_decoded   (dec_instr_decoded)
 );
 
 wire [0:0] ctrl_unit_error;
 wire [4:0] ctrl_unit_prog_addr;
 wire [4:0] ctrl_unit_prog_data;
 wire [0:0] ctrl_unit_no_read;
+
+/* debugger insterface */
+
+wire [4:0] dec_alu_reg_dest;
+wire [4:0] dec_alu_reg_src_1;
+wire [4:0] dec_alu_reg_src_2;
+wire [3:0] dec_alu_imm_value;
+wire [4:0] dec_alu_opcode;
+
+wire [3:0] dec_instr_type;
+wire [0:0] dec_instr_decoded;
 
 /**************************************************************************************************
  *
@@ -90,7 +111,18 @@ saturn_debugger debugger (
     .i_phases      (i_phases),
     .i_phase       (i_phase),
     .i_cycle_ctr   (i_cycle_ctr),
-    .o_debug_cycle (dbg_debug_cycle)
+
+    .o_debug_cycle (dbg_debug_cycle),
+
+    /* debugger interface */
+    .i_alu_reg_dest    (dec_alu_reg_dest),
+    .i_alu_reg_src_1   (dec_alu_reg_src_1),
+    .i_alu_reg_src_2   (dec_alu_reg_src_2),
+    .i_alu_imm_value   (dec_alu_imm_value),
+    .i_alu_opcode      (dec_alu_opcode),
+
+    .i_instr_type      (dec_instr_type),
+    .i_instr_decoded   (dec_instr_decoded)
 );
 
 wire [0:0] dbg_debug_cycle;
@@ -153,6 +185,7 @@ always @(posedge i_clk) begin
                     /*
                      * in this phase, we can send a command or data from the processor
                      */
+                    // $display("BUSCTRL  %0d: [%d] cycle start", i_phase, i_cycle_ctr);
                     if (more_to_write) begin
                         $write("BUSCTRL  %0d: [%d] %0d : %5b ", i_phase, i_cycle_ctr, next_bus_prog_addr, bus_program[next_bus_prog_addr]);
                         if (bus_program[next_bus_prog_addr][4]) $write("CMD  : ");

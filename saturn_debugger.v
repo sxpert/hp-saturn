@@ -27,7 +27,17 @@ module saturn_debugger (
     i_phase,
     i_cycle_ctr,
 
-    o_debug_cycle
+    o_debug_cycle,
+
+    /* interface from the control unit */
+    i_alu_reg_dest,
+    i_alu_reg_src_1,
+    i_alu_reg_src_2,
+    i_alu_imm_value,
+    i_alu_opcode,
+
+    i_instr_type,
+    i_instr_decoded
 );
 
 input  wire [0:0]  i_clk;
@@ -38,13 +48,50 @@ input  wire [31:0] i_cycle_ctr;
 
 output reg  [0:0]  o_debug_cycle;
 
+/* inteface from the control unit */
+input  wire [4:0] i_alu_reg_dest;
+input  wire [4:0] i_alu_reg_src_1;
+input  wire [4:0] i_alu_reg_src_2;
+input  wire [3:0] i_alu_imm_value;
+input  wire [4:0] i_alu_opcode;
+
+input  wire [3:0] i_instr_type;
+input  wire [0:0] i_instr_decoded;
+
+/**************************************************************************************************
+ *
+ * debugger process registers
+ *
+ *************************************************************************************************/
+
+reg [3:0] counter;
+
 initial begin
     o_debug_cycle = 1'b0;
 end
 
+/**************************************************************************************************
+ *
+ * debugger process 
+ *
+ *************************************************************************************************/
 
 always @(posedge i_clk) begin
 
+    if (i_phases[3] && i_instr_decoded) begin
+        $display("DEBUGGER %0d: [%d] start debugger cycle", i_phase, i_cycle_ctr);
+        o_debug_cycle <= 1'b1;
+        counter <= 3'b0;
+    end
+
+    if (o_debug_cycle) begin
+        $display("DEBUGGER %0d: [%d] debugger %0d", i_phase, i_cycle_ctr, counter);
+        counter <= counter + 1;
+        if (counter == 15) begin
+            $display("DEBUGGER %0d: [%d] end debugger cycle", i_phase, i_cycle_ctr);
+            o_debug_cycle <= 1'b0;
+        end
+    end
 
     if (i_reset) begin
         o_debug_cycle <= 1'b0;

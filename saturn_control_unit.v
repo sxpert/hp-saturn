@@ -21,6 +21,7 @@
 `default_nettype none
 
 `include "saturn_def_buscmd.v" 
+`include "saturn_def_alu.v"
 
 module saturn_control_unit (
     i_clk,
@@ -38,7 +39,16 @@ module saturn_control_unit (
     o_no_read,
     i_nibble,
 
-    o_error
+    o_error,
+
+    o_alu_reg_dest,
+    o_alu_reg_src_1,
+    o_alu_reg_src_2,
+    o_alu_imm_value,
+    o_alu_opcode,
+
+    o_instr_type,
+    o_instr_decoded
 );
 
 input  wire [0:0]  i_clk;
@@ -59,24 +69,86 @@ input  wire [3:0]  i_nibble;
 output wire [0:0]  o_error;
 assign o_error = control_unit_error;
 
+output wire [4:0]  o_alu_reg_dest;
+output wire [4:0]  o_alu_reg_src_1;
+output wire [4:0]  o_alu_reg_src_2;
+output wire [3:0]  o_alu_imm_value;
+output wire [4:0]  o_alu_opcode;
+
+output wire [3:0]  o_instr_type;
+output wire [0:0]  o_instr_decoded;
+
+assign o_alu_reg_dest  = dec_alu_reg_dest;
+assign o_alu_reg_src_1 = dec_alu_reg_src_1;
+assign o_alu_reg_src_2 = dec_alu_reg_src_2;
+assign o_alu_imm_value = dec_alu_imm_value;
+assign o_alu_opcode    = dec_alu_opcode;
+
+assign o_instr_type    = dec_instr_type;
+assign o_instr_decoded = dec_instr_decoded;
+
 /**************************************************************************************************
  *
- * cpu modules go here
+ * decoder module
  *
  *************************************************************************************************/
 
 saturn_inst_decoder instruction_decoder(
-    .i_clk          (i_clk),
-    .i_reset        (i_reset),
-    .i_phases       (i_phases),
-    .i_phase        (i_phase),
-    .i_cycle_ctr    (i_cycle_ctr),
-    .i_debug_cycle  (i_debug_cycle),
+    .i_clk              (i_clk),
+    .i_reset            (i_reset),
+    .i_phases           (i_phases),
+    .i_phase            (i_phase),
+    .i_cycle_ctr        (i_cycle_ctr),
+    .i_debug_cycle      (i_debug_cycle),
 
-    .i_bus_busy     (i_bus_busy),
+    .i_bus_busy         (i_bus_busy),
 
-    .i_nibble       (i_nibble)
+    .i_nibble           (i_nibble),
+
+    .o_alu_reg_dest     (dec_alu_reg_dest),
+    .o_alu_reg_src_1    (dec_alu_reg_src_1),
+    .o_alu_reg_src_2    (dec_alu_reg_src_2),
+    .o_alu_imm_value    (dec_alu_imm_value),
+    .o_alu_opcode       (dec_alu_opcode),
+
+    .o_instr_type       (dec_instr_type),
+    .o_instr_decoded    (dec_instr_decoded)
 );
+
+wire [4:0] dec_alu_reg_dest;
+wire [4:0] dec_alu_reg_src_1;
+wire [4:0] dec_alu_reg_src_2;
+wire [3:0] dec_alu_imm_value;
+wire [4:0] dec_alu_opcode;
+
+wire [3:0] dec_instr_type;
+wire [0:0] dec_instr_decoded;
+
+/*
+ * wires for decode shortcuts
+ */
+
+wire [0:0] reg_dest_p;
+wire [0:0] reg_src_1_imm;
+wire [0:0] aluop_copy;
+
+assign reg_dest_p    = (dec_alu_reg_dest == `ALU_REG_P);
+assign reg_src_1_imm = (dec_alu_reg_src_1 == `ALU_REG_IMM);
+assign aluop_copy    = (dec_alu_opcode == `ALU_OP_COPY);
+ 
+wire [0:0] inst_alu_p_eq_n;
+wire [0:0] inst_alu_other;
+
+assign inst_alu_p_eq_n   = aluop_copy && reg_dest_p && reg_src_1_imm;
+assign inst_alu_other    = !(inst_alu_p_eq_n);
+
+/**************************************************************************************************
+ *
+ * processor registers
+ *
+ *************************************************************************************************/
+
+reg [3:0] reg_P;
 
 /**************************************************************************************************
  *
@@ -90,6 +162,7 @@ reg [0:0] control_unit_ready;
 reg [4:0] bus_prog_addr;
 
 initial begin
+    /* control variables */
     o_program_address  = 5'd31;
     o_program_data     = 5'd0;
     o_no_read          = 1'b0;
@@ -97,6 +170,9 @@ initial begin
     just_reset         = 1'b1;
     control_unit_ready = 1'b0;
     bus_prog_addr      = 5'd0;
+    
+    /* registers */
+    reg_P              = 4'b0; 
 end
 
 always @(posedge i_clk) begin
@@ -168,12 +244,35 @@ always @(posedge i_clk) begin
             $display("CTRL     %0d: [%d] interpreting %h", i_phase, i_cycle_ctr, i_nibble);
         end
 
-        if (i_phases[3]) begin
-            $display("CTRL     %0d: [%d] start instruction execution", i_phase, i_cycle_ctr);
+        if (i_phases[3] && dec_instr_decoded) begin
+            case (dec_instr_type) 
+                `INSTR_TYPE_NOP: begin 
+                        $display("CTRL     %0d: [%d] NOP instruction", i_phase, i_cycle_ctr);
+                    end
+                `INSTR_TYPE_ALU: begin
+                        $display("CTRL     %0d: [%d] ALU instruction", i_phase, i_cycle_ctr);
+
+                        /*
+                         * treat special cases
+                         */
+                        if (inst_alu_p_eq_n) begin
+                            $display("CTRL     %0d: [%d] exec : P= %h", i_phase, i_cycle_ctr, dec_alu_imm_value);
+                            reg_P <= dec_alu_imm_value;
+                        end
+
+                        /*
+                         * the general case
+                         */
+                    end
+                default: begin 
+                        $display("CTRL     %0d: [%d] unsupported instruction", i_phase, i_cycle_ctr);
+                    end
+            endcase
         end
     end
 
     if (i_reset) begin
+        /* control variables */
         o_program_address  <= 5'd31;
         o_program_data     <= 5'd0;
         o_no_read          <= 1'b0;
@@ -181,6 +280,9 @@ always @(posedge i_clk) begin
         just_reset         <= 1'b1;
         control_unit_ready <= 1'b0;
         bus_prog_addr      <= 5'd0;
+    
+        /* registers */
+        reg_P              <= 4'b0; 
     end
 
 end
