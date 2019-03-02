@@ -65,6 +65,7 @@ saturn_control_unit control_unit (
     .i_debug_cycle     (dbg_debug_cycle),
     .i_bus_busy        (bus_busy),
     .o_program_address (ctrl_unit_prog_addr),
+    .i_program_address (bus_prog_addr),
     .o_program_data    (ctrl_unit_prog_data),
 
     .o_no_read         (ctrl_unit_no_read),
@@ -146,17 +147,10 @@ reg [0:0] bus_busy;
  * this is used for the control unit to send the bus controller
  * the list of things that need to be done for long sequences
  */
-reg [4:0] bus_prog_addr;
-reg [4:0] bus_program[0:31];
-reg [4:0] next_bus_prog_addr;
-reg [0:0] more_to_write;
+reg  [4:0] bus_prog_addr;
+wire [0:0] more_to_write;
 
-always @(*) begin
-    // $write("BUSCTRL0 %0d: [%d] write prog %d : %5b\n", i_phase, i_cycle_ctr, ctrl_unit_prog_addr, ctrl_unit_prog_data);
-    bus_program[ctrl_unit_prog_addr] = ctrl_unit_prog_data; 
-    next_bus_prog_addr = bus_prog_addr + 5'd1;
-    more_to_write = (bus_prog_addr != ctrl_unit_prog_addr);
-end
+assign more_to_write = (bus_prog_addr != ctrl_unit_prog_addr);
 
 /*
  * this should come from the debugger
@@ -166,7 +160,7 @@ assign o_halt = bus_error || ctrl_unit_error;
 
 initial begin
     bus_error     = 1'b0;
-    bus_prog_addr = 5'd31;
+    bus_prog_addr = 5'd0;
     bus_busy      = 1'b1;
 end
 
@@ -187,13 +181,14 @@ always @(posedge i_clk) begin
                      */
                     // $display("BUSCTRL  %0d: [%d] cycle start", i_phase, i_cycle_ctr);
                     if (more_to_write) begin
-                        $write("BUSCTRL  %0d: [%d] %0d : %5b ", i_phase, i_cycle_ctr, next_bus_prog_addr, bus_program[next_bus_prog_addr]);
-                        if (bus_program[next_bus_prog_addr][4]) $write("CMD  : ");
+                        $write("BUSCTRL  %0d: [%d] %0d|%0d : %5b ", i_phase, i_cycle_ctr, 
+                               bus_prog_addr, ctrl_unit_prog_addr, ctrl_unit_prog_data);
+                        if (ctrl_unit_prog_data[4]) $write("CMD  : ");
                         else $write("DATA : ");
-                        $write("%h\n", bus_program[next_bus_prog_addr][3:0]);
-                        bus_prog_addr <= next_bus_prog_addr;
-                        o_bus_is_data <= !bus_program[next_bus_prog_addr][4];
-                        o_bus_nibble_out <= bus_program[next_bus_prog_addr][3:0];
+                        $write("%h\n", ctrl_unit_prog_data[3:0]);
+                        bus_prog_addr <= bus_prog_addr + 5'b1;
+                        o_bus_is_data <= !ctrl_unit_prog_data[4];
+                        o_bus_nibble_out <= ctrl_unit_prog_data[3:0];
                         o_bus_clk_en <= 1'b1;
                         bus_busy <= 1'b1;
                     end 
@@ -237,7 +232,7 @@ always @(posedge i_clk) begin
 
     if (i_reset) begin
         bus_error     <= 1'b0;
-        bus_prog_addr <= 5'd31;
+        bus_prog_addr <= 5'd0;
         bus_busy      <= 1'b1;
     end
 end

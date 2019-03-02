@@ -22,6 +22,26 @@
 
 `ifdef SIM
 module saturn_top;
+`else
+module saturn_top (
+	clk_25mhz,
+	btn,
+	led
+);
+
+input  wire [0:0] clk_25mhz;
+input  wire [6:0] btn;
+output reg  [7:0] led;
+
+wire [0:0] clk;
+wire [0:0] reset;
+wire [0:0] halt;
+
+assign clk    = clk_25mhz;
+assign reset  = btn[0]; 
+assign led[0] = halt;
+
+`endif
 
 saturn_bus main_bus (
     .i_clk   (clk),
@@ -29,6 +49,8 @@ saturn_bus main_bus (
     .o_halt  (halt)
 );
 
+
+`ifdef SIM
 reg	 [0:0] clk;
 reg	 [0:0] reset;
 wire [0:0] halt;
@@ -49,6 +71,7 @@ end
 
 always 
     #10 clk = (clk === 1'b0);
+`endif
+
 
 endmodule
-`endif

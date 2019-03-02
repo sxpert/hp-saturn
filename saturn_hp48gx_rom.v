@@ -50,8 +50,8 @@ input  wire [0:0] i_bus_is_data;
 output reg  [3:0] o_bus_nibble_out;
 input  wire [3:0] i_bus_nibble_in;
 
-reg  [3:0]  rom_data[0:2**`ROMBITS-1];
-initial $readmemh("rom-gx-r.hex", rom_data, 0, 2**`ROMBITS-1);
+reg  [3:0]  rom_data[0:2**(`ROMBITS-1)];
+initial $readmemh("rom-gx-r.hex", rom_data, 0, 2**(`ROMBITS-1));
 
 reg  [3:0]  last_cmd;
 reg  [2:0]  addr_pos_ctr;

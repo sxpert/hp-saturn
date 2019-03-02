@@ -35,6 +35,7 @@ module saturn_control_unit (
 
     o_program_data,
     o_program_address,
+    i_program_address,
 
     o_no_read,
     i_nibble,
@@ -60,8 +61,9 @@ input  wire [0:0]  i_debug_cycle;
 
 input  wire [0:0]  i_bus_busy;
 
-output reg  [4:0]  o_program_data;
-output reg  [4:0]  o_program_address;
+output wire [4:0]  o_program_data;
+output wire [4:0]  o_program_address;
+input  wire [4:0]  i_program_address;
 
 output reg  [0:0]  o_no_read;
 input  wire [3:0]  i_nibble;
@@ -159,12 +161,14 @@ reg [3:0] reg_P;
 reg [0:0] control_unit_error;
 reg [0:0] just_reset;
 reg [0:0] control_unit_ready;
+reg [4:0] bus_program[0:31];
 reg [4:0] bus_prog_addr;
+
+assign o_program_data = bus_program[i_program_address];
+assign o_program_address = bus_prog_addr;
 
 initial begin
     /* control variables */
-    o_program_address  = 5'd31;
-    o_program_data     = 5'd0;
     o_no_read          = 1'b0;
     control_unit_error = 1'b0;
     just_reset         = 1'b1;
@@ -190,15 +194,11 @@ always @(posedge i_clk) begin
         if (!i_reset)
             $display("CTRL     %0d: [%d] we are in the control unit", i_phase, i_cycle_ctr);
 `endif
-        just_reset        <= 1'b0;
-        o_program_data    <= {1'b1, `BUSCMD_LOAD_PC };
+        just_reset                 <= 1'b0;
+        bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
 `ifdef SIM
         $display("CTRL     %0d: [%d] pushing LOAD_PC command to pos %d", i_phase, i_cycle_ctr, bus_prog_addr);
 `endif
-        /* push the current program pointer out,  
-         * increment the program pointer 
-         */
-        o_program_address <= bus_prog_addr;
         bus_prog_addr     <= bus_prog_addr + 1;
     end 
 
@@ -207,11 +207,10 @@ always @(posedge i_clk) begin
         /* 
          * this should load the actual PC values...
          */
-        o_program_data    <= 5'b0;
-        o_program_address <= bus_prog_addr;
+        bus_program[bus_prog_addr] <= 5'b0;
         bus_prog_addr     <= bus_prog_addr + 1;
 `ifdef SIM
-        $write("CTRL     %0d: [%d] pushing ADDR[%0d] = 0", i_phase, i_cycle_ctr, bus_prog_addr);
+        $write("CTRL     %0d: [%d] pushing ADDR[%0d] = %h", i_phase, i_cycle_ctr, bus_prog_addr, 0);
 `endif
         if (bus_prog_addr == 5'd5) begin
             control_unit_ready <= 1'b1;
@@ -273,8 +272,6 @@ always @(posedge i_clk) begin
 
     if (i_reset) begin
         /* control variables */
-        o_program_address  <= 5'd31;
-        o_program_data     <= 5'd0;
         o_no_read          <= 1'b0;
         control_unit_error <= 1'b0;
         just_reset         <= 1'b1;
