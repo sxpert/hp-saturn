@@ -34,16 +34,16 @@ reg	 [0:0] reset;
 wire [0:0] halt;
 
 initial begin
-	$display("TOP      : starting the simulation");
+	$display("TOP       : starting the simulation");
 	clk = 0;
 	reset = 1;
 	@(posedge clk);
 	@(posedge clk);
 	@(posedge clk);
 	reset = 0;
-    $display("TOP      : reset done, waiting for instructions");
+    $display("TOP       : reset done, waiting for instructions");
 	@(posedge halt);
-    $display("TOP      : instructed to stop, halt is %b", halt);
+    $display("TOP       : instructed to stop, halt is %b", halt);
 	$finish;
 end
 

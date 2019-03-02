@@ -68,7 +68,7 @@ saturn_control_unit control_unit (
     .o_program_data    (ctrl_unit_prog_data),
 
     .o_no_read         (ctrl_unit_no_read),
-    .i_nibble          (nibble_in),
+    .i_nibble          (i_bus_nibble_in),
 
     .o_error           (ctrl_unit_error)
 );
@@ -108,7 +108,6 @@ assign o_debug_cycle = dbg_debug_cycle;
 
 reg [0:0] bus_error;
 reg [0:0] bus_busy;
-reg [3:0] nibble_in;
 
 /* 
  * program list for the bus controller
@@ -118,11 +117,13 @@ reg [3:0] nibble_in;
 reg [4:0] bus_prog_addr;
 reg [4:0] bus_program[0:31];
 reg [4:0] next_bus_prog_addr;
+reg [0:0] more_to_write;
 
 always @(*) begin
     // $write("BUSCTRL0 %0d: [%d] write prog %d : %5b\n", i_phase, i_cycle_ctr, ctrl_unit_prog_addr, ctrl_unit_prog_data);
     bus_program[ctrl_unit_prog_addr] = ctrl_unit_prog_data; 
     next_bus_prog_addr = bus_prog_addr + 5'd1;
+    more_to_write = (bus_prog_addr != ctrl_unit_prog_addr);
 end
 
 /*
@@ -152,8 +153,8 @@ always @(posedge i_clk) begin
                     /*
                      * in this phase, we can send a command or data from the processor
                      */
-                    if (bus_prog_addr != ctrl_unit_prog_addr) begin
-                        $write("BUSCTRL  %0d: [%d] %d : %5b ", i_phase, i_cycle_ctr, next_bus_prog_addr, bus_program[next_bus_prog_addr]);
+                    if (more_to_write) begin
+                        $write("BUSCTRL  %0d: [%d] %0d : %5b ", i_phase, i_cycle_ctr, next_bus_prog_addr, bus_program[next_bus_prog_addr]);
                         if (bus_program[next_bus_prog_addr][4]) $write("CMD  : ");
                         else $write("DATA : ");
                         $write("%h\n", bus_program[next_bus_prog_addr][3:0]);
@@ -162,11 +163,13 @@ always @(posedge i_clk) begin
                         o_bus_nibble_out <= bus_program[next_bus_prog_addr][3:0];
                         o_bus_clk_en <= 1'b1;
                         bus_busy <= 1'b1;
-                    end else begin
-                        if (!ctrl_unit_no_read) begin
-                            $display("BUSCTRL  %0d: [%d] setting up read", i_phase, i_cycle_ctr);
-                            o_bus_clk_en <= 1'b1;
-                        end
+                    end 
+                    /*
+                     * nothing to send, see if we can read, and do it
+                     */
+                    if (!more_to_write && !ctrl_unit_no_read) begin
+                        // $display("BUSCTRL  %0d: [%d] setting up read", i_phase, i_cycle_ctr);
+                        o_bus_clk_en <= 1'b1;
                     end
                 end
             4'b0010:
@@ -175,12 +178,8 @@ always @(posedge i_clk) begin
                      * this phase is reserved for reading data from the bus
                      */
                     if (o_bus_clk_en) begin
-                        $display("BUSCTRL  %0d: [%d] lowering bus clock_en", i_phase, i_cycle_ctr);
+                        // $display("BUSCTRL  %0d: [%d] lowering bus clock_en", i_phase, i_cycle_ctr);
                         o_bus_clk_en <= 1'b0;
-                        if (!ctrl_unit_no_read) begin
-                            $display("BUSCTRL  %0d: [%d] read %h", i_phase, i_cycle_ctr, i_bus_nibble_in);
-                            nibble_in <= i_bus_nibble_in;
-                        end
                     end
                 end
             4'b0100:
@@ -188,7 +187,7 @@ always @(posedge i_clk) begin
                     /*
                      * this phase is when the instruction decoder does it's job
                      */
-                    if ((bus_prog_addr == ctrl_unit_prog_addr) && bus_busy) begin
+                    if (!more_to_write && bus_busy) begin
                         $display("BUSCTRL  %0d: [%d] done sending the entire program", i_phase, i_cycle_ctr);
                         bus_busy <= 1'b0;
                     end

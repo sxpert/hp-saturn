@@ -89,6 +89,13 @@ end
 
 always @(posedge i_clk) begin
 
+    /************************
+     *
+     * we're just starting, load the PC into the controller and modules
+     * this could also be used when loading the PC on jumps, need to identify conditions
+     *
+     */
+
     if (!i_debug_cycle && just_reset && i_phases[3]) begin
         /* this happend right after reset */
 `ifdef SIM
@@ -109,6 +116,9 @@ always @(posedge i_clk) begin
 
     /* loop to fill the initial PC value in the program */
     if (!i_debug_cycle && !control_unit_ready && (bus_prog_addr != 5'b0)) begin
+        /* 
+         * this should load the actual PC values...
+         */
         o_program_data    <= 5'b0;
         o_program_address <= bus_prog_addr;
         bus_prog_addr     <= bus_prog_addr + 1;
@@ -125,8 +135,13 @@ always @(posedge i_clk) begin
         $write("\n");
 `endif
     end
-    
-    /* this happend otherwise */
+
+    /************************
+     *
+     * main execution loop
+     *
+     */
+
     if (!i_debug_cycle && control_unit_ready && !i_bus_busy) begin
         
 // `ifdef SIM
@@ -139,6 +154,10 @@ always @(posedge i_clk) begin
 
         if (i_phases[2]) begin
             $display("CTRL     %0d: [%d] interpreting %h", i_phase, i_cycle_ctr, i_nibble);
+        end
+
+        if (i_phases[3]) begin
+            $display("CTRL     %0d: [%d] start instruction execution", i_phase, i_cycle_ctr);
         end
     end
 
