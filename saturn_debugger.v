@@ -103,7 +103,7 @@ always @(posedge i_clk) begin
 
     /*
      * generates the registers string
-     * 01234567890123456789012345678901234567890123456789012345678  60 * 8
+     *
      * PC: xxxxx             Carry: x h: @E@ rp: x   RSTK7: xxxxx         
      * P:  x  HST: bbbb      ST:  bbbbbbbbbbbbbbbb   RSTK6: xxxxx
      * A:  xxxxxxxxxxxxxxxx  R0:  xxxxxxxxxxxxxxxx   RSTK5: xxxxx
