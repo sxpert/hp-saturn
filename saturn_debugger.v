@@ -20,35 +20,37 @@
 
 `default_nettype none
 
-`ifdef SIM
-module saturn_top;
+module saturn_debugger (
+    i_clk,
+    i_reset,
+    i_phases,
+    i_phase,
+    i_cycle_ctr,
 
-saturn_bus main_bus (
-    .i_clk   (clk),
-    .i_reset (reset),
-    .o_halt  (halt)
+    o_debug_cycle
 );
 
-reg	 [0:0] clk;
-reg	 [0:0] reset;
-wire [0:0] halt;
+input  wire [0:0]  i_clk;
+input  wire [0:0]  i_reset;
+input  wire [3:0]  i_phases;
+input  wire [1:0]  i_phase;
+input  wire [31:0] i_cycle_ctr;
+
+output reg  [0:0]  o_debug_cycle;
 
 initial begin
-	$display("TOP      : starting the simulation");
-	clk = 0;
-	reset = 1;
-	@(posedge clk);
-	@(posedge clk);
-	@(posedge clk);
-	reset = 0;
-    $display("TOP      : reset done, waiting for instructions");
-	@(posedge halt);
-    $display("TOP      : instructed to stop, halt is %b", halt);
-	$finish;
+    o_debug_cycle = 1'b0;
 end
 
-always 
-    #10 clk = (clk === 1'b0);
+
+always @(posedge i_clk) begin
+
+
+    if (i_reset) begin
+        o_debug_cycle <= 1'b0;
+    end
+
+end
 
 endmodule
-`endif
+
