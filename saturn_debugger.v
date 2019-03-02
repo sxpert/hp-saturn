@@ -20,6 +20,8 @@
 
 `default_nettype none
 
+`include "saturn_def_debugger.v"
+
 module saturn_debugger (
     i_clk,
     i_reset,
@@ -64,10 +66,24 @@ input  wire [0:0] i_instr_decoded;
  *
  *************************************************************************************************/
 
-reg [3:0] counter;
+reg  [9:0] counter;
+wire [0:0] debug_done;
+
+assign debug_done = registers_done;
+
+reg  [8:0] registers_ctr;
+reg  [7:0] registers_str[0:511];
+reg  [4:0] registers_state;
+reg  [4:0] registers_reg_ptr;
+reg  [0:0] registers_done;
 
 initial begin
-    o_debug_cycle = 1'b0;
+    o_debug_cycle     = 1'b0;
+    counter           = 4'b0;
+    registers_ctr     = 10'd0;
+    registers_state   = `DBG_REG_PC_STR;
+    registers_reg_ptr = 5'b0;
+    registers_done    = 1'b0;
 end
 
 /**************************************************************************************************
@@ -80,21 +96,67 @@ always @(posedge i_clk) begin
 
     if (i_phases[3] && i_instr_decoded) begin
         $display("DEBUGGER %0d: [%d] start debugger cycle", i_phase, i_cycle_ctr);
-        o_debug_cycle <= 1'b1;
-        counter <= 3'b0;
+        o_debug_cycle   <= 1'b1;
+        registers_ctr   <= 10'b0;
+        registers_state <= `DBG_REG_PC_STR;
     end
 
-    if (o_debug_cycle) begin
-        $display("DEBUGGER %0d: [%d] debugger %0d", i_phase, i_cycle_ctr, counter);
-        counter <= counter + 1;
-        if (counter == 15) begin
-            $display("DEBUGGER %0d: [%d] end debugger cycle", i_phase, i_cycle_ctr);
-            o_debug_cycle <= 1'b0;
-        end
+    /*
+     * generates the registers string
+     * 01234567890123456789012345678901234567890123456789012345678  60 * 8
+     * PC: xxxxx             Carry: x h: @E@ rp: x   RSTK7: xxxxx         
+     * P:  x  HST: bbbb      ST:  bbbbbbbbbbbbbbbb   RSTK6: xxxxx
+     * A:  xxxxxxxxxxxxxxxx  R0:  xxxxxxxxxxxxxxxx   RSTK5: xxxxx
+     * B:  xxxxxxxxxxxxxxxx  R1:  xxxxxxxxxxxxxxxx   RSTK4: xxxxx
+     * C:  xxxxxxxxxxxxxxxx  R2:  xxxxxxxxxxxxxxxx   RSTK3: xxxxx
+     * D:  xxxxxxxxxxxxxxxx  R3:  xxxxxxxxxxxxxxxx   RSTK2: xxxxx
+     * D0: xxxxx  D1: xxxxx  R4:  xxxxxxxxxxxxxxxx   RSTK1: xxxxx
+     *          ADDR: xxxxx                          RSTK0: xxxxx
+     *
+     */
+    if (o_debug_cycle && !debug_done) begin
+        // $display("DEBUGGER %0d: [%d] debugger %0d", i_phase, i_cycle_ctr, registers_ctr);
+        case (registers_state)
+            `DBG_REG_PC_STR: 
+                case (registers_reg_ptr)
+                    5'd0: begin; registers_str[registers_ctr] <= "P"; registers_reg_ptr <= registers_reg_ptr + 5'd1; end
+                    5'd1: begin; registers_str[registers_ctr] <= "C"; registers_reg_ptr <= registers_reg_ptr + 5'd1; end
+                    5'd2: begin; registers_str[registers_ctr] <= ":"; registers_reg_ptr <= registers_reg_ptr + 5'd1; end
+                    5'd3: begin; registers_str[registers_ctr] <= " "; registers_reg_ptr <= 5'b0; registers_state <= `DBG_REG_PC_VALUE; end
+                endcase
+            `DBG_REG_PC_VALUE:
+                begin
+                    registers_state <= `DBG_REG_END;
+                end
+            `DBG_REG_END: begin end
+            default: begin $display("ERROR, unknown register state %0d", registers_state); end
+        endcase
+        if (registers_state == `DBG_REG_END)
+            registers_done <= 1'b1;
+        else
+            registers_ctr <= registers_ctr + 9'd1;
+    end
+
+    if (o_debug_cycle && debug_done) begin
+        $display("DEBUGGER %0d: [%d] end debugger cycle", i_phase, i_cycle_ctr);
+`ifdef SIM
+        $display("%0d chars", registers_ctr);
+        for (counter = 0; counter != registers_ctr; counter = counter + 1)
+            $write("%c", registers_str[counter]);
+        $write("$");
+        $display("");
+`endif
+        registers_done <= 1'b0;
+        o_debug_cycle  <= 1'b0;
     end
 
     if (i_reset) begin
-        o_debug_cycle <= 1'b0;
+        o_debug_cycle     <= 1'b0;
+        counter           <= 4'b0;
+        registers_ctr     <= 10'd0;
+        registers_state   <= `DBG_REG_PC_STR;
+        registers_reg_ptr <= 5'b0;
+        registers_done    <= 1'b0;
     end
 
 end

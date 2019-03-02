@@ -41,7 +41,8 @@ module saturn_inst_decoder (
     o_alu_opcode,
 
     o_instr_type,
-    o_instr_decoded
+    o_instr_decoded,
+    o_dbg_inst_addr
 );
 
 input  wire [0:0]  i_clk;
@@ -63,6 +64,7 @@ output reg  [4:0]  o_alu_opcode;
 
 output reg  [3:0]  o_instr_type;
 output reg  [0:0]  o_instr_decoded;
+output reg  [19:0] o_dbg_inst_addr;
 
 /**************************************************************************************************
  *
@@ -102,7 +104,9 @@ initial begin
     o_alu_imm_value = 4'b0;
     o_alu_opcode    = `ALU_OP_NOP;
 
+    o_instr_type    = 4'd15;
     o_instr_decoded = 1'b0;
+    o_dbg_inst_addr = 20'b0;
 
     decode_started  = 1'b0;
 
@@ -126,7 +130,7 @@ always @(posedge i_clk) begin
  
         if (i_phases[2] && !decode_started) begin
             $display("DECODER  %0d: [%d] start instruction decoding %h", i_phase, i_cycle_ctr, i_nibble);
-
+            
             decode_started <= 1'b1;
             case (i_nibble)
                 4'h2: block_2x <= 1'b1;
@@ -167,7 +171,9 @@ always @(posedge i_clk) begin
         o_alu_imm_value <= 4'b0;
         o_alu_opcode    <= `ALU_OP_NOP;
 
+        o_instr_type    <= 4'd15;
         o_instr_decoded <= 1'b0;
+        o_dbg_inst_addr <= 20'b0;
 
         decode_started  <= 1'b0;
 

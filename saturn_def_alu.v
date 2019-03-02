@@ -99,4 +99,6 @@
 `define INSTR_TYPE_NOP   0
 `define INSTR_TYPE_ALU   1
 
+`define INSTR_TYPE_NONE 15
+
 `endif
