@@ -135,7 +135,7 @@ assign o_halt = bus_error || ctrl_unit_error;
 initial begin
     bus_error     = 1'b0;
     bus_prog_addr = 5'd31;
-    bus_busy      = 1'b0;
+    bus_busy      = 1'b1;
 end
 
 /*
@@ -205,7 +205,7 @@ always @(posedge i_clk) begin
     if (i_reset) begin
         bus_error     <= 1'b0;
         bus_prog_addr <= 5'd31;
-        bus_busy      <= 1'b0;
+        bus_busy      <= 1'b1;
     end
 end
 

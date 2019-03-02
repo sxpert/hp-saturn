@@ -65,6 +65,18 @@ assign o_error = control_unit_error;
  *
  *************************************************************************************************/
 
+saturn_inst_decoder instruction_decoder(
+    .i_clk          (i_clk),
+    .i_reset        (i_reset),
+    .i_phases       (i_phases),
+    .i_phase        (i_phase),
+    .i_cycle_ctr    (i_cycle_ctr),
+    .i_debug_cycle  (i_debug_cycle),
+
+    .i_bus_busy     (i_bus_busy),
+
+    .i_nibble       (i_nibble)
+);
 
 /**************************************************************************************************
  *
