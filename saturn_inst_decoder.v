@@ -44,6 +44,8 @@ module saturn_inst_decoder (
     o_alu_imm_value,
     o_alu_opcode,
 
+    o_jump_length,
+
     o_instr_type,
     o_instr_decoded,
     o_instr_execute,
@@ -72,6 +74,8 @@ output reg  [4:0]  o_alu_reg_src_1;
 output reg  [4:0]  o_alu_reg_src_2;
 output reg  [3:0]  o_alu_imm_value;
 output reg  [4:0]  o_alu_opcode;
+
+output reg  [2:0]  o_jump_length;
 
 output reg  [3:0]  o_instr_type;
 /* instruction is fully decoded */
@@ -112,6 +116,12 @@ reg [0:0] decode_started;
  */
 
 reg [0:0] block_2x;
+reg [0:0] block_6x;
+
+/*
+ * temporary variables
+ */
+reg [2:0] jump_counter;
 
 /*
  * initialization
@@ -136,6 +146,10 @@ initial begin
     decode_started  = 1'b0;
 
     block_2x        = 1'b0;
+    block_6x        = 1'b0;
+
+    /* local variables */
+    jump_counter    = 3'd0;
 end
 
 /****************************
@@ -161,7 +175,9 @@ always @(posedge i_clk) begin
  
         if (i_phases[1] && !decode_started) begin
             // $display("DECODER  %0d: [%d] store current PC as instruction start %5h", i_phase, i_cycle_ctr, i_current_pc);
-            o_instr_pc <= i_current_pc;
+            o_instr_pc   <= i_current_pc;
+            /* set the instruction to NOP, to avoid any stray processes */
+            o_instr_type <= `INSTR_TYPE_NOP;
         end
 
         if (i_phases[2] && !decode_started) begin
@@ -170,6 +186,15 @@ always @(posedge i_clk) begin
             decode_started <= 1'b1;
             case (i_nibble)
                 4'h2: block_2x <= 1'b1;
+                4'h6: 
+                    begin
+                        o_instr_type    <= `INSTR_TYPE_JUMP;
+                        o_jump_length   <= 3'd2;
+                        jump_counter    <= 3'd0;
+                        o_instr_execute <= 1'b1;
+                        block_6x        <= 1'b1;
+                    end
+                default: o_instr_type <= `INSTR_TYPE_NOP;
             endcase
         end
 
@@ -188,6 +213,16 @@ always @(posedge i_clk) begin
                 o_instr_execute <= 1'b1;
                 block_2x        <= 1'b0;
                 decode_started  <= 1'b0;
+            end
+
+            if (block_6x) begin
+                // $display("DECODER  %0d: [%d] GOTO %h", i_phase, i_cycle_ctr, i_nibble);
+                jump_counter <= jump_counter + 3'd1;
+                if (jump_counter == o_jump_length) begin
+                    block_6x        <= 1'b0;
+                    o_instr_decoded <= 1'b1;
+                    decode_started  <= 1'b0;
+                end
             end
 
         end
@@ -221,6 +256,10 @@ always @(posedge i_clk) begin
         decode_started  <= 1'b0;
 
         block_2x        <= 1'b0;
+        block_6x        <= 1'b0;
+
+        /* local variables */
+        jump_counter    = 3'd0;
     end
 
 end

@@ -31,6 +31,8 @@ module saturn_regs_pc_rstk (
     i_bus_busy,
 
     i_nibble,
+    i_jump_instr,
+    i_jump_length,
 
     o_current_pc
 
@@ -46,6 +48,8 @@ input  wire [31:0] i_cycle_ctr;
 input  wire [0:0]  i_bus_busy;
 
 input  wire [3:0]  i_nibble;
+input  wire [0:0]  i_jump_instr;
+input  wire [2:0]  i_jump_length;
 
 output wire [19:0] o_current_pc;
 
@@ -55,19 +59,27 @@ output wire [19:0] o_current_pc;
  *
  *************************************************************************************************/
 
+wire [0:0]  do_jump_instr = !just_reset && i_jump_instr;
+
 /*
  * local variables
  */
 
 reg  [0:0]  just_reset;
+reg  [0:0]  jump_decode;
+reg  [0:0]  jump_exec;
+reg  [2:0]  jump_counter;
 
 reg  [19:0] PC;
 
 assign o_current_pc = PC;
 
 initial begin
-    just_reset  = 1'b1;
-    PC          = 20'h00000;
+    just_reset   = 1'b1;
+    jump_decode  = 1'b0;
+    jump_exec    = 1'b0;
+    jump_counter = 3'd0;
+    PC           = 20'h00000;
 end
 
 /*
@@ -95,11 +107,35 @@ always @(posedge i_clk) begin
             $display("PC_RSTK  %0d: [%d] inc_pc %5h => %5h", i_phase, i_cycle_ctr, PC, PC + 20'h00001);
             PC <= PC + 20'h00001;
         end
+
+        if (i_phases[2] && do_jump_instr && jump_decode) begin
+            $display("PC_RSTK  %0d: [%d] decode jump %0d - %0d %h", i_phase, i_cycle_ctr, i_jump_length, jump_counter, i_nibble);
+            jump_counter <= jump_counter + 3'd1;
+            if (jump_counter == i_jump_length) begin
+                jump_decode <= 1'b0;
+                jump_exec   <= 1'b1;
+            end
+        end
+
+        if (i_phases[3] && do_jump_instr && !jump_decode && !jump_exec) begin
+            $display("PC_RSTK  %0d: [%d] start decode jump %0d ", i_phase, i_cycle_ctr, i_jump_length);
+            jump_counter <= 3'd0;
+            jump_decode  <= 1'b1;
+        end
+
+        if (i_phases[3] && do_jump_instr && jump_exec) begin
+            $display("PC_RSTK  %0d: [%d] execute jump %0d ", i_phase, i_cycle_ctr, i_jump_length);
+            jump_exec <= 1'b0;
+        end
+
     end
 
     if (i_reset) begin
-        just_reset  <= 1'b1;
-        PC          <= 20'h00000;
+        just_reset   <= 1'b1;
+        jump_decode  <= 1'b0;
+        jump_exec    <= 1'b0;
+        jump_counter <= 3'd0;
+        PC           <= 20'h00000;
     end
 end
 

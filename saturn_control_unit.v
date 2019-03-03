@@ -125,6 +125,8 @@ saturn_inst_decoder instruction_decoder(
     .o_alu_imm_value    (dec_alu_imm_value),
     .o_alu_opcode       (dec_alu_opcode),
 
+    .o_jump_length      (dec_jump_length),
+
     .o_instr_type       (dec_instr_type),
     .o_instr_decoded    (dec_instr_decoded),
     .o_instr_execute    (dec_instr_execute)
@@ -135,6 +137,8 @@ wire [4:0] dec_alu_reg_src_1;
 wire [4:0] dec_alu_reg_src_2;
 wire [3:0] dec_alu_imm_value;
 wire [4:0] dec_alu_opcode;
+
+wire [2:0] dec_jump_length;
 
 wire [3:0] dec_instr_type;
 wire [0:0] dec_instr_decoded;
@@ -150,6 +154,8 @@ wire [0:0] aluop_copy    = (dec_alu_opcode == `ALU_OP_COPY);
 
 wire [0:0] inst_alu_p_eq_n = aluop_copy && reg_dest_p && reg_src_1_imm;
 wire [0:0] inst_alu_other  = !(inst_alu_p_eq_n);
+
+wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
 
 /**************************************************************************************************
  *
@@ -174,7 +180,9 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_bus_busy         (i_bus_busy),
 
     .i_nibble           (i_nibble),
-
+    .i_jump_instr       (inst_jump),
+    .i_jump_length      (dec_jump_length),
+    
     .o_current_pc       (reg_PC)
 );
 
@@ -200,6 +208,8 @@ reg  [4:0] bus_program[0:31];
 reg  [4:0] bus_prog_addr;
 reg  [2:0] addr_nibble_ptr;
 
+reg  [2:0] jump_counter;
+
 wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
 
 assign o_program_data = bus_program[i_program_address];
@@ -213,6 +223,8 @@ initial begin
     control_unit_ready = 1'b0;
     bus_prog_addr      = 5'd0;
     addr_nibble_ptr    = 3'd0;
+
+    jump_counter       = 3'd0;
     
     /* registers */
     reg_P              = 4'b0; 
@@ -278,7 +290,7 @@ always @(posedge i_clk) begin
 // `ifdef SIM
         // $display("CTRL     %0d: [%d] starting to do things", i_phase, i_cycle_ctr);
 // `endif
-        if (i_cycle_ctr == 10) begin
+        if (i_cycle_ctr == 15) begin
             control_unit_error <= 1'b1;
             $display("CTRL     %0d: [%d] enough cycles for now", i_phase, i_cycle_ctr);
         end
@@ -307,10 +319,21 @@ always @(posedge i_clk) begin
                          * the general case
                          */
                     end
+                `INSTR_TYPE_JUMP: begin
+                        $display("CTRL     %0d: [%d] JUMP instruction", i_phase, i_cycle_ctr);
+                        jump_counter <= 1'b0;
+                    end
                 default: begin 
                         $display("CTRL     %0d: [%d] unsupported instruction", i_phase, i_cycle_ctr);
                     end
             endcase
+        end
+
+        if (i_phases[2] && ! dec_instr_execute) begin
+            if (inst_jump) begin
+                // $display("CTRL     %0d: [%d] JUMP nibble %0d : %h", i_phase, i_cycle_ctr, jump_counter, i_nibble);
+                jump_counter <= jump_counter + 3'd1;
+            end
         end
     end
 
@@ -323,6 +346,8 @@ always @(posedge i_clk) begin
         bus_prog_addr      <= 5'd0;
         addr_nibble_ptr    <= 3'd0;
     
+        jump_counter       <= 3'd0;
+
         /* registers */
         reg_P              <= 4'b0; 
     end
