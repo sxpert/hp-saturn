@@ -31,17 +31,16 @@ module saturn_top (
 
 input  wire [0:0] clk_25mhz;
 input  wire [6:0] btn;
-output reg  [7:0] led;
+`endif
 
 `ifdef SIM
-wire [0:0] clk;
-`endif
+wire [7:0]  led;
+`else
+output wire [7:0] led;
 wire [0:0] reset;
 wire [0:0] halt;
 
 assign reset  = btn[0]; 
-assign led[0] = halt;
-
 `endif
 
 saturn_bus main_bus (
@@ -51,7 +50,8 @@ saturn_bus main_bus (
     .i_clk   (clk_25mhz),
 `endif
     .i_reset (reset),
-    .o_halt  (halt)
+    .o_halt  (halt),
+    .o_char_to_send (led)
 );
 
 

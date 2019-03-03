@@ -283,9 +283,9 @@ always @(posedge i_clk) begin
             $display("CTRL     %0d: [%d] enough cycles for now", i_phase, i_cycle_ctr);
         end
 
-        if (i_phases[2]) begin
-            $display("CTRL     %0d: [%d] interpreting %h", i_phase, i_cycle_ctr, i_nibble);
-        end
+        // if (i_phases[2]) begin
+        //     $display("CTRL     %0d: [%d] interpreting %h", i_phase, i_cycle_ctr, i_nibble);
+        // end
 
         if (i_phases[3] && dec_instr_execute) begin
             case (dec_instr_type) 

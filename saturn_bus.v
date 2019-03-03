@@ -23,12 +23,14 @@
 module saturn_bus (
     i_clk,
     i_reset,
-    o_halt
+    o_halt,
+    o_char_to_send
 );
 
 input  wire [0:0] i_clk;
 input  wire [0:0] i_reset;
 output wire [0:0] o_halt;
+output wire [7:0] o_char_to_send;
 
 /**************************************************************************************************
  *
@@ -73,6 +75,7 @@ saturn_bus_controller bus_controller (
     // more ports should show up to allow for output to the serial port of debug information
 
     .o_debug_cycle      (dbg_debug_cycle),
+    .o_char_to_send     (o_char_to_send),
     .o_halt             (ctrl_halt)
 );
 

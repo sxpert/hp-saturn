@@ -41,7 +41,10 @@ module saturn_debugger (
     i_alu_opcode,
 
     i_instr_type,
-    i_instr_decoded
+    i_instr_decoded,
+
+    /* output to leds */
+    o_char_to_send
 );
 
 input  wire [0:0]  i_clk;
@@ -64,13 +67,17 @@ input  wire [4:0]  i_alu_opcode;
 input  wire [3:0]  i_instr_type;
 input  wire [0:0]  i_instr_decoded;
 
+output reg  [7:0]  o_char_to_send;
+
 /**************************************************************************************************
  *
  * debugger process registers
  *
  *************************************************************************************************/
 
-reg  [9:0] counter;
+reg  [8:0] counter;
+reg  [0:0] write_out;
+
 wire [0:0] debug_done;
 
 assign debug_done = registers_done;
@@ -87,7 +94,8 @@ reg  [0:0]  carry;
 
 initial begin
     o_debug_cycle     = 1'b0;
-    counter           = 4'b0;
+    counter           = 9'd0;
+    write_out         = 1'b0;
     hex[0]            = "0";
     hex[1]            = "1";
     hex[2]            = "2";
@@ -104,7 +112,7 @@ initial begin
     hex[13]           = "D";
     hex[14]           = "E";
     hex[15]           = "F";
-    registers_ctr     = 10'd0;
+    registers_ctr     = 9'd0;
     registers_state   = `DBG_REG_PC_STR;
     registers_reg_ptr = 5'b0;
     registers_done    = 1'b0;
@@ -122,7 +130,8 @@ always @(posedge i_clk) begin
     if (i_phases[3] && i_instr_decoded) begin
         $display("DEBUGGER %0d: [%d] start debugger cycle", i_phase, i_cycle_ctr);
         o_debug_cycle   <= 1'b1;
-        registers_ctr   <= 10'b0;
+        counter         <= 9'd0;
+        registers_ctr   <= 9'd0;
         registers_state <= `DBG_REG_PC_STR;
     end
 
@@ -203,26 +212,36 @@ always @(posedge i_clk) begin
             registers_ctr <= registers_ctr + 9'd1;
     end
 
-    if (o_debug_cycle && debug_done) begin
+    if (o_debug_cycle && debug_done && !write_out) begin
         $display("DEBUGGER %0d: [%d] end debugger cycle", i_phase, i_cycle_ctr);
+        write_out <= 1'b1;
+    end
+
+    if (write_out) begin
+        o_char_to_send <= registers_str[counter];
+        counter <= counter + 9'd1;
 `ifdef SIM
-        $display("%0d chars", registers_ctr);
-        for (counter = 0; counter != registers_ctr; counter = counter + 1)
-            $write("%c", registers_str[counter]);
-        $write("$");
-        $display("");
+        $write("%c", registers_str[counter]);
 `endif
-        registers_done <= 1'b0;
-        o_debug_cycle  <= 1'b0;
+        if (counter == registers_ctr) begin
+`ifdef SIM
+            $write("$ %0d chars written", counter + 9'd1);
+            $display("");
+`endif
+            write_out      <= 1'b0;
+            registers_done <= 1'b0;
+            o_debug_cycle  <= 1'b0;
+        end
     end
 
     if (i_reset) begin
         o_debug_cycle     <= 1'b0;
-        counter           <= 4'b0;
-        registers_ctr     <= 10'd0;
+        counter           <= 9'b0;
+        registers_ctr     <= 9'd0;
         registers_state   <= `DBG_REG_PC_STR;
         registers_reg_ptr <= 5'b0;
         registers_done    <= 1'b0;
+        write_out         <= 1'b0;
     end
 
 end
