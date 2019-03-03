@@ -80,6 +80,7 @@ reg  [4:0]  registers_reg_ptr;
 reg  [0:0]  registers_done;
 
 reg  [19:0] pc;
+reg  [0:0]  carry;
 
 initial begin
     o_debug_cycle     = 1'b0;
@@ -105,6 +106,7 @@ initial begin
     registers_reg_ptr = 5'b0;
     registers_done    = 1'b0;
     pc = 20'h3b45f;
+    carry = 1'b1;
 end
 
 /**************************************************************************************************
@@ -148,15 +150,15 @@ always @(posedge i_clk) begin
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 5'd1;
                     if (registers_reg_ptr == 5'd3) begin
-                        registers_reg_ptr <= 5'd0;
+                        registers_reg_ptr <= 5'd4;
                         registers_state <= `DBG_REG_PC_VALUE;
                     end
                 end
             `DBG_REG_PC_VALUE:
                 begin
-                    registers_str[registers_ctr] <= hex[pc[(4-registers_reg_ptr)*4+:4]];
-                    registers_reg_ptr <= registers_reg_ptr + 1;
-                    if (registers_reg_ptr == 5'd4) begin
+                    registers_str[registers_ctr] <= hex[pc[(registers_reg_ptr)*4+:4]];
+                    registers_reg_ptr <= registers_reg_ptr - 1;
+                    if (registers_reg_ptr == 5'd0) begin
                         registers_reg_ptr <= 5'd0;
                         registers_state <= `DBG_REG_PC_SPACES;
                     end
@@ -167,10 +169,10 @@ always @(posedge i_clk) begin
                     registers_reg_ptr <= registers_reg_ptr + 1;
                     if (registers_reg_ptr == 5'd12) begin
                         registers_reg_ptr <= 5'd0;
-                        registers_state <= `DBG_REG_CARRY_STR;
+                        registers_state <= `DBG_REG_CARRY;
                     end
                 end
-            `DBG_REG_CARRY_STR:
+            `DBG_REG_CARRY:
                 begin 
                     case (registers_reg_ptr)
                         5'd0: registers_str[registers_ctr] <= "C";
@@ -180,14 +182,16 @@ always @(posedge i_clk) begin
                         5'd4: registers_str[registers_ctr] <= "y";
                         5'd5: registers_str[registers_ctr] <= ":";
                         5'd6: registers_str[registers_ctr] <= " ";
+                        5'd7: registers_str[registers_ctr] <= hex[{3'b000,carry}];
+                        5'd8: registers_str[registers_ctr] <= " ";
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd6) begin
+                    if (registers_reg_ptr == 5'd8) begin
                         registers_reg_ptr <= 5'd0;
                         registers_state <= `DBG_REG_END;
                     end
                 end
-    
+
             `DBG_REG_END: begin end
             default: begin $display("ERROR, unknown register state %0d", registers_state); end
         endcase
