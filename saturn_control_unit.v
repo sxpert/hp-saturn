@@ -144,19 +144,12 @@ wire [0:0] dec_instr_execute;
  * wires for decode shortcuts
  */
 
-wire [0:0] reg_dest_p;
-wire [0:0] reg_src_1_imm;
-wire [0:0] aluop_copy;
+wire [0:0] reg_dest_p    = (dec_alu_reg_dest == `ALU_REG_P);
+wire [0:0] reg_src_1_imm = (dec_alu_reg_src_1 == `ALU_REG_IMM);
+wire [0:0] aluop_copy    = (dec_alu_opcode == `ALU_OP_COPY);
 
-assign reg_dest_p    = (dec_alu_reg_dest == `ALU_REG_P);
-assign reg_src_1_imm = (dec_alu_reg_src_1 == `ALU_REG_IMM);
-assign aluop_copy    = (dec_alu_opcode == `ALU_OP_COPY);
- 
-wire [0:0] inst_alu_p_eq_n;
-wire [0:0] inst_alu_other;
-
-assign inst_alu_p_eq_n   = aluop_copy && reg_dest_p && reg_src_1_imm;
-assign inst_alu_other    = !(inst_alu_p_eq_n);
+wire [0:0] inst_alu_p_eq_n = aluop_copy && reg_dest_p && reg_src_1_imm;
+wire [0:0] inst_alu_other  = !(inst_alu_p_eq_n);
 
 /**************************************************************************************************
  *
