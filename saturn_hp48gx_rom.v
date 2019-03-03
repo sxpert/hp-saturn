@@ -20,13 +20,13 @@
 
 `default_nettype none
 
+`include "saturn_def_buscmd.v"
+
 `ifdef SIM
 `define ROMBITS 20
 `else
 `define ROMBITS 12
 `endif
-
-`include "saturn_def_buscmd.v"
 
 module saturn_hp48gx_rom (
     i_clk,
@@ -59,7 +59,6 @@ reg  [19:0] local_pc;
 reg  [19:0] local_dp;
 
 initial begin
-    o_bus_nibble_out = 4'b0;
     last_cmd         = 4'b0;
     addr_pos_ctr     = 3'b0;
     local_pc         = 20'b0;
@@ -67,7 +66,7 @@ initial begin
 end
 
 /*
- * special cases for reading the rom
+ * reading the rom
  */
 
 wire [0:0] do_pc_read = (last_cmd == `BUSCMD_PC_READ);
@@ -75,12 +74,18 @@ wire [0:0] do_dp_read = (last_cmd == `BUSCMD_DP_READ);
 wire [0:0] do_read    = do_pc_read || do_dp_read;
 wire [0:0] can_read   = i_bus_clk_en && i_bus_is_data && do_read;
 
-wire [`ROMBITS-1:0] access_pointer = do_pc_read?local_pc[`ROMBITS-1:0]:local_dp[`ROMBITS-1:0];
+wire [19:0] access_pointer = do_pc_read?local_pc:local_dp;
+
+wire [`ROMBITS-1:0] address = access_pointer[`ROMBITS-1:0];
 
 always @(posedge i_clk) begin
     if (can_read)
-        o_bus_nibble_out <= rom_data[access_pointer];
+        o_bus_nibble_out <= rom_data[address];
 end
+
+`ifdef SIM
+wire [3:0]  imm_nibble = rom_data[address];
+`endif
 
 /*
  * general case
@@ -95,7 +100,6 @@ always @(posedge i_clk) begin
                     begin
                         // o_bus_nibble_out <= rom_data[local_pc[`ROMBITS-1:0]];
                         local_pc <= local_pc + 1;
-
                     end
                 `BUSCMD_DP_READ:
                     begin
@@ -129,8 +133,8 @@ always @(posedge i_clk) begin
 `ifdef SIM            
             $write("ROM-GX-R %0d: [%d] ", i_phase, i_cycle_ctr);
             case (last_cmd)
-                `BUSCMD_PC_READ: $write("PC_READ <= rom[%5h]:%h", local_pc, rom_data[local_pc]);
-                `BUSCMD_DP_READ: $write("DP_READ <= rom[%5h]:%h", local_dp, rom_data[local_dp]);
+                `BUSCMD_PC_READ: $write("PC_READ <= rom[%5h]:%h", local_pc, imm_nibble);
+                `BUSCMD_DP_READ: $write("DP_READ <= rom[%5h]:%h", local_dp, imm_nibble);
                 `BUSCMD_LOAD_PC: $write("LOAD_PC - pc %5h, %h pos %0d", local_pc, i_bus_nibble_in, addr_pos_ctr);
                 `BUSCMD_LOAD_DP: $write("LOAD_PC - pc %5h, %h pos %0d", local_pc, i_bus_nibble_in, addr_pos_ctr);
                 default: $write("last_command %h nibble %h - UNHANDLED", last_cmd, i_bus_nibble_in);
