@@ -82,6 +82,13 @@ wire [`ROMBITS-1:0] access_pointer;
 
 assign access_pointer = do_pc_read?local_pc[`ROMBITS-1:0]:local_dp[`ROMBITS-1:0];
 
+/* async version ? */
+// always @(*) begin
+//     o_bus_nibble_out = 4'b0;
+//     if (i_bus_clk_en && i_bus_is_data && do_read)
+//         o_bus_nibble_out = rom_data[access_pointer];
+// end
+
 always @(posedge i_clk) begin
     if (i_bus_clk_en && i_bus_is_data && do_read)
         o_bus_nibble_out <= rom_data[access_pointer];
