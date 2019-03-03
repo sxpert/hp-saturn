@@ -64,7 +64,6 @@ end
 
 always @(posedge clk) begin
     test   <= {test[6:0], test[7]};
-    $display("%b | %b", test, t_led);
 
     if (reset) begin
         clk_en <= 1'b1;
