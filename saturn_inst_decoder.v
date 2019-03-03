@@ -24,12 +24,12 @@
 
 module saturn_inst_decoder (
     i_clk,
+    i_clk_en,
     i_reset,
     i_phases,
     i_phase,
     i_cycle_ctr,
-    i_debug_cycle,
-
+    
     i_bus_busy,
 
     i_nibble,
@@ -53,11 +53,11 @@ module saturn_inst_decoder (
 );
 
 input  wire [0:0]  i_clk;
+input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
 input  wire [3:0]  i_phases;
 input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
-input  wire [0:0]  i_debug_cycle;
 
 input  wire [0:0]  i_bus_busy;
 
@@ -151,13 +151,13 @@ always @(posedge i_clk) begin
      * either talking to the bus, or debugging something
      */
 
-    if (!i_debug_cycle && i_bus_busy && i_phases[2] && just_reset) begin
+    if (i_clk_en && i_bus_busy && i_phases[2] && just_reset) begin
         // $display("DECODER  %0d: [%d] dump registers right after reset", i_phase, i_cycle_ctr);
         just_reset      <= 1'b0;
         o_instr_decoded <= 1'b1;
     end
 
-    if (!i_debug_cycle && !i_bus_busy) begin
+    if (i_clk_en && !i_bus_busy) begin
  
         if (i_phases[1] && !decode_started) begin
             // $display("DECODER  %0d: [%d] store current PC as instruction start %5h", i_phase, i_cycle_ctr, i_current_pc);

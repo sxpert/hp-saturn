@@ -25,11 +25,11 @@
 
 module saturn_control_unit (
     i_clk,
+    i_clk_en,
     i_reset,
     i_phases,
     i_phase,
     i_cycle_ctr,
-    i_debug_cycle,
 
     i_bus_busy,
 
@@ -57,11 +57,11 @@ module saturn_control_unit (
 );
 
 input  wire [0:0]  i_clk;
+input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
 input  wire [3:0]  i_phases;
 input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
-input  wire [0:0]  i_debug_cycle;
 
 input  wire [0:0]  i_bus_busy;
 
@@ -107,11 +107,11 @@ assign o_instr_decoded = dec_instr_decoded;
 
 saturn_inst_decoder instruction_decoder(
     .i_clk              (i_clk),
+    .i_clk_en           (i_clk_en),
     .i_reset            (i_reset),
     .i_phases           (i_phases),
     .i_phase            (i_phase),
     .i_cycle_ctr        (i_cycle_ctr),
-    .i_debug_cycle      (i_debug_cycle),
 
     .i_bus_busy         (i_bus_busy),
 
@@ -165,11 +165,11 @@ wire [0:0] inst_alu_other  = !(inst_alu_p_eq_n);
 
 saturn_regs_pc_rstk regs_pc_rstk (
     .i_clk              (i_clk),
+    .i_clk_en           (i_clk_en),
     .i_reset            (i_reset),
     .i_phases           (i_phases),
     .i_phase            (i_phase),
     .i_cycle_ctr        (i_cycle_ctr),
-    .i_debug_cycle      (i_debug_cycle),
 
     .i_bus_busy         (i_bus_busy),
 
@@ -193,12 +193,12 @@ wire [19:0] reg_PC;
  *
  *************************************************************************************************/
 
-reg [0:0] control_unit_error;
-reg [0:0] just_reset;
-reg [0:0] control_unit_ready;
-reg [4:0] bus_program[0:31];
-reg [4:0] bus_prog_addr;
-reg [2:0] addr_nibble_ptr;
+reg  [0:0] control_unit_error;
+reg  [0:0] just_reset;
+reg  [0:0] control_unit_ready;
+reg  [4:0] bus_program[0:31];
+reg  [4:0] bus_prog_addr;
+reg  [2:0] addr_nibble_ptr;
 
 wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
 
@@ -227,7 +227,7 @@ always @(posedge i_clk) begin
      *
      */
 
-    if (!i_debug_cycle && just_reset && i_phases[3]) begin
+    if (i_clk_en && just_reset && i_phases[3]) begin
         /* this happend right after reset */
         if (just_reset) begin
 `ifdef SIM
@@ -245,7 +245,7 @@ always @(posedge i_clk) begin
     end 
 
     /* loop to fill the initial PC value in the program */
-    if (!i_debug_cycle && !control_unit_ready && (bus_prog_addr != 5'b0)) begin
+    if (i_clk_en && !control_unit_ready && (bus_prog_addr != 5'b0)) begin
         /* 
          * this should load the actual PC values...
          */
@@ -273,7 +273,7 @@ always @(posedge i_clk) begin
      *
      */
 
-    if (!i_debug_cycle && control_unit_ready && !i_bus_busy) begin
+    if (i_clk_en && control_unit_ready && !i_bus_busy) begin
         
 // `ifdef SIM
         // $display("CTRL     %0d: [%d] starting to do things", i_phase, i_cycle_ctr);

@@ -45,12 +45,13 @@ assign reset  = btn[0];
 
 saturn_bus main_bus (
 `ifdef SIM
-    .i_clk   (clk),
+    .i_clk          (clk),
 `else
-    .i_clk   (clk_25mhz),
+    .i_clk          (clk_25mhz),
 `endif
-    .i_reset (reset),
-    .o_halt  (halt),
+    .i_clk_en       (clk_en),
+    .i_reset        (reset),
+    .o_halt         (halt),
     .o_char_to_send (led)
 );
 
@@ -78,5 +79,46 @@ always
     #10 clk = (clk === 1'b0);
 `endif
 
+`ifndef SIM
+`define DELAY_BITS 25
+`define DELAY_ZERO {`DELAY_BITS{1'b0}}
+`define DELAY_ONE  {{`DELAY_BITS-1{1'b0}},1'b1}
+
+reg [`DELAY_BITS-1:0]  delay;
+`endif
+
+reg [0:0] clk_en;
+
+
+initial begin
+`ifdef SIM
+    clk_en = 1'b1;
+`else
+    delay  = `DELAY_ZERO;
+    clk_en = 1'b0;
+`endif
+end
+
+always @(posedge clk) begin
+`ifndef SIM
+    delay <= delay + `DELAY_ONE;
+    if (delay[`DELAY_BITS-1]) begin
+        clk_en <= 1'b1;
+    end
+    if (clk_en) begin
+        clk_en <= 1'b0;
+        delay  <= `DELAY_ZERO; 
+    end
+`endif
+
+    if (reset) begin
+`ifdef SIM
+        clk_en <= 1'b1;
+`else
+        delay  <= `DELAY_ZERO;
+        clk_en <= 1'b0;
+`endif
+    end
+end
 
 endmodule

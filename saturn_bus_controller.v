@@ -22,6 +22,7 @@
 
 module saturn_bus_controller (
     i_clk,
+    i_clk_en,
     i_reset,
     i_phases,
     i_phase,
@@ -38,6 +39,7 @@ module saturn_bus_controller (
 );
 
 input  wire [0:0]  i_clk;
+input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
 input  wire [3:0]  i_phases;
 input  wire [1:0]  i_phase;
@@ -60,11 +62,11 @@ output wire [0:0]  o_halt;
 
 saturn_control_unit control_unit (
     .i_clk             (i_clk),
+    .i_clk_en          (bus_clk_en),
     .i_reset           (i_reset),
     .i_phases          (i_phases),
     .i_phase           (i_phase),
     .i_cycle_ctr       (i_cycle_ctr),
-    .i_debug_cycle     (dbg_debug_cycle),
     .i_bus_busy        (bus_busy),
     .o_program_address (ctrl_unit_prog_addr),
     .i_program_address (bus_prog_addr),
@@ -113,6 +115,7 @@ wire [0:0]  dec_instr_decoded;
 
 saturn_debugger debugger (
     .i_clk         (i_clk),
+    .i_clk_en      (i_clk_en),
     .i_reset       (i_reset),
     .i_phases      (i_phases),
     .i_phase       (i_phase),
@@ -148,8 +151,9 @@ assign o_debug_cycle = dbg_debug_cycle;
  * local registers
  */
 
-reg [0:0] bus_error;
-reg [0:0] bus_busy;
+reg  [0:0] bus_error;
+reg  [0:0] bus_busy;
+wire [0:0] bus_clk_en = !o_debug_cycle && i_clk_en;
 
 /* 
  * program list for the bus controller
@@ -181,7 +185,7 @@ end
  */
 
 always @(posedge i_clk) begin
-    if (!o_debug_cycle) begin
+    if (bus_clk_en) begin
         case (i_phases)
             4'b0001:
                 begin

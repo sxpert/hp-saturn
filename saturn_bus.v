@@ -22,12 +22,14 @@
 
 module saturn_bus (
     i_clk,
+    i_clk_en,
     i_reset,
     o_halt,
     o_char_to_send
 );
 
 input  wire [0:0] i_clk;
+input  wire [0:0] i_clk_en;
 input  wire [0:0] i_reset;
 output wire [0:0] o_halt;
 output wire [7:0] o_char_to_send;
@@ -41,11 +43,12 @@ output wire [7:0] o_char_to_send;
 
 saturn_hp48gx_rom hp48gx_rom (
     .i_clk              (i_clk),
+    .i_clk_en           (i_clk_en),
     .i_reset            (i_reset),
     .i_phase            (phase),
     .i_cycle_ctr        (cycle_ctr),
 
-    .i_bus_clk_en       (ctrl_bus_clk_en),
+    .i_bus_clk_en       (bus_clk_en),
     .i_bus_is_data      (ctrl_bus_is_data),
     .o_bus_nibble_out   (rom_bus_nibble_out),
     .i_bus_nibble_in    (ctrl_bus_nibble_out)
@@ -62,6 +65,7 @@ wire [3:0] rom_bus_nibble_out;
 
 saturn_bus_controller bus_controller (
     .i_clk              (i_clk),
+    .i_clk_en           (i_clk_en),
     .i_reset            (i_reset),
     .i_phases           (phases),
     .i_phase            (phase),
@@ -94,10 +98,12 @@ wire [0:0] ctrl_halt;
  *
  *************************************************************************************************/
 
-reg [0:0]  bus_halt;
-reg [3:0]  phases;
-reg [1:0]  phase;
-reg [31:0] cycle_ctr;
+reg  [0:0]  bus_halt;
+reg  [3:0]  phases;
+reg  [1:0]  phase;
+reg  [31:0] cycle_ctr;
+
+wire [0:0]  bus_clk_en = i_clk_en && ctrl_bus_clk_en;
 
 initial begin
     bus_halt  = 1'b0;
@@ -125,13 +131,13 @@ end
 
 always @(posedge i_clk) begin
     /* if we're not debugging, advance phase on each clock */
-    if (!dbg_debug_cycle) begin
+    if (!dbg_debug_cycle && i_clk_en) begin
         phases <= {phases[2:0], phases[3]};
         /* using phases[3] here becase it will be phase_0 on the next step, 
          * so we get to a new cycle on the first phase...
          */
         cycle_ctr <= cycle_ctr + {31'b0, phases[3]};
-    end
+    end 
 
     if (i_reset) begin
         phases    <= 4'b1;

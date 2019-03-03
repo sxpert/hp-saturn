@@ -24,6 +24,7 @@
 
 module saturn_debugger (
     i_clk,
+    i_clk_en,
     i_reset,
     i_phases,
     i_phase,
@@ -48,6 +49,7 @@ module saturn_debugger (
 );
 
 input  wire [0:0]  i_clk;
+input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
 input  wire [3:0]  i_phases;
 input  wire [1:0]  i_phase;
@@ -127,7 +129,7 @@ end
 
 always @(posedge i_clk) begin
 
-    if (i_phases[3] && i_instr_decoded) begin
+    if (i_clk_en && i_phases[3] && i_instr_decoded) begin
         $display("DEBUGGER %0d: [%d] start debugger cycle", i_phase, i_cycle_ctr);
         o_debug_cycle   <= 1'b1;
         counter         <= 9'd0;
@@ -212,12 +214,12 @@ always @(posedge i_clk) begin
             registers_ctr <= registers_ctr + 9'd1;
     end
 
-    if (o_debug_cycle && debug_done && !write_out) begin
+    if (i_clk_en && o_debug_cycle && debug_done && !write_out) begin
         $display("DEBUGGER %0d: [%d] end debugger cycle", i_phase, i_cycle_ctr);
         write_out <= 1'b1;
     end
 
-    if (write_out) begin
+    if (i_clk_en && write_out) begin
         o_char_to_send <= registers_str[counter];
         counter <= counter + 9'd1;
 `ifdef SIM

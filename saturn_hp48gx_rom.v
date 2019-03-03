@@ -30,6 +30,7 @@
 
 module saturn_hp48gx_rom (
     i_clk,
+    i_clk_en,
     i_reset,
     i_phase,
     i_cycle_ctr,
@@ -41,6 +42,7 @@ module saturn_hp48gx_rom (
 );
 
 input  wire [0:0]  i_clk;
+input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
 input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
@@ -72,7 +74,7 @@ end
 wire [0:0] do_pc_read = (last_cmd == `BUSCMD_PC_READ);
 wire [0:0] do_dp_read = (last_cmd == `BUSCMD_DP_READ);
 wire [0:0] do_read    = do_pc_read || do_dp_read;
-wire [0:0] can_read   = i_bus_clk_en && i_bus_is_data && do_read;
+wire [0:0] can_read   = i_bus_clk_en && i_clk_en && i_bus_is_data && do_read;
 
 wire [19:0] access_pointer = do_pc_read?local_pc:local_dp;
 
@@ -92,7 +94,7 @@ wire [3:0]  imm_nibble = rom_data[address];
  */
 
 always @(posedge i_clk) begin
-    if (i_bus_clk_en) begin
+    if (i_bus_clk_en && i_clk_en) begin
         if (i_bus_is_data) begin
             /* do things with the bits...*/
             case (last_cmd)
