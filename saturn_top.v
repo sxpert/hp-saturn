@@ -22,28 +22,7 @@
 
 `ifdef SIM
 module saturn_top;
-`else
-module saturn_top (
-	clk_25mhz,
-	btn,
-	led
-);
 
-input  wire [0:0] clk_25mhz;
-input  wire [6:0] btn;
-`endif
-
-`ifdef SIM
-wire [7:0]  led;
-`else
-output reg  [7:0] led;
-wire [0:0] reset;
-wire [0:0] halt;
-
-assign reset  = btn[0]; 
-`endif
-
-`ifdef SIM
 saturn_bus main_bus (
     .i_clk          (clk),
     .i_clk_en       (clk_en),
@@ -51,24 +30,12 @@ saturn_bus main_bus (
     .o_halt         (halt),
     .o_char_to_send (t_led)
 );
-`else
-saturn_bus main_bus (
-    .i_clk          (clk_25mhz),
-    .i_clk_en       (clk_en),
-    .i_reset        (reset),
-    .o_halt         (halt),
-    .o_char_to_send (t_led)
-);
-
-`endif
 
 wire [7:0] t_led;
-
-
-`ifdef SIM
-reg	 [0:0] clk;
-reg	 [0:0] reset;
+wire [7:0]  led;
+reg  [0:0] reset;
 wire [0:0] halt;
+reg	 [0:0] clk;
 
 initial begin
 	$display("TOP       : starting the simulation");
@@ -86,42 +53,77 @@ end
 
 always 
     #10 clk = (clk === 1'b0);
-`endif
 
-`ifdef SIM
-`define DELAY_BITS 0
-`else 
+reg [0:0] clk_en;
+reg [7:0] test;
+
+initial begin
+    clk_en = 1'b1;
+    test   = 8'b1;
+end
+
+always @(posedge clk) begin
+    test   <= {test[6:0], test[7]};
+    $display("%b | %b", test, t_led);
+
+    if (reset) begin
+        clk_en <= 1'b1;
+        test   <= 8'b1;
+    end
+end
+
+endmodule
+
+`else
+
+/*
+ *
+ *
+ *
+ */
+
+module saturn_top (
+	clk_25mhz,
+	btn,
+	led
+);
+
+input  wire [0:0] clk_25mhz;
+input  wire [6:0] btn;
+output reg  [7:0] led;
+
+wire [0:0] reset;
+wire [0:0] halt;
+
+assign reset  = btn[0]; 
+
+saturn_bus main_bus (
+    .i_clk          (clk_25mhz),
+    .i_clk_en       (clk_en),
+    .i_reset        (reset),
+    .o_halt         (halt),
+    .o_char_to_send (t_led)
+);
+
+wire [7:0] t_led;
+
 `define DELAY_BITS 25
 `define DELAY_ZERO {`DELAY_BITS{1'b0}}
 `define DELAY_ONE  {{`DELAY_BITS-1{1'b0}},1'b1}
 
 reg [`DELAY_BITS-1:0]  delay;
-`endif
 
 reg [0:0] clk_en;
-
 reg [7:0] test;
 
 initial begin
-`ifdef SIM
-    clk_en = 1'b1;
-`else
     delay  = `DELAY_ZERO;
     clk_en = 1'b0;
-`endif
     test   = 8'b1;
 end
 
-`ifdef SIM
-always @(posedge clk) begin
-`else
 always @(posedge clk_25mhz) begin
-`endif
 
-`ifdef SIM
-    test   <= {test[6:0], test[7]};
-    $display("%b | %b", test, t_led);
-`else
     delay <= delay + `DELAY_ONE;
     if (delay[`DELAY_BITS-1]) begin
         clk_en <= 1'b1;
@@ -135,17 +137,16 @@ always @(posedge clk_25mhz) begin
         led    <= test;
         test   <= {test[6:0], test[7]};
     end
-`endif
+    if (halt) 
+        led[0] <= 1'b1;
 
     if (reset) begin
-`ifdef SIM
-        clk_en <= 1'b1;
-`else
         delay  <= `DELAY_ZERO;
         clk_en <= 1'b0;
-`endif
         test   <= 8'b1;
     end
 end
 
 endmodule
+
+`endif
