@@ -32,6 +32,8 @@ module saturn_debugger (
     o_debug_cycle,
 
     /* interface from the control unit */
+    i_current_pc,
+
     i_alu_reg_dest,
     i_alu_reg_src_1,
     i_alu_reg_src_2,
@@ -51,14 +53,16 @@ input  wire [31:0] i_cycle_ctr;
 output reg  [0:0]  o_debug_cycle;
 
 /* inteface from the control unit */
-input  wire [4:0] i_alu_reg_dest;
-input  wire [4:0] i_alu_reg_src_1;
-input  wire [4:0] i_alu_reg_src_2;
-input  wire [3:0] i_alu_imm_value;
-input  wire [4:0] i_alu_opcode;
+input  wire [19:0] i_current_pc;
 
-input  wire [3:0] i_instr_type;
-input  wire [0:0] i_instr_decoded;
+input  wire [4:0]  i_alu_reg_dest;
+input  wire [4:0]  i_alu_reg_src_1;
+input  wire [4:0]  i_alu_reg_src_2;
+input  wire [3:0]  i_alu_imm_value;
+input  wire [4:0]  i_alu_opcode;
+
+input  wire [3:0]  i_instr_type;
+input  wire [0:0]  i_instr_decoded;
 
 /**************************************************************************************************
  *
@@ -79,7 +83,6 @@ reg  [4:0]  registers_state;
 reg  [4:0]  registers_reg_ptr;
 reg  [0:0]  registers_done;
 
-reg  [19:0] pc;
 reg  [0:0]  carry;
 
 initial begin
@@ -105,7 +108,6 @@ initial begin
     registers_state   = `DBG_REG_PC_STR;
     registers_reg_ptr = 5'b0;
     registers_done    = 1'b0;
-    pc = 20'h3b45f;
     carry = 1'b1;
 end
 
@@ -156,7 +158,7 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_PC_VALUE:
                 begin
-                    registers_str[registers_ctr] <= hex[pc[(registers_reg_ptr)*4+:4]];
+                    registers_str[registers_ctr] <= hex[i_current_pc[(registers_reg_ptr)*4+:4]];
                     registers_reg_ptr <= registers_reg_ptr - 1;
                     if (registers_reg_ptr == 5'd0) begin
                         registers_reg_ptr <= 5'd0;

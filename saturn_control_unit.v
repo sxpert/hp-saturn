@@ -42,6 +42,10 @@ module saturn_control_unit (
 
     o_error,
 
+    /* debugger interface */
+
+    o_current_pc,
+
     o_alu_reg_dest,
     o_alu_reg_src_1,
     o_alu_reg_src_2,
@@ -71,6 +75,10 @@ input  wire [3:0]  i_nibble;
 output wire [0:0]  o_error;
 assign o_error = control_unit_error;
 
+/* debugger interface */
+
+output wire [19:0] o_current_pc;
+
 output wire [4:0]  o_alu_reg_dest;
 output wire [4:0]  o_alu_reg_src_1;
 output wire [4:0]  o_alu_reg_src_2;
@@ -79,6 +87,8 @@ output wire [4:0]  o_alu_opcode;
 
 output wire [3:0]  o_instr_type;
 output wire [0:0]  o_instr_decoded;
+
+assign o_current_pc    = reg_PC;
 
 assign o_alu_reg_dest  = dec_alu_reg_dest;
 assign o_alu_reg_src_1 = dec_alu_reg_src_1;
@@ -106,6 +116,8 @@ saturn_inst_decoder instruction_decoder(
     .i_bus_busy         (i_bus_busy),
 
     .i_nibble           (i_nibble),
+    .i_reg_p            (reg_P),
+    .i_current_pc       (reg_PC),
 
     .o_alu_reg_dest     (dec_alu_reg_dest),
     .o_alu_reg_src_1    (dec_alu_reg_src_1),
@@ -114,7 +126,8 @@ saturn_inst_decoder instruction_decoder(
     .o_alu_opcode       (dec_alu_opcode),
 
     .o_instr_type       (dec_instr_type),
-    .o_instr_decoded    (dec_instr_decoded)
+    .o_instr_decoded    (dec_instr_decoded),
+    .o_instr_execute    (dec_instr_execute)
 );
 
 wire [4:0] dec_alu_reg_dest;
@@ -125,6 +138,7 @@ wire [4:0] dec_alu_opcode;
 
 wire [3:0] dec_instr_type;
 wire [0:0] dec_instr_decoded;
+wire [0:0] dec_instr_execute;
 
 /*
  * wires for decode shortcuts
@@ -146,11 +160,39 @@ assign inst_alu_other    = !(inst_alu_p_eq_n);
 
 /**************************************************************************************************
  *
- * processor registers
+ * registers module (contains A, B, C, D, R0, R1, R2, R3, R4)
  *
  *************************************************************************************************/
 
-reg [3:0] reg_P;
+/**************************************************************************************************
+ *
+ * PC and RSTK module
+ *
+ *************************************************************************************************/
+
+saturn_regs_pc_rstk regs_pc_rstk (
+    .i_clk              (i_clk),
+    .i_reset            (i_reset),
+    .i_phases           (i_phases),
+    .i_phase            (i_phase),
+    .i_cycle_ctr        (i_cycle_ctr),
+    .i_debug_cycle      (i_debug_cycle),
+
+    .i_bus_busy         (i_bus_busy),
+
+    .i_nibble           (i_nibble),
+
+    .o_current_pc       (reg_PC)
+);
+
+/**************************************************************************************************
+ *
+ * other processor registers
+ *
+ *************************************************************************************************/
+
+reg  [3:0]  reg_P;
+wire [19:0] reg_PC;
 
 /**************************************************************************************************
  *
@@ -163,6 +205,7 @@ reg [0:0] just_reset;
 reg [0:0] control_unit_ready;
 reg [4:0] bus_program[0:31];
 reg [4:0] bus_prog_addr;
+reg [2:0] addr_nibble_ptr;
 
 assign o_program_data = bus_program[i_program_address];
 assign o_program_address = bus_prog_addr;
@@ -174,6 +217,7 @@ initial begin
     just_reset         = 1'b1;
     control_unit_ready = 1'b0;
     bus_prog_addr      = 5'd0;
+    addr_nibble_ptr    = 3'd0;
     
     /* registers */
     reg_P              = 4'b0; 
@@ -191,14 +235,17 @@ always @(posedge i_clk) begin
     if (!i_debug_cycle && just_reset && i_phases[3]) begin
         /* this happend right after reset */
 `ifdef SIM
-        if (!i_reset)
+        if (just_reset) begin
             $display("CTRL     %0d: [%d] we are in the control unit", i_phase, i_cycle_ctr);
 `endif
-        just_reset                 <= 1'b0;
+            just_reset                 <= 1'b0;
+        end
+        /* this loads the PC to the modules */
         bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
 `ifdef SIM
         $display("CTRL     %0d: [%d] pushing LOAD_PC command to pos %d", i_phase, i_cycle_ctr, bus_prog_addr);
 `endif
+        addr_nibble_ptr   <= 3'b0;
         bus_prog_addr     <= bus_prog_addr + 1;
     end 
 
@@ -207,10 +254,12 @@ always @(posedge i_clk) begin
         /* 
          * this should load the actual PC values...
          */
-        bus_program[bus_prog_addr] <= 5'b0;
-        bus_prog_addr     <= bus_prog_addr + 1;
+        bus_program[bus_prog_addr] <= {1'b0, reg_PC[addr_nibble_ptr*4+:4]};
+        addr_nibble_ptr   <= addr_nibble_ptr + 3'd1;
+        bus_prog_addr     <= bus_prog_addr + 5'd1;
 `ifdef SIM
-        $write("CTRL     %0d: [%d] pushing ADDR[%0d] = %h", i_phase, i_cycle_ctr, bus_prog_addr, 0);
+        $write("CTRL     %0d: [%d] pushing ADDR : prog[%0d] <= PC[%0d] (%h)", i_phase, i_cycle_ctr, 
+               bus_prog_addr, addr_nibble_ptr, {1'b0, reg_PC[addr_nibble_ptr*4+:4]});
 `endif
         if (bus_prog_addr == 5'd5) begin
             control_unit_ready <= 1'b1;
@@ -243,7 +292,7 @@ always @(posedge i_clk) begin
             $display("CTRL     %0d: [%d] interpreting %h", i_phase, i_cycle_ctr, i_nibble);
         end
 
-        if (i_phases[3] && dec_instr_decoded) begin
+        if (i_phases[3] && dec_instr_execute) begin
             case (dec_instr_type) 
                 `INSTR_TYPE_NOP: begin 
                         $display("CTRL     %0d: [%d] NOP instruction", i_phase, i_cycle_ctr);
@@ -277,6 +326,7 @@ always @(posedge i_clk) begin
         just_reset         <= 1'b1;
         control_unit_ready <= 1'b0;
         bus_prog_addr      <= 5'd0;
+        addr_nibble_ptr    <= 3'd0;
     
         /* registers */
         reg_P              <= 4'b0; 

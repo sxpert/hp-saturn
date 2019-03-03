@@ -74,6 +74,8 @@ saturn_control_unit control_unit (
     .o_error           (ctrl_unit_error),
 
     /* debugger interface */
+    .o_current_pc      (ctrl_current_pc),
+
     .o_alu_reg_dest    (dec_alu_reg_dest),
     .o_alu_reg_src_1   (dec_alu_reg_src_1),
     .o_alu_reg_src_2   (dec_alu_reg_src_2),
@@ -84,21 +86,22 @@ saturn_control_unit control_unit (
     .o_instr_decoded   (dec_instr_decoded)
 );
 
-wire [0:0] ctrl_unit_error;
-wire [4:0] ctrl_unit_prog_addr;
-wire [4:0] ctrl_unit_prog_data;
-wire [0:0] ctrl_unit_no_read;
+wire [0:0]  ctrl_unit_error;
+wire [4:0]  ctrl_unit_prog_addr;
+wire [4:0]  ctrl_unit_prog_data;
+wire [0:0]  ctrl_unit_no_read;
 
 /* debugger insterface */
+wire [19:0] ctrl_current_pc;
 
-wire [4:0] dec_alu_reg_dest;
-wire [4:0] dec_alu_reg_src_1;
-wire [4:0] dec_alu_reg_src_2;
-wire [3:0] dec_alu_imm_value;
-wire [4:0] dec_alu_opcode;
+wire [4:0]  dec_alu_reg_dest;
+wire [4:0]  dec_alu_reg_src_1;
+wire [4:0]  dec_alu_reg_src_2;
+wire [3:0]  dec_alu_imm_value;
+wire [4:0]  dec_alu_opcode;
 
-wire [3:0] dec_instr_type;
-wire [0:0] dec_instr_decoded;
+wire [3:0]  dec_instr_type;
+wire [0:0]  dec_instr_decoded;
 
 /**************************************************************************************************
  *
@@ -116,6 +119,8 @@ saturn_debugger debugger (
     .o_debug_cycle (dbg_debug_cycle),
 
     /* debugger interface */
+    .i_current_pc      (ctrl_current_pc),
+
     .i_alu_reg_dest    (dec_alu_reg_dest),
     .i_alu_reg_src_1   (dec_alu_reg_src_1),
     .i_alu_reg_src_2   (dec_alu_reg_src_2),

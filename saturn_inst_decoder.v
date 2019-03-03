@@ -33,6 +33,8 @@ module saturn_inst_decoder (
     i_bus_busy,
 
     i_nibble,
+    i_reg_p,
+    i_current_pc,
 
     o_alu_reg_dest,
     o_alu_reg_src_1,
@@ -42,6 +44,9 @@ module saturn_inst_decoder (
 
     o_instr_type,
     o_instr_decoded,
+    o_instr_execute,
+
+    /* debugger interface */
     o_dbg_inst_addr
 );
 
@@ -55,6 +60,8 @@ input  wire [0:0]  i_debug_cycle;
 input  wire [0:0]  i_bus_busy;
 
 input  wire [3:0]  i_nibble;
+input  wire [3:0]  i_reg_p;
+input  wire [19:0] i_current_pc;
 
 output reg  [4:0]  o_alu_reg_dest;
 output reg  [4:0]  o_alu_reg_src_1;
@@ -63,7 +70,15 @@ output reg  [3:0]  o_alu_imm_value;
 output reg  [4:0]  o_alu_opcode;
 
 output reg  [3:0]  o_instr_type;
+/* instruction is fully decoded */
 output reg  [0:0]  o_instr_decoded;
+/* instruction is sufficiently decoded to start execution */
+output reg  [0:0]  o_instr_execute;
+
+/*
+ * debugger interface
+ */
+/* address of the last instruction */
 output reg  [19:0] o_dbg_inst_addr;
 
 /**************************************************************************************************
@@ -85,6 +100,7 @@ output reg  [19:0] o_dbg_inst_addr;
  * process state variables
  */
 
+reg [0:0] just_reset;
 reg [0:0] decode_started;
 
 /*
@@ -106,8 +122,13 @@ initial begin
 
     o_instr_type    = 4'd15;
     o_instr_decoded = 1'b0;
+    o_instr_execute = 1'b0;
+
+    /* debugger interface */
     o_dbg_inst_addr = 20'b0;
 
+    /* internal registers */
+    just_reset      = 1'b1;
     decode_started  = 1'b0;
 
     block_2x        = 1'b0;
@@ -126,11 +147,21 @@ always @(posedge i_clk) begin
      * either talking to the bus, or debugging something
      */
 
+    if (!i_debug_cycle && i_bus_busy && i_phases[2] && just_reset) begin
+        // $display("DECODER  %0d: [%d] dump registers right after reset", i_phase, i_cycle_ctr);
+        just_reset      <= 1'b0;
+        o_instr_decoded <= 1'b1;
+    end
+
     if (!i_debug_cycle && !i_bus_busy) begin
  
+        if (i_phases[1] && !decode_started) begin
+            $display("DECODER  %0d: [%d] store current PC as instruction start %5h", i_phase, i_cycle_ctr, i_current_pc);
+        end
+
         if (i_phases[2] && !decode_started) begin
             $display("DECODER  %0d: [%d] start instruction decoding %h", i_phase, i_cycle_ctr, i_nibble);
-            
+
             decode_started <= 1'b1;
             case (i_nibble)
                 4'h2: block_2x <= 1'b1;
@@ -149,6 +180,7 @@ always @(posedge i_clk) begin
                 o_alu_opcode    <= `ALU_OP_COPY;
                 o_instr_type    <= `INSTR_TYPE_ALU;
                 o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
                 block_2x        <= 1'b0;
                 decode_started  <= 1'b0;
             end
@@ -156,8 +188,9 @@ always @(posedge i_clk) begin
         end
 
         if (i_phases[3]) begin
-            $display("DECODER  %0d: [%d] decoder cleanup", i_phase, i_cycle_ctr);
+            // $display("DECODER  %0d: [%d] decoder cleanup", i_phase, i_cycle_ctr);
             o_instr_decoded <= 1'b0;
+            o_instr_execute <= 1'b0;
         end
 
     end
@@ -173,8 +206,13 @@ always @(posedge i_clk) begin
 
         o_instr_type    <= 4'd15;
         o_instr_decoded <= 1'b0;
+        o_instr_execute <= 1'b0;
+
+        /* debugger interface */
         o_dbg_inst_addr <= 20'b0;
 
+        /* internal registers */
+        just_reset      <= 1'b1;
         decode_started  <= 1'b0;
 
         block_2x        <= 1'b0;
