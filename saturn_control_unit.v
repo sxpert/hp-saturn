@@ -73,7 +73,7 @@ output reg  [0:0]  o_no_read;
 input  wire [3:0]  i_nibble;
 
 output wire [0:0]  o_error;
-assign o_error = control_unit_error;
+assign o_error = control_unit_error || dec_error;
 
 /* debugger interface */
 
@@ -129,7 +129,9 @@ saturn_inst_decoder instruction_decoder(
 
     .o_instr_type       (dec_instr_type),
     .o_instr_decoded    (dec_instr_decoded),
-    .o_instr_execute    (dec_instr_execute)
+    .o_instr_execute    (dec_instr_execute),
+
+    .o_decoder_error    (dec_error)
 );
 
 wire [4:0] dec_alu_reg_dest;
@@ -143,6 +145,8 @@ wire [2:0] dec_jump_length;
 wire [3:0] dec_instr_type;
 wire [0:0] dec_instr_decoded;
 wire [0:0] dec_instr_execute;
+
+wire [0:0] dec_error;
 
 /*
  * wires for decode shortcuts
@@ -183,7 +187,8 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_jump_instr       (inst_jump),
     .i_jump_length      (dec_jump_length),
     
-    .o_current_pc       (reg_PC)
+    .o_current_pc       (reg_PC),
+    .o_reload_pc        (reload_PC)
 );
 
 /**************************************************************************************************
@@ -194,6 +199,7 @@ saturn_regs_pc_rstk regs_pc_rstk (
 
 reg  [3:0]  reg_P;
 wire [19:0] reg_PC;
+wire [0:0]  reload_PC;
 
 /**************************************************************************************************
  *
@@ -207,6 +213,7 @@ reg  [0:0] control_unit_ready;
 reg  [4:0] bus_program[0:31];
 reg  [4:0] bus_prog_addr;
 reg  [2:0] addr_nibble_ptr;
+reg  [0:0] load_pc_loop;
 
 reg  [2:0] jump_counter;
 
@@ -223,6 +230,7 @@ initial begin
     control_unit_ready = 1'b0;
     bus_prog_addr      = 5'd0;
     addr_nibble_ptr    = 3'd0;
+    load_pc_loop       = 1'b0;
 
     jump_counter       = 3'd0;
     
@@ -239,13 +247,17 @@ always @(posedge i_clk) begin
      *
      */
 
-    if (i_clk_en && just_reset && i_phases[3]) begin
+    if (i_clk_en && (just_reset || reload_PC) && i_phases[3])  begin
         /* this happend right after reset */
         if (just_reset) begin
 `ifdef SIM
-            $display("CTRL     %0d: [%d] we are in the control unit", i_phase, i_cycle_ctr);
+            $display("CTRL     %0d: [%d] we were just reset, loading PC", i_phase, i_cycle_ctr);
 `endif
             just_reset <= 1'b0;
+        end else begin
+`ifdef SIM
+            $display("CTRL     %0d: [%d] reloading PC", i_phase, i_cycle_ctr);
+`endif
         end
         /* this loads the PC to the modules */
         bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
@@ -254,10 +266,11 @@ always @(posedge i_clk) begin
 `endif
         addr_nibble_ptr   <= 3'b0;
         bus_prog_addr     <= bus_prog_addr + 5'd1;
+        load_pc_loop      <= 1'b1;
     end 
 
     /* loop to fill the initial PC value in the program */
-    if (i_clk_en && !control_unit_ready && (bus_prog_addr != 5'b0)) begin
+    if (i_clk_en && load_pc_loop) begin
         /* 
          * this should load the actual PC values...
          */
@@ -265,14 +278,17 @@ always @(posedge i_clk) begin
         addr_nibble_ptr   <= addr_nibble_ptr + 3'd1;
         bus_prog_addr     <= bus_prog_addr + 5'd1;
 `ifdef SIM
-        $write("CTRL     %0d: [%d] pushing ADDR : prog[%0d] <= PC[%0d] (%h)", i_phase, i_cycle_ctr, 
-               bus_prog_addr, addr_nibble_ptr, {1'b0, reg_PC[addr_nibble_ptr*4+:4]});
+        if (addr_nibble_ptr == 3'd0)
+            $display("CTRL     %0d: [%d] new PC value %5h", i_phase, i_cycle_ctr, reg_PC);
+        $write("CTRL     %0d: [%d] pushing ADDR : prog[%2d] <= PC[%0d] (%h)", i_phase, i_cycle_ctr, 
+               bus_prog_addr, addr_nibble_ptr, {1'b0, reg_PC_nibble });
 `endif
-        if (bus_prog_addr == 5'd5) begin
+        if (addr_nibble_ptr == 3'd4) begin
+            load_pc_loop       <= 1'b0;
             control_unit_ready <= 1'b1;
 `ifdef SIM
             $write(" done");
-`endif
+`endif      
         end
 `ifdef SIM
         $write("\n");
@@ -331,7 +347,7 @@ always @(posedge i_clk) begin
 
         if (i_phases[2] && ! dec_instr_execute) begin
             if (inst_jump) begin
-                // $display("CTRL     %0d: [%d] JUMP nibble %0d : %h", i_phase, i_cycle_ctr, jump_counter, i_nibble);
+                $display("CTRL     %0d: [%d] JUMP nibble %0d : %h", i_phase, i_cycle_ctr, jump_counter, i_nibble);
                 jump_counter <= jump_counter + 3'd1;
             end
         end
@@ -345,6 +361,7 @@ always @(posedge i_clk) begin
         control_unit_ready <= 1'b0;
         bus_prog_addr      <= 5'd0;
         addr_nibble_ptr    <= 3'd0;
+        load_pc_loop       <= 1'b0;
     
         jump_counter       <= 3'd0;
 

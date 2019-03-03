@@ -34,8 +34,8 @@ module saturn_regs_pc_rstk (
     i_jump_instr,
     i_jump_length,
 
-    o_current_pc
-
+    o_current_pc,
+    o_reload_pc
 );
 
 input  wire [0:0]  i_clk;
@@ -52,6 +52,7 @@ input  wire [0:0]  i_jump_instr;
 input  wire [2:0]  i_jump_length;
 
 output wire [19:0] o_current_pc;
+output reg  [0:0]  o_reload_pc;
 
 /**************************************************************************************************
  *
@@ -69,12 +70,35 @@ reg  [0:0]  just_reset;
 reg  [0:0]  jump_decode;
 reg  [0:0]  jump_exec;
 reg  [2:0]  jump_counter;
+reg  [19:0] jump_base;
+reg  [19:0] jump_offset;
+
+wire [0:0]  jump_rel2 = i_jump_instr && (i_jump_length == 3'd1);
+wire [0:0]  jump_rel3 = i_jump_instr && (i_jump_length == 3'd2);
+wire [0:0]  jump_rel4 = i_jump_instr && (i_jump_length == 3'd3);
+wire [0:0]  jump_abs5 = i_jump_instr && (i_jump_length == 3'd4);
+wire [0:0]  jump_relative = jump_rel2 || jump_rel3 || jump_rel4;
+
+reg  [19:0] jump_next_offset;
+
+always @(*) begin
+    case (jump_counter)
+        3'd0: jump_next_offset = { {16{1'b0}}, i_nibble};
+        3'd1: jump_next_offset = { {12{jump_rel2?i_nibble[3]:1'b0}} , i_nibble, jump_offset[ 3:0]};
+        3'd2: jump_next_offset = { { 8{jump_rel3?i_nibble[3]:1'b0}} , i_nibble, jump_offset[ 7:0]};
+        3'd3: jump_next_offset = { { 4{jump_rel4?i_nibble[3]:1'b0}} , i_nibble, jump_offset[11:0]};
+        3'd4: jump_next_offset = { i_nibble, jump_offset[15:0]};
+        default: jump_next_offset = 20'h00000;
+    endcase
+end
+
 
 reg  [19:0] PC;
 
 assign o_current_pc = PC;
 
 initial begin
+    o_reload_pc  = 1'b0;
     just_reset   = 1'b1;
     jump_decode  = 1'b0;
     jump_exec    = 1'b0;
@@ -108,29 +132,42 @@ always @(posedge i_clk) begin
             PC <= PC + 20'h00001;
         end
 
+        /* 
+         * jump instruction calculations
+         */ 
+
+        /* start the jump instruction */
+        if (i_phases[3] && do_jump_instr && !jump_decode && !jump_exec) begin
+            $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, i_jump_length, PC);
+            jump_counter <= 3'd0;
+            jump_base    <= PC;
+            jump_decode  <= 1'b1;
+        end
+
+        /* one step of the calculation (one nibble of data came in) */
         if (i_phases[2] && do_jump_instr && jump_decode) begin
-            $display("PC_RSTK  %0d: [%d] decode jump %0d - %0d %h", i_phase, i_cycle_ctr, i_jump_length, jump_counter, i_nibble);
+            $display("PC_RSTK  %0d: [%d] decode jump %0d/%0d %h %5h", i_phase, i_cycle_ctr, i_jump_length, jump_counter, i_nibble, jump_next_offset);
+            jump_offset  <= jump_next_offset;
             jump_counter <= jump_counter + 3'd1;
             if (jump_counter == i_jump_length) begin
                 jump_decode <= 1'b0;
                 jump_exec   <= 1'b1;
+                o_reload_pc <= 1'b1;
             end
         end
 
-        if (i_phases[3] && do_jump_instr && !jump_decode && !jump_exec) begin
-            $display("PC_RSTK  %0d: [%d] start decode jump %0d ", i_phase, i_cycle_ctr, i_jump_length);
-            jump_counter <= 3'd0;
-            jump_decode  <= 1'b1;
-        end
-
+        /* all done, apply to PC */
         if (i_phases[3] && do_jump_instr && jump_exec) begin
             $display("PC_RSTK  %0d: [%d] execute jump %0d ", i_phase, i_cycle_ctr, i_jump_length);
-            jump_exec <= 1'b0;
+            PC          <= jump_relative ? jump_offset + jump_base : jump_offset;
+            jump_exec   <= 1'b0;
+            o_reload_pc <= 1'b0;
         end
 
     end
 
     if (i_reset) begin
+        o_reload_pc  <= 1'b0;
         just_reset   <= 1'b1;
         jump_decode  <= 1'b0;
         jump_exec    <= 1'b0;

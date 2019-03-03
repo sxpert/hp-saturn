@@ -50,6 +50,7 @@ module saturn_inst_decoder (
     o_instr_decoded,
     o_instr_execute,
 
+    o_decoder_error,
     /* debugger interface */
     o_dbg_inst_addr
 );
@@ -83,6 +84,7 @@ output reg  [0:0]  o_instr_decoded;
 /* instruction is sufficiently decoded to start execution */
 output reg  [0:0]  o_instr_execute;
 
+output reg  [0:0]  o_decoder_error;
 /*
  * debugger interface
  */
@@ -150,6 +152,9 @@ initial begin
 
     /* local variables */
     jump_counter    = 3'd0;
+
+    /* last line of defense */
+    o_decoder_error = 1'b0;
 end
 
 /****************************
@@ -194,7 +199,11 @@ always @(posedge i_clk) begin
                         o_instr_execute <= 1'b1;
                         block_6x        <= 1'b1;
                     end
-                default: o_instr_type <= `INSTR_TYPE_NOP;
+                default: 
+                    begin
+                        $display("invalid instruction");
+                        o_decoder_error <= 1'b1;
+                    end
             endcase
         end
 
@@ -227,10 +236,12 @@ always @(posedge i_clk) begin
 
         end
 
-        if (i_phases[3]) begin
+        /* decoder cleanup only after the instruction is completely decoded and execution has started */
+        if (i_phases[3] && o_instr_decoded) begin
             // $display("DECODER  %0d: [%d] decoder cleanup", i_phase, i_cycle_ctr);
             o_instr_decoded <= 1'b0;
             o_instr_execute <= 1'b0;
+            o_instr_type    <= `INSTR_TYPE_NONE;
         end
 
     end
@@ -260,6 +271,9 @@ always @(posedge i_clk) begin
 
         /* local variables */
         jump_counter    = 3'd0;
+
+        /* invalid instruction */
+        o_decoder_error = 1'b0;
     end
 
 end
