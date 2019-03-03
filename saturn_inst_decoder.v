@@ -36,6 +36,8 @@ module saturn_inst_decoder (
     i_reg_p,
     i_current_pc,
 
+    o_instr_pc,
+
     o_alu_reg_dest,
     o_alu_reg_src_1,
     o_alu_reg_src_2,
@@ -62,6 +64,8 @@ input  wire [0:0]  i_bus_busy;
 input  wire [3:0]  i_nibble;
 input  wire [3:0]  i_reg_p;
 input  wire [19:0] i_current_pc;
+
+output reg  [19:0] o_instr_pc;
 
 output reg  [4:0]  o_alu_reg_dest;
 output reg  [4:0]  o_alu_reg_src_1;
@@ -156,11 +160,12 @@ always @(posedge i_clk) begin
     if (!i_debug_cycle && !i_bus_busy) begin
  
         if (i_phases[1] && !decode_started) begin
-            $display("DECODER  %0d: [%d] store current PC as instruction start %5h", i_phase, i_cycle_ctr, i_current_pc);
+            // $display("DECODER  %0d: [%d] store current PC as instruction start %5h", i_phase, i_cycle_ctr, i_current_pc);
+            o_instr_pc <= i_current_pc;
         end
 
         if (i_phases[2] && !decode_started) begin
-            $display("DECODER  %0d: [%d] start instruction decoding %h", i_phase, i_cycle_ctr, i_nibble);
+            $display("DECODER  %0d: [%d] nb= %h - start instruction decoding", i_phase, i_cycle_ctr, i_nibble);
 
             decode_started <= 1'b1;
             case (i_nibble)
@@ -169,7 +174,7 @@ always @(posedge i_clk) begin
         end
 
         if (i_phases[2] && decode_started) begin
-            $display("DECODER  %0d: [%d] decoding %h", i_phase, i_cycle_ctr, i_nibble);
+            $display("DECODER  %0d: [%d] nb= %h - decoding", i_phase, i_cycle_ctr, i_nibble);
 
             if (block_2x) begin
                 $display("DECODER  %0d: [%d] P= %h", i_phase, i_cycle_ctr, i_nibble);
