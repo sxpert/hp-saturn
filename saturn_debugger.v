@@ -71,19 +71,40 @@ wire [0:0] debug_done;
 
 assign debug_done = registers_done;
 
-reg  [8:0] registers_ctr;
-reg  [7:0] registers_str[0:511];
-reg  [4:0] registers_state;
-reg  [4:0] registers_reg_ptr;
-reg  [0:0] registers_done;
+reg  [7:0]  hex[0:15];
+
+reg  [8:0]  registers_ctr;
+reg  [7:0]  registers_str[0:511];
+reg  [4:0]  registers_state;
+reg  [4:0]  registers_reg_ptr;
+reg  [0:0]  registers_done;
+
+reg  [19:0] pc;
 
 initial begin
     o_debug_cycle     = 1'b0;
     counter           = 4'b0;
+    hex[0]            = "0";
+    hex[1]            = "1";
+    hex[2]            = "2";
+    hex[3]            = "3";
+    hex[4]            = "4";
+    hex[5]            = "5";
+    hex[6]            = "6";
+    hex[7]            = "7";
+    hex[8]            = "8";
+    hex[9]            = "9";
+    hex[10]           = "A";
+    hex[11]           = "B";
+    hex[12]           = "C";
+    hex[13]           = "D";
+    hex[14]           = "E";
+    hex[15]           = "F";
     registers_ctr     = 10'd0;
     registers_state   = `DBG_REG_PC_STR;
     registers_reg_ptr = 5'b0;
     registers_done    = 1'b0;
+    pc = 20'h3b45f;
 end
 
 /**************************************************************************************************
@@ -126,7 +147,12 @@ always @(posedge i_clk) begin
                 endcase
             `DBG_REG_PC_VALUE:
                 begin
-                    registers_state <= `DBG_REG_END;
+                    registers_str[registers_ctr] <= hex[pc[(4-registers_reg_ptr)*4+:4]];
+                    registers_reg_ptr <= registers_reg_ptr + 1;
+                    if (registers_reg_ptr == 5'd4) begin
+                        registers_reg_ptr <= 5'd0;
+                        registers_state <= `DBG_REG_END;
+                    end
                 end
             `DBG_REG_END: begin end
             default: begin $display("ERROR, unknown register state %0d", registers_state); end
