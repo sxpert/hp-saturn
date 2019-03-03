@@ -72,6 +72,7 @@ end
 
 wire [0:0] do_pc_read;
 wire [0:0] do_dp_read;
+wire [0:0] do_read;
 
 assign do_pc_read = (last_cmd == `BUSCMD_PC_READ);
 assign do_dp_read = (last_cmd == `BUSCMD_DP_READ);
@@ -84,6 +85,9 @@ assign access_pointer = do_pc_read?local_pc[`ROMBITS-1:0]:local_dp[`ROMBITS-1:0]
 always @(posedge i_clk) begin
     if (i_bus_clk_en && i_bus_is_data && do_read)
         o_bus_nibble_out <= rom_data[access_pointer];
+
+    if (i_reset)
+        o_bus_nibble_out <= 4'b0;
 end
 
 /*
@@ -167,7 +171,6 @@ always @(posedge i_clk) begin
     end
 
     if (i_reset) begin
-        o_bus_nibble_out <= 4'b0;
         last_cmd         <= 4'b0;
         addr_pos_ctr     <= 3'b0;
         local_pc         <= 20'b0;
