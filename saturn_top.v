@@ -101,35 +101,48 @@ saturn_bus main_bus (
     .i_clk_en       (clk_en),
     .i_reset        (reset),
     .o_halt         (halt),
+    .o_phase        (phase),
+    .o_cycle_ctr    (cycle_ctr),
     .o_char_to_send (t_led)
 );
 
-reg  [25:0] delay;
+reg  [23:0] delay;
+reg  [0:0]  clk2;
 reg  [0:0]  clk_en;
 reg  [0:0]  reset;
 wire [0:0]  halt;
+wire [1:0]  phase;
+wire [31:0] cycle_ctr;
 wire [7:0]  t_led;
 
-`define DELAY_START 26'h08287C0
+`define DELAY_START 24'h08287C
 
 initial begin
     led   = 8'h01;
     delay = `DELAY_START;
     reset = 1'b1;
+    clk2  = 1'b0;
 end
 
 always @(posedge clk_25mhz) begin
-    delay <= delay + 26'b1;
-    if (delay[25]) begin
+    delay <= delay + 24'b1;
+    if (delay[21]) begin
         delay  <= `DELAY_START;
         reset  <= btn[1];
+        clk2   <= ~clk2;
+    end
+
+    if (!clk2) begin
+        led    <= { halt, cycle_ctr[4:0], phase};
+    end
+
+    if (clk2 && !halt) begin
         clk_en <= 1'b1;
+        led    <= t_led;
     end
 
     if (clk_en) 
         clk_en <= 1'b0;
-
-    led <= t_led;
 end
 
 endmodule
