@@ -66,21 +66,44 @@ initial begin
     local_dp         = 20'b0;
 end
 
+/*
+ * special cases for reading the rom
+ */
+
+wire [0:0] do_pc_read;
+wire [0:0] do_dp_read;
+
+assign do_pc_read = (last_cmd == `BUSCMD_PC_READ);
+assign do_dp_read = (last_cmd == `BUSCMD_DP_READ);
+assign do_read    = do_pc_read || do_dp_read;
+
+wire [`ROMBITS-1:0] access_pointer;
+
+assign access_pointer = do_pc_read?local_pc[`ROMBITS-1:0]:local_dp[`ROMBITS-1:0];
+
 always @(posedge i_clk) begin
-    
+    if (i_bus_clk_en && i_bus_is_data && do_read)
+        o_bus_nibble_out <= rom_data[access_pointer];
+end
+
+/*
+ * general case
+ */
+
+always @(posedge i_clk) begin
     if (i_bus_clk_en) begin
         if (i_bus_is_data) begin
             /* do things with the bits...*/
             case (last_cmd)
                 `BUSCMD_PC_READ:
                     begin
-                        o_bus_nibble_out <= rom_data[local_pc[`ROMBITS-1:0]];
+                        // o_bus_nibble_out <= rom_data[local_pc[`ROMBITS-1:0]];
                         local_pc <= local_pc + 1;
 
                     end
                 `BUSCMD_DP_READ:
                     begin
-                        o_bus_nibble_out <= rom_data[local_dp[`ROMBITS-1:0]];
+                        // o_bus_nibble_out <= rom_data[local_dp[`ROMBITS-1:0]];
                         local_dp <= local_dp + 1;
                     end
                 `BUSCMD_PC_WRITE: local_pc <= local_pc + 1;

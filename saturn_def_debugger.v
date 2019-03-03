@@ -9,5 +9,6 @@
 `define DBG_REG_PC_STR      0
 `define DBG_REG_PC_VALUE    1
 `define DBG_REG_PC_SPACES   2
+`define DBG_REG_CARRY_STR   3
 `define DBG_REG_END        31
 `endif

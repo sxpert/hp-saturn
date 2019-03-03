@@ -124,7 +124,7 @@ always @(posedge i_clk) begin
 
     /*
      * generates the registers string
-     *
+     *          0123456789012
      * PC: xxxxx             Carry: x h: @E@ rp: x   RSTK7: xxxxx         
      * P:  x  HST: bbbb      ST:  bbbbbbbbbbbbbbbb   RSTK6: xxxxx
      * A:  xxxxxxxxxxxxxxxx  R0:  xxxxxxxxxxxxxxxx   RSTK5: xxxxx
@@ -139,21 +139,55 @@ always @(posedge i_clk) begin
         // $display("DEBUGGER %0d: [%d] debugger %0d", i_phase, i_cycle_ctr, registers_ctr);
         case (registers_state)
             `DBG_REG_PC_STR: 
-                case (registers_reg_ptr)
-                    5'd0: begin; registers_str[registers_ctr] <= "P"; registers_reg_ptr <= registers_reg_ptr + 5'd1; end
-                    5'd1: begin; registers_str[registers_ctr] <= "C"; registers_reg_ptr <= registers_reg_ptr + 5'd1; end
-                    5'd2: begin; registers_str[registers_ctr] <= ":"; registers_reg_ptr <= registers_reg_ptr + 5'd1; end
-                    5'd3: begin; registers_str[registers_ctr] <= " "; registers_reg_ptr <= 5'b0; registers_state <= `DBG_REG_PC_VALUE; end
-                endcase
+                begin 
+                    case (registers_reg_ptr)
+                        5'd0: registers_str[registers_ctr] <= "P";
+                        5'd1: registers_str[registers_ctr] <= "C";
+                        5'd2: registers_str[registers_ctr] <= ":";
+                        5'd3: registers_str[registers_ctr] <= " ";
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
+                    if (registers_reg_ptr == 5'd3) begin
+                        registers_reg_ptr <= 5'd0;
+                        registers_state <= `DBG_REG_PC_VALUE;
+                    end
+                end
             `DBG_REG_PC_VALUE:
                 begin
                     registers_str[registers_ctr] <= hex[pc[(4-registers_reg_ptr)*4+:4]];
                     registers_reg_ptr <= registers_reg_ptr + 1;
                     if (registers_reg_ptr == 5'd4) begin
                         registers_reg_ptr <= 5'd0;
+                        registers_state <= `DBG_REG_PC_SPACES;
+                    end
+                end
+            `DBG_REG_PC_SPACES:
+                begin
+                    registers_str[registers_ctr] <= " ";
+                    registers_reg_ptr <= registers_reg_ptr + 1;
+                    if (registers_reg_ptr == 5'd12) begin
+                        registers_reg_ptr <= 5'd0;
+                        registers_state <= `DBG_REG_CARRY_STR;
+                    end
+                end
+            `DBG_REG_CARRY_STR:
+                begin 
+                    case (registers_reg_ptr)
+                        5'd0: registers_str[registers_ctr] <= "C";
+                        5'd1: registers_str[registers_ctr] <= "a";
+                        5'd2: registers_str[registers_ctr] <= "r";
+                        5'd3: registers_str[registers_ctr] <= "r";
+                        5'd4: registers_str[registers_ctr] <= "y";
+                        5'd5: registers_str[registers_ctr] <= ":";
+                        5'd6: registers_str[registers_ctr] <= " ";
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
+                    if (registers_reg_ptr == 5'd6) begin
+                        registers_reg_ptr <= 5'd0;
                         registers_state <= `DBG_REG_END;
                     end
                 end
+    
             `DBG_REG_END: begin end
             default: begin $display("ERROR, unknown register state %0d", registers_state); end
         endcase
