@@ -23,7 +23,7 @@
 `ifdef SIM
 `define ROMBITS 20
 `else
-`define ROMBITS 13
+`define ROMBITS 12
 `endif
 
 `include "saturn_def_buscmd.v"
