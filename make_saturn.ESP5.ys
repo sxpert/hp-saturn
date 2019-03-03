@@ -5,5 +5,6 @@ read_verilog -I. saturn_bus_controller.v
 read_verilog -I. saturn_debugger.v
 read_verilog -I. saturn_control_unit.v 
 read_verilog -I. saturn_inst_decoder.v
+read_verilog -I. saturn_regs_pc_rstk.v
 
 synth_ecp5 -top saturn_top -json z_saturn_test.json

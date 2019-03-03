@@ -207,6 +207,8 @@ reg [4:0] bus_program[0:31];
 reg [4:0] bus_prog_addr;
 reg [2:0] addr_nibble_ptr;
 
+wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
+
 assign o_program_data = bus_program[i_program_address];
 assign o_program_address = bus_prog_addr;
 
@@ -234,11 +236,11 @@ always @(posedge i_clk) begin
 
     if (!i_debug_cycle && just_reset && i_phases[3]) begin
         /* this happend right after reset */
-`ifdef SIM
         if (just_reset) begin
+`ifdef SIM
             $display("CTRL     %0d: [%d] we are in the control unit", i_phase, i_cycle_ctr);
 `endif
-            just_reset                 <= 1'b0;
+            just_reset <= 1'b0;
         end
         /* this loads the PC to the modules */
         bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
@@ -246,7 +248,7 @@ always @(posedge i_clk) begin
         $display("CTRL     %0d: [%d] pushing LOAD_PC command to pos %d", i_phase, i_cycle_ctr, bus_prog_addr);
 `endif
         addr_nibble_ptr   <= 3'b0;
-        bus_prog_addr     <= bus_prog_addr + 1;
+        bus_prog_addr     <= bus_prog_addr + 5'd1;
     end 
 
     /* loop to fill the initial PC value in the program */
@@ -254,7 +256,7 @@ always @(posedge i_clk) begin
         /* 
          * this should load the actual PC values...
          */
-        bus_program[bus_prog_addr] <= {1'b0, reg_PC[addr_nibble_ptr*4+:4]};
+        bus_program[bus_prog_addr] <= {1'b0, reg_PC_nibble };
         addr_nibble_ptr   <= addr_nibble_ptr + 3'd1;
         bus_prog_addr     <= bus_prog_addr + 5'd1;
 `ifdef SIM
