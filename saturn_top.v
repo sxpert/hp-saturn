@@ -85,17 +85,17 @@ endmodule
 module saturn_top (
 	clk_25mhz,
 	btn,
-	led
+	led,
+    wifi_gpio0
 );
 
 input  wire [0:0] clk_25mhz;
 input  wire [6:0] btn;
 output reg  [7:0] led;
+output reg  [0:0] wifi_gpio0;
 
-wire [0:0] reset;
-wire [0:0] halt;
-
-assign reset  = btn[0]; 
+/* this is necessary, otherwise, the esp32 module reboots the fpga in passthrough */
+assign wifi_gpio0 = btn[0];
 
 saturn_bus main_bus (
     .i_clk          (clk_25mhz),
@@ -105,48 +105,32 @@ saturn_bus main_bus (
     .o_char_to_send (t_led)
 );
 
-wire [7:0] t_led;
+reg  [25:0] delay;
+reg  [0:0]  clk_en;
+reg  [0:0]  reset;
+wire [0:0]  halt;
+wire [7:0]  t_led;
 
-`define DELAY_BITS 25
-`define DELAY_ZERO {`DELAY_BITS{1'b0}}
-`define DELAY_ONE  {{`DELAY_BITS-1{1'b0}},1'b1}
-
-reg [`DELAY_BITS-1:0]  delay;
-
-reg [0:0] clk_en;
-reg [5:0] test;
+`define DELAY_START 26'h08287C0
 
 initial begin
-    delay  = `DELAY_ZERO;
-    clk_en = 1'b0;
-    test   = 6'b1;
-    led    = 8'hff;
+    led   = 8'h01;
+    delay = `DELAY_START;
+    reset = 1'b1;
 end
 
 always @(posedge clk_25mhz) begin
-
-    delay <= delay + `DELAY_ONE;
- 
-    if (delay[`DELAY_BITS-1]) begin
+    delay <= delay + 26'b1;
+    if (delay[25]) begin
+        delay  <= `DELAY_START;
+        reset  <= btn[1];
         clk_en <= 1'b1;
-        led[0] <= ~led[0];
-        delay  <= `DELAY_ZERO; 
-        test   <= {test[4:0], test[5]};
-        led[7:2] <= test;
     end
- 
-    if (clk_en)
-        clk_en <= 1'b0;
- 
-    if (halt) 
-        led[1] <= 1'b1;
 
-    if (reset) begin
-        delay  <= `DELAY_ZERO;
+    if (clk_en) 
         clk_en <= 1'b0;
-        test   <= 6'b1;
-        led    <= 8'hff;
-    end
+
+    led <= t_led;
 end
 
 endmodule
