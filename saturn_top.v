@@ -114,36 +114,38 @@ wire [7:0] t_led;
 reg [`DELAY_BITS-1:0]  delay;
 
 reg [0:0] clk_en;
-reg [7:0] test;
+reg [5:0] test;
 
 initial begin
     delay  = `DELAY_ZERO;
     clk_en = 1'b0;
-    test   = 8'b1;
+    test   = 6'b1;
+    led    = 8'hff;
 end
 
 always @(posedge clk_25mhz) begin
 
     delay <= delay + `DELAY_ONE;
+ 
     if (delay[`DELAY_BITS-1]) begin
         clk_en <= 1'b1;
-    end
-    if (delay[`DELAY_BITS-2]) begin
-        led    <= t_led;
-    end
-    if (clk_en) begin
-        clk_en <= 1'b0;
+        led[0] <= ~led[0];
         delay  <= `DELAY_ZERO; 
-        led    <= test;
-        test   <= {test[6:0], test[7]};
+        test   <= {test[4:0], test[5]};
+        led[7:2] <= test;
     end
+ 
+    if (clk_en)
+        clk_en <= 1'b0;
+ 
     if (halt) 
-        led[0] <= 1'b1;
+        led[1] <= 1'b1;
 
     if (reset) begin
         delay  <= `DELAY_ZERO;
         clk_en <= 1'b0;
-        test   <= 8'b1;
+        test   <= 6'b1;
+        led    <= 8'hff;
     end
 end
 
