@@ -232,7 +232,8 @@ always @(posedge i_clk) begin
                      */
                     if (!more_to_write && !ctrl_unit_no_read) begin
                         // $display("BUSCTRL  %0d: [%d] setting up read", i_phase, i_cycle_ctr);
-                        o_bus_clk_en <= 1'b1;
+                        o_bus_is_data <= 1'b1;
+                        o_bus_clk_en  <= 1'b1;
                     end
                 end
             4'b0010:
