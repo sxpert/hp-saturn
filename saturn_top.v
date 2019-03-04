@@ -125,12 +125,12 @@ wire [7:0]  t_led;
 // `define TEST_BIT    22
 
 /* 1/16 s */
-`define DELAY_START 26'h08287C
-`define TEST_BIT    21
+// `define DELAY_START 26'h08287C
+// `define TEST_BIT    21
 
 /* 1/32 s */
-// `define DELAY_START 26'h4143E
-// `define TEST_BIT    20
+`define DELAY_START 26'h4143E
+`define TEST_BIT    20
 
 initial begin
     led   = 8'h01;
