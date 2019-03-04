@@ -117,8 +117,12 @@ wire [7:0]  t_led;
 
 
 /* 1/4 s */
-`define DELAY_START 26'h20A1F0
-`define TEST_BIT    23
+// `define DELAY_START 26'h20A1F0
+// `define TEST_BIT    23
+
+/* 1/8 s */
+`define DELAY_START 26'h1050F8
+`define TEST_BIT    22
 
 /* 1/16 s */
 // `define DELAY_START 26'h08287C
@@ -144,7 +148,8 @@ always @(posedge clk_25mhz) begin
     end
 
     if (!clk2) begin
-        led    <= { halt, cycle_ctr[4:0], phase};
+        // led    <= { halt, cycle_ctr[4:0], phase};
+        led    <= { halt, cycle_ctr[6:0] };
     end
 
     if (clk2 && !halt) begin

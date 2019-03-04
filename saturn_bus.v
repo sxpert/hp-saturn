@@ -146,10 +146,12 @@ always @(posedge i_clk) begin
         cycle_ctr <= cycle_ctr + {31'b0, phases[3]};
     end 
 
+`ifdef SIM
     if (cycle_ctr == 53) begin
         bus_halt <= 1'b1;
         $display("BUS      %0d: [%d] enough cycles for now", phase, cycle_ctr);
     end
+`endif
 
     if (i_reset) begin
         bus_halt  <= 1'b0;
