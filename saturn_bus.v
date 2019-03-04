@@ -152,6 +152,7 @@ always @(posedge i_clk) begin
     end
 
     if (i_reset) begin
+        bus_halt  <= 1'b0;
         phases    <= 4'b1;
         cycle_ctr <= 32'd0;
     end

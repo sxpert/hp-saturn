@@ -115,9 +115,14 @@ wire [1:0]  phase;
 wire [31:0] cycle_ctr;
 wire [7:0]  t_led;
 
+
+/* 1/4 s */
+`define DELAY_START 26'h20A1F0
+`define TEST_BIT    23
+
 /* 1/16 s */
-`define DELAY_START 26'h08287C
-`define TEST_BIT    21
+// `define DELAY_START 26'h08287C
+// `define TEST_BIT    21
 
 /* 1/32 s */
 // `define DELAY_START 26'h4143E
