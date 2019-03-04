@@ -45,6 +45,9 @@ module saturn_control_unit (
     /* debugger interface */
 
     o_current_pc,
+    o_reg_p,
+    o_reg_hst,
+    o_reg_st,
 
     o_alu_reg_dest,
     o_alu_reg_src_1,
@@ -78,6 +81,9 @@ assign o_error = control_unit_error || dec_error;
 /* debugger interface */
 
 output wire [19:0] o_current_pc;
+output wire [3:0]  o_reg_p;
+output wire [3:0]  o_reg_hst;
+output wire [15:0] o_reg_st;
 
 output wire [4:0]  o_alu_reg_dest;
 output wire [4:0]  o_alu_reg_src_1;
@@ -89,6 +95,9 @@ output wire [3:0]  o_instr_type;
 output wire [0:0]  o_instr_decoded;
 
 assign o_current_pc    = reg_PC;
+assign o_reg_p         = reg_P;
+assign o_reg_hst       = reg_HST;
+assign o_reg_st        = reg_ST;
 
 assign o_alu_reg_dest  = dec_alu_reg_dest;
 assign o_alu_reg_src_1 = dec_alu_reg_src_1;
@@ -122,6 +131,8 @@ saturn_inst_decoder instruction_decoder(
     .o_alu_reg_dest     (dec_alu_reg_dest),
     .o_alu_reg_src_1    (dec_alu_reg_src_1),
     .o_alu_reg_src_2    (dec_alu_reg_src_2),
+    .o_alu_ptr_begin    (dec_alu_ptr_begin),
+    .o_alu_ptr_end      (dec_alu_ptr_end),
     .o_alu_imm_value    (dec_alu_imm_value),
     .o_alu_opcode       (dec_alu_opcode),
 
@@ -137,6 +148,8 @@ saturn_inst_decoder instruction_decoder(
 wire [4:0] dec_alu_reg_dest;
 wire [4:0] dec_alu_reg_src_1;
 wire [4:0] dec_alu_reg_src_2;
+wire [3:0] dec_alu_ptr_begin;
+wire [3:0] dec_alu_ptr_end;
 wire [3:0] dec_alu_imm_value;
 wire [4:0] dec_alu_opcode;
 
@@ -152,14 +165,19 @@ wire [0:0] dec_error;
  * wires for decode shortcuts
  */
 
+wire [0:0] inst_alu        = (dec_instr_type == `INSTR_TYPE_ALU);
+wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
+
+wire [0:0] reg_dest_st   = (dec_alu_reg_dest == `ALU_REG_ST);
 wire [0:0] reg_dest_p    = (dec_alu_reg_dest == `ALU_REG_P);
 wire [0:0] reg_src_1_imm = (dec_alu_reg_src_1 == `ALU_REG_IMM);
-wire [0:0] aluop_copy    = (dec_alu_opcode == `ALU_OP_COPY);
 
-wire [0:0] inst_alu_p_eq_n = aluop_copy && reg_dest_p && reg_src_1_imm;
-wire [0:0] inst_alu_other  = !(inst_alu_p_eq_n);
+wire [0:0] aluop_copy    = inst_alu && (dec_alu_opcode == `ALU_OP_COPY);
 
-wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
+wire [0:0] inst_alu_p_eq_n     = aluop_copy && reg_dest_p && reg_src_1_imm;
+wire [0:0] inst_alu_st_eq_01_n = aluop_copy && reg_dest_st && reg_src_1_imm;
+wire [0:0] inst_alu_other      = !(inst_alu_p_eq_n || inst_alu_st_eq_01_n);
+
 
 /**************************************************************************************************
  *
@@ -197,6 +215,8 @@ saturn_regs_pc_rstk regs_pc_rstk (
  *
  *************************************************************************************************/
 
+reg  [3:0]  reg_HST;
+reg  [15:0] reg_ST;
 reg  [3:0]  reg_P;
 wire [19:0] reg_PC;
 wire [0:0]  reload_PC;
@@ -215,8 +235,6 @@ reg  [4:0] bus_prog_addr;
 reg  [2:0] addr_nibble_ptr;
 reg  [0:0] load_pc_loop;
 
-reg  [2:0] jump_counter;
-
 wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
 
 assign o_program_data = bus_program[i_program_address];
@@ -232,9 +250,9 @@ initial begin
     addr_nibble_ptr    = 3'd0;
     load_pc_loop       = 1'b0;
 
-    jump_counter       = 3'd0;
-    
     /* registers */
+    reg_HST            = 4'b0;
+    reg_ST             = 16'b0;
     reg_P              = 4'b0; 
 end
 
@@ -306,10 +324,6 @@ always @(posedge i_clk) begin
 // `ifdef SIM
         // $display("CTRL     %0d: [%d] starting to do things", i_phase, i_cycle_ctr);
 // `endif
-        if (i_cycle_ctr == 15) begin
-            control_unit_error <= 1'b1;
-            $display("CTRL     %0d: [%d] enough cycles for now", i_phase, i_cycle_ctr);
-        end
 
         // if (i_phases[2]) begin
         //     $display("CTRL     %0d: [%d] interpreting %h", i_phase, i_cycle_ctr, i_nibble);
@@ -326,31 +340,29 @@ always @(posedge i_clk) begin
                         /*
                          * treat special cases
                          */
+                        /* 2n      P=         n */
                         if (inst_alu_p_eq_n) begin
                             $display("CTRL     %0d: [%d] exec : P= %h", i_phase, i_cycle_ctr, dec_alu_imm_value);
                             reg_P <= dec_alu_imm_value;
+                        end
+
+                        /* 8[45]n  ST=[01]    n */
+                        if (inst_alu_st_eq_01_n) begin
+                            $display("CTRL     %0d: [%d] exec : ST=%b %h", i_phase, i_cycle_ctr, dec_alu_imm_value[0], dec_alu_ptr_begin);
+                            reg_ST[dec_alu_ptr_begin] <= dec_alu_imm_value[0];
                         end
 
                         /*
                          * the general case
                          */
                     end
-                `INSTR_TYPE_JUMP: begin
-                        $display("CTRL     %0d: [%d] JUMP instruction", i_phase, i_cycle_ctr);
-                        jump_counter <= 1'b0;
-                    end
+                `INSTR_TYPE_JUMP: begin end
                 default: begin 
                         $display("CTRL     %0d: [%d] unsupported instruction", i_phase, i_cycle_ctr);
                     end
             endcase
         end
 
-        if (i_phases[2] && ! dec_instr_execute) begin
-            if (inst_jump) begin
-                $display("CTRL     %0d: [%d] JUMP nibble %0d : %h", i_phase, i_cycle_ctr, jump_counter, i_nibble);
-                jump_counter <= jump_counter + 3'd1;
-            end
-        end
     end
 
     if (i_reset) begin
@@ -362,10 +374,10 @@ always @(posedge i_clk) begin
         bus_prog_addr      <= 5'd0;
         addr_nibble_ptr    <= 3'd0;
         load_pc_loop       <= 1'b0;
-    
-        jump_counter       <= 3'd0;
 
         /* registers */
+        reg_HST            <= 4'b0;
+        reg_ST             <= 16'b0;
         reg_P              <= 4'b0; 
     end
 

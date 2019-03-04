@@ -41,6 +41,8 @@ module saturn_inst_decoder (
     o_alu_reg_dest,
     o_alu_reg_src_1,
     o_alu_reg_src_2,
+    o_alu_ptr_begin,
+    o_alu_ptr_end,
     o_alu_imm_value,
     o_alu_opcode,
 
@@ -73,6 +75,8 @@ output reg  [19:0] o_instr_pc;
 output reg  [4:0]  o_alu_reg_dest;
 output reg  [4:0]  o_alu_reg_src_1;
 output reg  [4:0]  o_alu_reg_src_2;
+output reg  [3:0]  o_alu_ptr_begin;
+output reg  [3:0]  o_alu_ptr_end;
 output reg  [3:0]  o_alu_imm_value;
 output reg  [4:0]  o_alu_opcode;
 
@@ -119,6 +123,10 @@ reg [0:0] decode_started;
 
 reg [0:0] block_2x;
 reg [0:0] block_6x;
+reg [0:0] block_8x;
+reg [0:0] block_84x_85x;
+
+reg [0:0] block_JUMP;
 
 /*
  * temporary variables
@@ -133,6 +141,8 @@ initial begin
     o_alu_reg_dest  = `ALU_REG_NONE;
     o_alu_reg_src_1 = `ALU_REG_NONE;
     o_alu_reg_src_2 = `ALU_REG_NONE;
+    o_alu_ptr_begin = 4'h0;
+    o_alu_ptr_end   = 4'h0;
     o_alu_imm_value = 4'b0;
     o_alu_opcode    = `ALU_OP_NOP;
 
@@ -149,6 +159,10 @@ initial begin
 
     block_2x        = 1'b0;
     block_6x        = 1'b0;
+    block_8x        = 1'b0;
+    block_84x_85x   = 1'b0;
+
+    block_JUMP      = 1'b0;
 
     /* local variables */
     jump_counter    = 3'd0;
@@ -199,6 +213,7 @@ always @(posedge i_clk) begin
                         o_instr_execute <= 1'b1;
                         block_6x        <= 1'b1;
                     end
+                4'h8: block_8x <= 1'b1;
                 default: 
                     begin
                         $display("invalid instruction");
@@ -211,7 +226,6 @@ always @(posedge i_clk) begin
             $display("DECODER  %0d: [%d] nb= %h - decoding", i_phase, i_cycle_ctr, i_nibble);
 
             if (block_2x) begin
-                $display("DECODER  %0d: [%d] P= %h", i_phase, i_cycle_ctr, i_nibble);
                 o_alu_reg_dest  <= `ALU_REG_P;
                 o_alu_reg_src_1 <= `ALU_REG_IMM;
                 o_alu_reg_src_2 <= `ALU_REG_NONE;
@@ -229,6 +243,55 @@ always @(posedge i_clk) begin
                 jump_counter <= jump_counter + 3'd1;
                 if (jump_counter == o_jump_length) begin
                     block_6x        <= 1'b0;
+                    o_instr_decoded <= 1'b1;
+                    decode_started  <= 1'b0;
+                end
+            end
+
+            if (block_8x) begin
+                case (i_nibble)
+                    4'h4, 4'h5:
+                        begin
+                            o_alu_reg_dest  <= `ALU_REG_ST;
+                            o_alu_reg_src_1 <= `ALU_REG_IMM;
+                            o_alu_reg_src_2 <= `ALU_REG_NONE;
+                            o_alu_imm_value <= { 3'b000, i_nibble[0]};
+                            o_alu_opcode    <= `ALU_OP_COPY;
+                            o_instr_type    <= `INSTR_TYPE_ALU;
+                            block_84x_85x   <= 1'b1;
+                        end
+                    4'hD: 
+                        begin
+                            o_instr_type    <= `INSTR_TYPE_JUMP;
+                            o_jump_length   <= 3'd4;
+                            jump_counter    <= 3'd0;
+                            o_instr_execute <= 1'b1;
+                            block_JUMP      <= 1'b1;
+                        end
+                    default: 
+                        begin
+                            $display("DECODER  %0d: [%d] block_8x %h", i_phase, i_cycle_ctr, i_nibble);
+                            o_decoder_error <= 1'b1;
+                        end
+                endcase
+                block_8x <= 1'b0;
+            end
+
+            if (block_84x_85x) begin
+                o_alu_ptr_begin <= i_nibble;
+                o_alu_ptr_end   <= i_nibble;
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                decode_started  <= 1'b0;
+                block_84x_85x   <= 1'b0;
+            end
+
+            /* special cases */
+
+            if (block_JUMP) begin
+                jump_counter <= jump_counter + 3'd1;
+                if (jump_counter == o_jump_length) begin
+                    block_JUMP      <= 1'b0;
                     o_instr_decoded <= 1'b1;
                     decode_started  <= 1'b0;
                 end
@@ -252,6 +315,8 @@ always @(posedge i_clk) begin
         o_alu_reg_dest  <= `ALU_REG_NONE;
         o_alu_reg_src_1 <= `ALU_REG_NONE;
         o_alu_reg_src_2 <= `ALU_REG_NONE;
+        o_alu_ptr_begin <= 4'h0;
+        o_alu_ptr_end   <= 4'h0;
         o_alu_imm_value <= 4'b0;
         o_alu_opcode    <= `ALU_OP_NOP;
 
@@ -268,6 +333,10 @@ always @(posedge i_clk) begin
 
         block_2x        <= 1'b0;
         block_6x        <= 1'b0;
+        block_8x        <= 1'b0;
+        block_84x_85x   <= 1'b0;
+
+        block_JUMP      <= 1'b0;
 
         /* local variables */
         jump_counter    = 3'd0;

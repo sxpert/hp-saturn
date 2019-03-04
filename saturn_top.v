@@ -110,7 +110,12 @@ reg  [0:0]  reset;
 wire [0:0]  halt;
 wire [7:0]  t_led;
 
-`define DELAY_START 26'h08287C0
+/* 1/8 s */
+// `define DELAY_START 26'h08287C0
+// `define TEST_BIT    25
+/* 1/32 s */
+`define DELAY_START 26'h4143E
+`define TEST_BIT    20
 
 initial begin
     led   = 8'h01;
@@ -120,7 +125,7 @@ end
 
 always @(posedge clk_25mhz) begin
     delay <= delay + 26'b1;
-    if (delay[25]) begin
+    if (delay[`TEST_BIT]) begin
         delay  <= `DELAY_START;
         reset  <= btn[1];
         clk_en <= 1'b1;

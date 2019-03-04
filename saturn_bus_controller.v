@@ -79,6 +79,9 @@ saturn_control_unit control_unit (
 
     /* debugger interface */
     .o_current_pc      (ctrl_current_pc),
+    .o_reg_hst         (ctrl_reg_hst),
+    .o_reg_st          (ctrl_reg_st),
+    .o_reg_p           (ctrl_reg_p),
 
     .o_alu_reg_dest    (dec_alu_reg_dest),
     .o_alu_reg_src_1   (dec_alu_reg_src_1),
@@ -97,6 +100,9 @@ wire [0:0]  ctrl_unit_no_read;
 
 /* debugger insterface */
 wire [19:0] ctrl_current_pc;
+wire [3:0]  ctrl_reg_hst;
+wire [15:0] ctrl_reg_st;
+wire [3:0]  ctrl_reg_p;
 
 wire [4:0]  dec_alu_reg_dest;
 wire [4:0]  dec_alu_reg_src_1;
@@ -125,6 +131,9 @@ saturn_debugger debugger (
 
     /* debugger interface */
     .i_current_pc      (ctrl_current_pc),
+    .i_reg_hst         (ctrl_reg_hst),
+    .i_reg_st          (ctrl_reg_st),
+    .i_reg_p           (ctrl_reg_p),
 
     .i_alu_reg_dest    (dec_alu_reg_dest),
     .i_alu_reg_src_1   (dec_alu_reg_src_1),
