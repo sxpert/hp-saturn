@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+# licence: GPLv3 or later
+#
+
+
+nextpnr-ecp5 --gui --85k --speed 6 --freq 5 --lpf ulx3s_v20.lpf --json z_saturn_test.json
