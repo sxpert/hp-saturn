@@ -177,7 +177,10 @@ saturn_debugger debugger (
     .o_char_counter    (o_char_counter),
     .o_char_valid      (o_char_valid), 
     .o_char_send       (o_char_send),
-    .i_serial_busy     (i_serial_busy)
+    .i_serial_busy     (i_serial_busy),
+ 
+    .i_bus_nibble_in   (i_bus_nibble_in),
+    .i_bus_read_valid  (bus_read_valid)
 );
 
 wire [4:0] dbg_register;
@@ -222,6 +225,8 @@ initial begin
     bus_prog_addr = 5'd0;
     bus_busy      = 1'b1;
 end
+
+wire [0:0] bus_read_valid = bus_clk_en && i_phases[2] && !bus_busy;
 
 /*
  * bus chronograms

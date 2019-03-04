@@ -66,19 +66,25 @@ end
 always 
     #10 clk = (clk === 1'b0);
 
+reg [3:0] delay;
 reg [0:0] clk_en;
 reg [7:0] test;
 
 initial begin
-    clk_en = 1'b1;
+    delay  = 4'b0001;
+    clk_en = 1'b0;
     test   = 8'b1;
 end
 
 always @(posedge clk) begin
     test   <= {test[6:0], test[7]};
 
+    delay  <= { delay[2:0], delay[3]};
+    if (delay[0]) clk_en <= 1'b1;
+    if (clk_en) clk_en <= 1'b0;
+
     if (reset) begin
-        clk_en <= 1'b1;
+        clk_en <= 1'b0;
         test   <= 8'b1;
     end
 end
@@ -171,24 +177,25 @@ end
 
 always @(posedge clk_25mhz) begin
     delay <= delay + 26'b1;
-    led    <= char_counter[7:0];
+    // led    <= char_counter[7:0];
     if (delay[`TEST_BIT]) begin
         delay  <= `DELAY_START;
         reset  <= btn[1];
         clk2   <= ~clk2;
     end
-    led[7] <= clk2;
+    led[7] <= halt;
     led[6] <= char_send;
+    led[5] <= serial_busy;
 
     if (clk2 && !halt) begin
         clk_en <= 1'b1;
-        led[5] <= ~led[5];
     end
 
     if (clk_en) begin
         clk_en <= 1'b0;
-        led[4] <= ~led[4];
     end
+    led[3] <= clk_en;
+    // led[1:0] <= phase;
 end
 
 endmodule

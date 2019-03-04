@@ -77,6 +77,7 @@ always @(posedge i_clk) begin
 
     // $display("%0d", bit_delay);
     if (i_char_valid && !o_serial_busy) begin
+        // $write("%c", i_char_to_send);
         // $display("serial storing char %c", i_char_to_send);
         clocking_reg <= 11'b0;
         data_reg     <= { 1'b1, i_char_to_send, 1'b0 };

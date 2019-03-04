@@ -61,7 +61,10 @@ module saturn_debugger (
     o_char_counter,
     o_char_valid,
     o_char_send,
-    i_serial_busy
+    i_serial_busy,
+
+    i_bus_nibble_in,
+    i_bus_read_valid
 );
 
 input  wire [0:0]  i_clk;
@@ -103,6 +106,9 @@ assign o_char_counter = {1'b0, counter};
 output reg  [0:0]  o_char_valid;
 output reg  [0:0]  o_char_send;
 input  wire [0:0]  i_serial_busy;
+
+input  wire [3:0]  i_bus_nibble_in;
+input  wire [0:0]  i_bus_read_valid; 
 
 /**************************************************************************************************
  *
@@ -528,8 +534,28 @@ always @(posedge i_clk) begin
         end
     end
 
+    /* not in debug mode, output the phase */
+    // if (i_clk_en && !o_debug_cycle) begin
+    //     o_char_send <= ~o_char_send;
+    //     case (i_phase)
+    //         2'd0: o_char_to_send <= "0";
+    //         2'd1: o_char_to_send <= "1";
+    //         2'd2: o_char_to_send <= "2";
+    //         2'd3: o_char_to_send <= "3";
+    //     endcase
+    //     o_char_valid <= 1'b1;
+    // end
+
+    if (i_bus_read_valid) begin
+        // $write("#### %c ####", hex[i_bus_nibble_in]); 
+        o_char_send    <= ~o_char_send;
+        o_char_to_send <= hex[i_bus_nibble_in];
+        o_char_valid   <= 1'b1;
+    end
+ 
     /* clear the char clock enable */
-    if (write_out && o_char_valid && i_serial_busy) begin
+    // if (write_out && o_char_valid && i_serial_busy) begin
+    if (o_char_valid) begin
         o_char_valid <= 1'b0;
     end
 
