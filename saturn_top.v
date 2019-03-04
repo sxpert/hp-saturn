@@ -118,7 +118,9 @@ saturn_bus main_bus (
     .o_phase        (phase),
     .o_cycle_ctr    (cycle_ctr),
     .o_char_to_send (char_to_send),
+    .o_char_counter (char_counter),
     .o_char_valid   (char_valid),
+    .o_char_send    (char_send),
     .i_serial_busy  (serial_busy)
 );
 
@@ -138,13 +140,15 @@ wire [0:0]  halt;
 wire [1:0]  phase;
 wire [31:0] cycle_ctr;
 wire [7:0]  char_to_send;
+wire [9:0]  char_counter;
 wire [0:0]  char_valid;
+wire [0:0]  char_send;
 wire [0:0]  serial_busy;
 
 
 /* 1/4 s */
-// `define DELAY_START 26'h20A1F0
-// `define TEST_BIT    23
+`define DELAY_START 26'h20A1F0
+`define TEST_BIT    23
 
 /* 1/8 s */
 // `define DELAY_START 26'h1050F8
@@ -155,8 +159,8 @@ wire [0:0]  serial_busy;
 // `define TEST_BIT    21
 
 /* 1/32 s */
-`define DELAY_START 26'h4143E
-`define TEST_BIT    20
+// `define DELAY_START 26'h4143E
+// `define TEST_BIT    20
 
 initial begin
     led   = 8'h01;
@@ -167,24 +171,24 @@ end
 
 always @(posedge clk_25mhz) begin
     delay <= delay + 26'b1;
+    led    <= char_counter[7:0];
     if (delay[`TEST_BIT]) begin
         delay  <= `DELAY_START;
         reset  <= btn[1];
         clk2   <= ~clk2;
     end
-
-    if (!clk2) begin
-        // led    <= { halt, cycle_ctr[4:0], phase};
-        led    <= { halt, cycle_ctr[6:0] };
-    end
+    led[7] <= clk2;
+    led[6] <= char_send;
 
     if (clk2 && !halt) begin
         clk_en <= 1'b1;
-        led    <= char_to_send;
+        led[5] <= ~led[5];
     end
 
-    if (clk_en) 
+    if (clk_en) begin
         clk_en <= 1'b0;
+        led[4] <= ~led[4];
+    end
 end
 
 endmodule

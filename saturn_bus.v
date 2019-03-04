@@ -28,7 +28,9 @@ module saturn_bus (
     o_phase,
     o_cycle_ctr,
     o_char_to_send,
+    o_char_counter,
     o_char_valid,
+    o_char_send,
     i_serial_busy
 );
 
@@ -39,7 +41,9 @@ output wire [0:0]  o_halt;
 output wire [1:0]  o_phase;
 output wire [31:0] o_cycle_ctr;
 output wire [7:0]  o_char_to_send;
+output wire [9:0]  o_char_counter;
 output wire [0:0]  o_char_valid;
+output wire [0:0]  o_char_send;
 input  wire [0:0]  i_serial_busy;
 
 assign o_phase = phase;
@@ -91,7 +95,9 @@ saturn_bus_controller bus_controller (
 
     .o_debug_cycle      (dbg_debug_cycle),
     .o_char_to_send     (o_char_to_send),
+    .o_char_counter     (o_char_counter),
     .o_char_valid       (o_char_valid),
+    .o_char_send        (o_char_send),
     .i_serial_busy      (i_serial_busy),
     .o_halt             (ctrl_halt)
 );

@@ -58,7 +58,9 @@ module saturn_debugger (
 
     /* output to leds */
     o_char_to_send,
+    o_char_counter,
     o_char_valid,
+    o_char_send,
     i_serial_busy
 );
 
@@ -96,7 +98,10 @@ input  wire [3:0]  i_instr_type;
 input  wire [0:0]  i_instr_decoded;
 
 output reg  [7:0]  o_char_to_send;
+output wire [9:0]  o_char_counter;
+assign o_char_counter = {1'b0, counter};
 output reg  [0:0]  o_char_valid;
+output reg  [0:0]  o_char_send;
 input  wire [0:0]  i_serial_busy;
 
 /**************************************************************************************************
@@ -148,6 +153,7 @@ initial begin
     o_dbg_register    = `ALU_REG_NONE;
     registers_done    = 1'b0;
     o_char_valid      = 1'b0;
+    o_char_send       = 1'b0;
     carry = 1'b1;
 end
 
@@ -493,6 +499,10 @@ always @(posedge i_clk) begin
             registers_ctr <= registers_ctr + 9'd1;
     end
 
+    /*
+     *
+     */
+
     if (i_clk_en && o_debug_cycle && debug_done && !write_out) begin
         $display("DEBUGGER %0d: [%d] end debugger cycle", i_phase, i_cycle_ctr);
         counter   <= 9'd0;
@@ -500,7 +510,8 @@ always @(posedge i_clk) begin
     end
 
     /* writes the chars to the serial port */
-    if ( write_out && !o_char_valid && !i_serial_busy) begin
+    if (i_clk_en && write_out && !o_char_valid && !i_serial_busy) begin
+        o_char_send <= ~o_char_send;
         o_char_to_send <= registers_str[counter];
         o_char_valid   <= 1'b1;
         counter <= counter + 9'd1;
@@ -516,8 +527,9 @@ always @(posedge i_clk) begin
             o_debug_cycle  <= 1'b0;
         end
     end
+
     /* clear the char clock enable */
-    if (write_out && o_char_valid) begin
+    if (write_out && o_char_valid && i_serial_busy) begin
         o_char_valid <= 1'b0;
     end
 
