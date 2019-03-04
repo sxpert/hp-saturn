@@ -157,6 +157,7 @@ always @(posedge i_clk) begin
 `ifdef SIM        
             $write("ROM-GX-R %0d: [%d] ", i_phase, i_cycle_ctr);    
             case (i_bus_nibble_in)
+                `BUSCMD_PC_READ:   $write("PC_READ");
                 `BUSCMD_LOAD_PC:   $write("LOAD_PC");
                 `BUSCMD_LOAD_DP:   $write("LOAD_DP");
                 `BUSCMD_CONFIGURE: $write("CONFIGURE");
