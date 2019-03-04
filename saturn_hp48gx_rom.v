@@ -25,7 +25,7 @@
 `ifdef SIM
 `define ROMBITS 20
 `else
-`define ROMBITS 16
+`define ROMBITS 19
 `endif
 
 module saturn_hp48gx_rom (

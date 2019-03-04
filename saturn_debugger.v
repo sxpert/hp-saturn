@@ -55,6 +55,8 @@ module saturn_debugger (
 
     i_instr_type,
     i_instr_decoded,
+    i_instr_execute,
+    i_bus_busy,
 
     /* output to leds */
     o_char_to_send,
@@ -99,6 +101,8 @@ input  wire [4:0]  i_alu_opcode;
 
 input  wire [3:0]  i_instr_type;
 input  wire [0:0]  i_instr_decoded;
+input  wire [0:0]  i_instr_execute;
+input  wire [0:0]  i_bus_busy;
 
 output reg  [7:0]  o_char_to_send;
 output wire [9:0]  o_char_counter;
@@ -540,7 +544,25 @@ always @(posedge i_clk) begin
         o_char_valid   <= 1'b1;
     end
 
-    if (i_clk_en && i_instr_decoded) begin
+    if (i_clk_en && i_bus_busy) begin
+        o_char_send <= ~o_char_send;
+        case (i_phase)
+        2'b00: o_char_to_send <= "!";
+        2'b01: o_char_to_send <= "@";
+        2'b10: o_char_to_send <= "#";
+        2'b11: o_char_to_send <= "$";
+        endcase
+        if (i_instr_decoded) o_char_to_send <= "=";
+        o_char_valid   <= 1'b1;
+    end
+
+    if (i_clk_en && i_instr_execute && i_phases[3]) begin
+        o_char_send <= ~o_char_send;
+        o_char_to_send <= "^";
+        o_char_valid   <= 1'b1;
+    end
+
+    if (i_clk_en && i_instr_decoded && i_phases[3]) begin
         o_char_send <= ~o_char_send;
         o_char_to_send <= "|";
         o_char_valid   <= 1'b1;

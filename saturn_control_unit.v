@@ -64,7 +64,8 @@ module saturn_control_unit (
     o_alu_opcode,
 
     o_instr_type,
-    o_instr_decoded
+    o_instr_decoded,
+    o_instr_execute
 );
 
 input  wire [0:0]  i_clk;
@@ -110,6 +111,7 @@ output wire [4:0]  o_alu_opcode;
 
 output wire [3:0]  o_instr_type;
 output wire [0:0]  o_instr_decoded;
+output wire [0:0]  o_instr_execute;
 
 assign o_current_pc    = reg_PC;
 assign o_reg_p         = reg_P;
@@ -124,6 +126,7 @@ assign o_alu_opcode    = dec_alu_opcode;
 
 assign o_instr_type    = dec_instr_type;
 assign o_instr_decoded = dec_instr_decoded;
+assign o_instr_execute = dec_instr_execute;
 
 /**************************************************************************************************
  *
@@ -419,7 +422,7 @@ always @(posedge i_clk) begin
                                 default: $display("CLRHST %h", dec_alu_imm_value);
                             endcase
 `endif
-                            reg_HST = reg_HST & ~dec_alu_imm_value;
+                            reg_HST <= reg_HST & ~dec_alu_imm_value;
                         end
 
                         /* 8[45]n  ST=[01]    n */

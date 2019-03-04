@@ -181,7 +181,7 @@ end
 always @(posedge clk_25mhz) begin
     reset  <= btn[1];
     delay  <= delay[`TEST_BIT]?`DELAY_START:delay + 26'b1;
-    clk_en <= delay[`TEST_BIT]?1'b1:1'b0;
+    clk_en <= (delay[`TEST_BIT]?1'b1:1'b0) && !halt;
     
     led[7] <= halt;
     led[6] <= char_send;

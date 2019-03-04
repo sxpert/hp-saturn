@@ -109,7 +109,8 @@ saturn_control_unit control_unit (
     .o_alu_opcode      (dec_alu_opcode),
 
     .o_instr_type      (dec_instr_type),
-    .o_instr_decoded   (dec_instr_decoded)
+    .o_instr_decoded   (dec_instr_decoded),
+    .o_instr_execute   (dec_instr_execute)
 );
 
 wire [0:0]  ctrl_unit_error;
@@ -136,6 +137,7 @@ wire [4:0]  dec_alu_opcode;
 
 wire [3:0]  dec_instr_type;
 wire [0:0]  dec_instr_decoded;
+wire [0:0]  dec_instr_execute;
 
 /**************************************************************************************************
  *
@@ -175,6 +177,8 @@ saturn_debugger debugger (
 
     .i_instr_type      (dec_instr_type),
     .i_instr_decoded   (dec_instr_decoded),
+    .i_instr_execute   (dec_instr_execute),
+    .i_bus_busy        (bus_busy),
 
     .o_char_to_send    (o_char_to_send),
     .o_char_counter    (o_char_counter),

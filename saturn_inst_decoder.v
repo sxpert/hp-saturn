@@ -126,7 +126,6 @@ reg [0:0] decode_started;
 reg [0:0] block_0x;
 reg [0:0] block_2x;
 reg [0:0] block_3x;
-reg [0:0] block_6x;
 reg [0:0] block_8x;
 reg [0:0] block_80x;
 reg [0:0] block_80Cx;
@@ -171,7 +170,6 @@ initial begin
     block_0x        = 1'b0;
     block_2x        = 1'b0;
     block_3x        = 1'b0;
-    block_6x        = 1'b0;
     block_8x        = 1'b0;
     block_80x       = 1'b0;
     block_80Cx      = 1'b0;
@@ -229,10 +227,11 @@ always @(posedge i_clk) begin
                 4'h6: 
                     begin
                         o_instr_type    <= `INSTR_TYPE_JUMP;
+                        // o_push_pc       <= i_nibble[1]; 
                         o_jump_length   <= 3'd2;
                         jump_counter    <= 3'd0;
                         o_instr_execute <= 1'b1;
-                        block_6x        <= 1'b1;
+                        block_JUMP      <= 1'b1;
                     end
                 4'h8: block_8x <= 1'b1;
                 default: 
@@ -288,16 +287,6 @@ always @(posedge i_clk) begin
                 o_instr_execute <= 1'b1;
                 block_LOAD      <= 1'b1;
                 block_3x        <= 1'b0;
-            end
-
-            if (block_6x) begin
-                // $display("DECODER  %0d: [%d] GOTO %h", i_phase, i_cycle_ctr, i_nibble);
-                jump_counter <= jump_counter + 3'd1;
-                if (jump_counter == o_jump_length) begin
-                    block_6x        <= 1'b0;
-                    o_instr_decoded <= 1'b1;
-                    decode_started  <= 1'b0;
-                end
             end
 
             if (block_8x) begin
@@ -432,6 +421,7 @@ always @(posedge i_clk) begin
         /* decoder cleanup only after the instruction is completely decoded and execution has started */
         if (i_phases[3] && o_instr_decoded) begin
             // $display("DECODER  %0d: [%d] decoder cleanup", i_phase, i_cycle_ctr);
+
             o_instr_decoded <= 1'b0;
             o_instr_execute <= 1'b0;
             o_instr_type    <= `INSTR_TYPE_NONE;
@@ -466,7 +456,6 @@ always @(posedge i_clk) begin
         block_0x        <= 1'b0;
         block_2x        <= 1'b0;
         block_3x        <= 1'b0;
-        block_6x        <= 1'b0;
         block_8x        <= 1'b0;
         block_80x       <= 1'b0;
         block_80Cx      <= 1'b0;
@@ -477,12 +466,12 @@ always @(posedge i_clk) begin
         block_LOAD      <= 1'b0;
 
         /* local variables */
-        jump_counter    = 3'd0;
-        load_counter    = 4'd0;
-        load_count      = 4'd0;
+        jump_counter    <= 3'd0;
+        load_counter    <= 4'd0;
+        load_count      <= 4'd0;
 
         /* invalid instruction */
-        o_decoder_error = 1'b0;
+        o_decoder_error <= 1'b0;
     end
 
 end
