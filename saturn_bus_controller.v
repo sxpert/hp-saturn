@@ -34,6 +34,7 @@ module saturn_bus_controller (
     i_bus_nibble_in,
 
     o_debug_cycle,
+    o_instr_decoded,
     o_char_to_send,
     o_char_counter,
     o_char_valid,
@@ -55,6 +56,8 @@ output reg  [3:0]  o_bus_nibble_out;
 input  wire [3:0]  i_bus_nibble_in;
 
 output wire [0:0]  o_debug_cycle;
+output wire [0:0]  o_instr_decoded;
+assign o_instr_decoded = dec_instr_decoded;
 output wire [7:0]  o_char_to_send;
 output wire [9:0]  o_char_counter;
 output wire [0:0]  o_char_valid;

@@ -516,7 +516,7 @@ always @(posedge i_clk) begin
     end
 
     /* writes the chars to the serial port */
-    if (i_clk_en && write_out && !o_char_valid && !i_serial_busy) begin
+    if (write_out && !o_char_valid && !i_serial_busy) begin
         o_char_send <= ~o_char_send;
         o_char_to_send <= registers_str[counter];
         o_char_valid   <= 1'b1;
@@ -534,6 +534,18 @@ always @(posedge i_clk) begin
         end
     end
  
+    if (i_bus_read_valid) begin
+        o_char_send <= ~o_char_send;
+        o_char_to_send <= hex[i_bus_nibble_in];
+        o_char_valid   <= 1'b1;
+    end
+
+    if (i_clk_en && i_instr_decoded) begin
+        o_char_send <= ~o_char_send;
+        o_char_to_send <= "|";
+        o_char_valid   <= 1'b1;
+    end
+
     /* clear the char clock enable */
     if (o_char_valid) begin
         o_char_valid <= 1'b0;

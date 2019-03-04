@@ -27,6 +27,8 @@ module saturn_bus (
     o_halt,
     o_phase,
     o_cycle_ctr,
+    o_instr_decoded,
+    o_debug_cycle,
     o_char_to_send,
     o_char_counter,
     o_char_valid,
@@ -40,6 +42,11 @@ input  wire [0:0]  i_reset;
 output wire [0:0]  o_halt;
 output wire [1:0]  o_phase;
 output wire [31:0] o_cycle_ctr;
+
+output wire [0:0]  o_instr_decoded;
+output wire [0:0]  o_debug_cycle;
+assign o_debug_cycle = dbg_debug_cycle;
+
 output wire [7:0]  o_char_to_send;
 output wire [9:0]  o_char_counter;
 output wire [0:0]  o_char_valid;
@@ -94,6 +101,7 @@ saturn_bus_controller bus_controller (
     // more ports should show up to allow for output to the serial port of debug information
 
     .o_debug_cycle      (dbg_debug_cycle),
+    .o_instr_decoded    (o_instr_decoded),
     .o_char_to_send     (o_char_to_send),
     .o_char_counter     (o_char_counter),
     .o_char_valid       (o_char_valid),

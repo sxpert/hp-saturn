@@ -116,17 +116,19 @@ output wire [0:0] ftdi_rxd;
 assign wifi_gpio0 = btn[0];
 
 saturn_bus main_bus (
-    .i_clk          (clk_25mhz),
-    .i_clk_en       (clk_en),
-    .i_reset        (reset),
-    .o_halt         (halt),
-    .o_phase        (phase),
-    .o_cycle_ctr    (cycle_ctr),
-    .o_char_to_send (char_to_send),
-    .o_char_counter (char_counter),
-    .o_char_valid   (char_valid),
-    .o_char_send    (char_send),
-    .i_serial_busy  (serial_busy)
+    .i_clk           (clk_25mhz),
+    .i_clk_en        (clk_en),
+    .i_reset         (reset),
+    .o_halt          (halt),
+    .o_phase         (phase),
+    .o_cycle_ctr     (cycle_ctr),
+    .o_instr_decoded (instr_decoded),
+    .o_debug_cycle   (debug_cycle),
+    .o_char_to_send  (char_to_send),
+    .o_char_counter  (char_counter),
+    .o_char_valid    (char_valid),
+    .o_char_send     (char_send),
+    .i_serial_busy   (serial_busy)
 );
 
 saturn_serial serial_port (
@@ -144,6 +146,8 @@ reg  [0:0]  reset;
 wire [0:0]  halt;
 wire [1:0]  phase;
 wire [31:0] cycle_ctr;
+wire [0:0]  instr_decoded;
+wire [0:0]  debug_cycle;
 wire [7:0]  char_to_send;
 wire [9:0]  char_counter;
 wire [0:0]  char_valid;
@@ -168,7 +172,7 @@ wire [0:0]  serial_busy;
 // `define TEST_BIT    20
 
 initial begin
-    led   = 8'h01;
+    led   = 8'h00;
     delay = `DELAY_START;
     reset = 1'b1;
     clk2  = 1'b0;
@@ -182,7 +186,11 @@ always @(posedge clk_25mhz) begin
     led[7] <= halt;
     led[6] <= char_send;
     led[5] <= serial_busy;
+    led[4] <= debug_cycle;
     led[3] <= clk_en;
+    led[2] <= instr_decoded;
+
+    led[1:0] <= phase;
 end
 
 endmodule
