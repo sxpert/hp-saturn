@@ -245,7 +245,7 @@ always @(posedge i_clk) begin
                         5'd1: registers_str[registers_ctr] <= "p";
                         5'd2: registers_str[registers_ctr] <= ":";
                         5'd3: registers_str[registers_ctr] <= " ";
-                        5'd4: registers_str[registers_ctr] <= "X";
+                        5'd4: registers_str[registers_ctr] <= "?";
                         5'd5: registers_str[registers_ctr] <= " ";
                         5'd6: registers_str[registers_ctr] <= " ";
                         5'd7: registers_str[registers_ctr] <= " ";
@@ -275,7 +275,7 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_RSTK7_VALUE:
                 begin
-                    registers_str[registers_ctr] <= "X";
+                    registers_str[registers_ctr] <= "?";
                     // registers_str[registers_ctr] <= hex[i_current_pc[(registers_reg_ptr)*4+:4]];
                     registers_reg_ptr <= registers_reg_ptr - 1;
                     if (registers_reg_ptr == 5'd0) begin
@@ -385,7 +385,7 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_RSTK6_VALUE:
                 begin
-                    registers_str[registers_ctr] <= "X";
+                    registers_str[registers_ctr] <= "?";
                     // registers_str[registers_ctr] <= hex[i_current_pc[(registers_reg_ptr)*4+:4]];
                     registers_reg_ptr <= registers_reg_ptr - 1;
                     if (registers_reg_ptr == 5'd0) begin
