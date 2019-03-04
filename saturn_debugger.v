@@ -43,6 +43,8 @@ module saturn_debugger (
     o_dbg_register,
     o_dbg_reg_ptr,
     i_dbg_reg_nibble,
+    o_dbg_rstk_ptr,
+    i_dbg_rstk_val,
 
     i_alu_reg_dest,
     i_alu_reg_src_1,
@@ -77,6 +79,8 @@ output reg  [4:0]  o_dbg_register;
 output wire [3:0]  o_dbg_reg_ptr;
 assign o_dbg_reg_ptr = registers_reg_ptr[3:0];
 input  wire [3:0]  i_dbg_reg_nibble;
+output reg  [2:0]  o_dbg_rstk_ptr;
+input  wire [19:0] i_dbg_rstk_val;
 
 input  wire [4:0]  i_alu_reg_dest;
 input  wire [4:0]  i_alu_reg_src_1;
@@ -106,8 +110,8 @@ reg  [7:0]  hex[0:15];
 
 reg  [8:0]  registers_ctr;
 reg  [7:0]  registers_str[0:511];
-reg  [5:0]  registers_state;
-reg  [4:0]  registers_reg_ptr;
+reg  [6:0]  registers_state;
+reg  [5:0]  registers_reg_ptr;
 reg  [0:0]  registers_done;
 
 reg  [0:0]  carry;
@@ -134,7 +138,7 @@ initial begin
     hex[15]           = "F";
     registers_ctr     = 9'd0;
     registers_state   = `DBG_REG_PC_STR;
-    registers_reg_ptr = 5'b0;
+    registers_reg_ptr = 6'b0;
     o_dbg_register    = `ALU_REG_NONE;
     registers_done    = 1'b0;
     carry = 1'b1;
@@ -166,7 +170,8 @@ always @(posedge i_clk) begin
      * C:  xxxxxxxxxxxxxxxx  R2:  xxxxxxxxxxxxxxxx   RSTK3: xxxxx
      * D:  xxxxxxxxxxxxxxxx  R3:  xxxxxxxxxxxxxxxx   RSTK2: xxxxx
      * D0: xxxxx  D1: xxxxx  R4:  xxxxxxxxxxxxxxxx   RSTK1: xxxxx
-     *          ADDR: xxxxx                          RSTK0: xxxxx
+     *                                               RSTK0: xxxxx
+       0123456789012345678901234567890123456789012345
      *
      */
     if (o_debug_cycle && !debug_done) begin
@@ -175,113 +180,113 @@ always @(posedge i_clk) begin
             `DBG_REG_PC_STR: 
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "P";
-                        5'd1: registers_str[registers_ctr] <= "C";
-                        5'd2: registers_str[registers_ctr] <= ":";
-                        5'd3: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "P";
+                        6'd1: registers_str[registers_ctr] <= "C";
+                        6'd2: registers_str[registers_ctr] <= ":";
+                        6'd3: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd3) begin
-                        registers_reg_ptr <= 5'd4;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd3) begin
+                        registers_reg_ptr <= 6'd4;
                         registers_state <= `DBG_REG_PC_VALUE;
                     end
                 end
             `DBG_REG_PC_VALUE:
                 begin
                     registers_str[registers_ctr] <= hex[i_current_pc[(registers_reg_ptr)*4+:4]];
-                    registers_reg_ptr <= registers_reg_ptr - 1;
-                    if (registers_reg_ptr == 5'd0) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_PC_SPACES;
                     end
                 end
             `DBG_REG_PC_SPACES:
                 begin
                     registers_str[registers_ctr] <= " ";
-                    registers_reg_ptr <= registers_reg_ptr + 1;
-                    if (registers_reg_ptr == 5'd12) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd12) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_CARRY;
                     end
                 end
             `DBG_REG_CARRY:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "C";
-                        5'd1: registers_str[registers_ctr] <= "a";
-                        5'd2: registers_str[registers_ctr] <= "r";
-                        5'd3: registers_str[registers_ctr] <= "r";
-                        5'd4: registers_str[registers_ctr] <= "y";
-                        5'd5: registers_str[registers_ctr] <= ":";
-                        5'd6: registers_str[registers_ctr] <= " ";
-                        5'd7: registers_str[registers_ctr] <= hex[{3'b000,carry}];
-                        5'd8: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "C";
+                        6'd1: registers_str[registers_ctr] <= "a";
+                        6'd2: registers_str[registers_ctr] <= "r";
+                        6'd3: registers_str[registers_ctr] <= "r";
+                        6'd4: registers_str[registers_ctr] <= "y";
+                        6'd5: registers_str[registers_ctr] <= ":";
+                        6'd6: registers_str[registers_ctr] <= " ";
+                        6'd7: registers_str[registers_ctr] <= hex[{3'b000,carry}];
+                        6'd8: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd8) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd8) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_CALC_MODE;
                     end
                 end
             `DBG_REG_CALC_MODE:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "h";
-                        5'd1: registers_str[registers_ctr] <= ":";
-                        5'd2: registers_str[registers_ctr] <= " ";
-                        5'd3: registers_str[registers_ctr] <= i_reg_alu_mode?"D":"H";
-                        5'd4: registers_str[registers_ctr] <= "E";
-                        5'd5: registers_str[registers_ctr] <= i_reg_alu_mode?"C":"X";
-                        5'd6: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "h";
+                        6'd1: registers_str[registers_ctr] <= ":";
+                        6'd2: registers_str[registers_ctr] <= " ";
+                        6'd3: registers_str[registers_ctr] <= i_reg_alu_mode?"D":"H";
+                        6'd4: registers_str[registers_ctr] <= "E";
+                        6'd5: registers_str[registers_ctr] <= i_reg_alu_mode?"C":"X";
+                        6'd6: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd6) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd6) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_RSTK_PTR;
                     end
                 end
             `DBG_REG_RSTK_PTR:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "r";
-                        5'd1: registers_str[registers_ctr] <= "p";
-                        5'd2: registers_str[registers_ctr] <= ":";
-                        5'd3: registers_str[registers_ctr] <= " ";
-                        5'd4: registers_str[registers_ctr] <= "?";
-                        5'd5: registers_str[registers_ctr] <= " ";
-                        5'd6: registers_str[registers_ctr] <= " ";
-                        5'd7: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "r";
+                        6'd1: registers_str[registers_ctr] <= "p";
+                        6'd2: registers_str[registers_ctr] <= ":";
+                        6'd3: registers_str[registers_ctr] <= " ";
+                        6'd4: registers_str[registers_ctr] <= "?";
+                        6'd5: registers_str[registers_ctr] <= " ";
+                        6'd6: registers_str[registers_ctr] <= " ";
+                        6'd7: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd7) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd7) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_RSTK7_STR;
                     end
                 end
             `DBG_REG_RSTK7_STR:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "R";
-                        5'd1: registers_str[registers_ctr] <= "S";
-                        5'd2: registers_str[registers_ctr] <= "T";
-                        5'd3: registers_str[registers_ctr] <= "K";
-                        5'd4: registers_str[registers_ctr] <= "7";
-                        5'd5: registers_str[registers_ctr] <= ":";
-                        5'd6: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "R";
+                        6'd1: registers_str[registers_ctr] <= "S";
+                        6'd2: registers_str[registers_ctr] <= "T";
+                        6'd3: registers_str[registers_ctr] <= "K";
+                        6'd4: registers_str[registers_ctr] <= "7";
+                        6'd5: registers_str[registers_ctr] <= ":";
+                        6'd6: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd6) begin
-                        registers_reg_ptr <= 5'd4;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd6) begin
+                        registers_reg_ptr <= 6'd4;
+                        o_dbg_rstk_ptr  <= 3'd7;
                         registers_state <= `DBG_REG_RSTK7_VALUE;
                     end
                 end
             `DBG_REG_RSTK7_VALUE:
                 begin
-                    registers_str[registers_ctr] <= "?";
-                    // registers_str[registers_ctr] <= hex[i_current_pc[(registers_reg_ptr)*4+:4]];
-                    registers_reg_ptr <= registers_reg_ptr - 1;
-                    if (registers_reg_ptr == 5'd0) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_str[registers_ctr] <= hex[i_dbg_rstk_val[(registers_reg_ptr)*4+:4]];
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_NL_0;
                     end
                 end
@@ -293,95 +298,95 @@ always @(posedge i_clk) begin
             `DBG_REG_P:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "P";
-                        5'd1: registers_str[registers_ctr] <= ":";
-                        5'd2: registers_str[registers_ctr] <= " ";
-                        5'd3: registers_str[registers_ctr] <= " ";
-                        5'd4: registers_str[registers_ctr] <= hex[i_reg_p];
-                        5'd5: registers_str[registers_ctr] <= " ";
-                        5'd6: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "P";
+                        6'd1: registers_str[registers_ctr] <= ":";
+                        6'd2: registers_str[registers_ctr] <= " ";
+                        6'd3: registers_str[registers_ctr] <= " ";
+                        6'd4: registers_str[registers_ctr] <= hex[i_reg_p];
+                        6'd5: registers_str[registers_ctr] <= " ";
+                        6'd6: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd6) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd6) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_HST;
                     end
                 end
             `DBG_REG_HST:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "H";
-                        5'd1: registers_str[registers_ctr] <= "S";
-                        5'd2: registers_str[registers_ctr] <= "T";
-                        5'd3: registers_str[registers_ctr] <= ":";
-                        5'd4: registers_str[registers_ctr] <= " ";
-                        5'd5: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[3]}];
-                        5'd6: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[2]}];
-                        5'd7: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[1]}];
-                        5'd8: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[0]}];
+                        6'd0: registers_str[registers_ctr] <= "H";
+                        6'd1: registers_str[registers_ctr] <= "S";
+                        6'd2: registers_str[registers_ctr] <= "T";
+                        6'd3: registers_str[registers_ctr] <= ":";
+                        6'd4: registers_str[registers_ctr] <= " ";
+                        6'd5: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[3]}];
+                        6'd6: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[2]}];
+                        6'd7: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[1]}];
+                        6'd8: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[0]}];
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd8) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd8) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_HST_SPACES;
                     end
                 end
             `DBG_REG_HST_SPACES:
                 begin
                     registers_str[registers_ctr] <= " ";
-                    registers_reg_ptr <= registers_reg_ptr + 1;
-                    if (registers_reg_ptr == 5'd5) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd5) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_ST_STR;
                     end
                 end
             `DBG_REG_ST_STR:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "S";
-                        5'd1: registers_str[registers_ctr] <= "T";
-                        5'd2: registers_str[registers_ctr] <= ":";
-                        5'd3: registers_str[registers_ctr] <= " ";
-                        5'd4: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "S";
+                        6'd1: registers_str[registers_ctr] <= "T";
+                        6'd2: registers_str[registers_ctr] <= ":";
+                        6'd3: registers_str[registers_ctr] <= " ";
+                        6'd4: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd4) begin
-                        registers_reg_ptr <= 5'd15;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd4) begin
+                        registers_reg_ptr <= 6'd15;
                         registers_state <= `DBG_REG_ST_VALUE;
                     end
                 end
             `DBG_REG_ST_VALUE:
                 begin
                     registers_str[registers_ctr] <= hex[{3'b000, i_reg_st[registers_reg_ptr]}];
-                    registers_reg_ptr <= registers_reg_ptr - 1;
-                    if (registers_reg_ptr == 5'd0) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_ST_SPACES;
                     end
                 end
             `DBG_REG_ST_SPACES:
                 begin
                     registers_str[registers_ctr] <= " ";
-                    registers_reg_ptr <= registers_reg_ptr + 1;
-                    if (registers_reg_ptr == 5'd2) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd2) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_RSTK6_STR;
                     end
                 end
             `DBG_REG_RSTK6_STR:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "R";
-                        5'd1: registers_str[registers_ctr] <= "S";
-                        5'd2: registers_str[registers_ctr] <= "T";
-                        5'd3: registers_str[registers_ctr] <= "K";
-                        5'd4: registers_str[registers_ctr] <= "6";
-                        5'd5: registers_str[registers_ctr] <= ":";
-                        5'd6: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "R";
+                        6'd1: registers_str[registers_ctr] <= "S";
+                        6'd2: registers_str[registers_ctr] <= "T";
+                        6'd3: registers_str[registers_ctr] <= "K";
+                        6'd4: registers_str[registers_ctr] <= "6";
+                        6'd5: registers_str[registers_ctr] <= ":";
+                        6'd6: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd6) begin
-                        registers_reg_ptr <= 5'd4;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd6) begin
+                        registers_reg_ptr <= 6'd4;
                         registers_state <= `DBG_REG_RSTK6_VALUE;
                     end
                 end
@@ -389,9 +394,9 @@ always @(posedge i_clk) begin
                 begin
                     registers_str[registers_ctr] <= "?";
                     // registers_str[registers_ctr] <= hex[i_current_pc[(registers_reg_ptr)*4+:4]];
-                    registers_reg_ptr <= registers_reg_ptr - 1;
-                    if (registers_reg_ptr == 5'd0) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_NL_1;
                     end
                 end
@@ -403,14 +408,14 @@ always @(posedge i_clk) begin
             `DBG_REG_C_STR:
                 begin 
                     case (registers_reg_ptr)
-                        5'd0: registers_str[registers_ctr] <= "C";
-                        5'd1: registers_str[registers_ctr] <= ":";
-                        5'd2: registers_str[registers_ctr] <= " ";
-                        5'd3: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= "C";
+                        6'd1: registers_str[registers_ctr] <= ":";
+                        6'd2: registers_str[registers_ctr] <= " ";
+                        6'd3: registers_str[registers_ctr] <= " ";
                     endcase
-                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
-                    if (registers_reg_ptr == 5'd3) begin
-                        registers_reg_ptr <= 5'd15;
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd3) begin
+                        registers_reg_ptr <= 6'd15;
                         o_dbg_register  <= `ALU_REG_C;
                         registers_state <= `DBG_REG_C_VALUE;
                     end
@@ -418,12 +423,58 @@ always @(posedge i_clk) begin
             `DBG_REG_C_VALUE:
                 begin
                     registers_str[registers_ctr] <= hex[i_dbg_reg_nibble];
-                    registers_reg_ptr <= registers_reg_ptr - 1;
-                    if (registers_reg_ptr == 5'd0) begin
-                        registers_reg_ptr <= 5'd0;
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
                         o_dbg_register  <= `ALU_REG_NONE;
-                        registers_state <= `DBG_REG_END;
+                        registers_state <= `DBG_REG_NL_6;
                     end
+                end
+            `DBG_REG_NL_6: 
+                begin
+                    registers_str[registers_ctr] <= "\n";
+                    registers_state <= `DBG_REG_SPACES_7;
+                end
+            `DBG_REG_SPACES_7:
+                begin
+                    registers_str[registers_ctr] <= " ";
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd45) begin
+                        registers_reg_ptr <= 6'd0;
+                        registers_state <= `DBG_REG_RSTK0_STR;
+                    end
+                end
+            `DBG_REG_RSTK0_STR:
+                begin 
+                    case (registers_reg_ptr)
+                        6'd0: registers_str[registers_ctr] <= "R";
+                        6'd1: registers_str[registers_ctr] <= "S";
+                        6'd2: registers_str[registers_ctr] <= "T";
+                        6'd3: registers_str[registers_ctr] <= "K";
+                        6'd4: registers_str[registers_ctr] <= "0";
+                        6'd5: registers_str[registers_ctr] <= ":";
+                        6'd6: registers_str[registers_ctr] <= " ";
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd6) begin
+                        registers_reg_ptr <= 6'd4;
+                        o_dbg_rstk_ptr  <= 3'd0;
+                        registers_state <= `DBG_REG_RSTK0_VALUE;
+                    end
+                end
+            `DBG_REG_RSTK0_VALUE:
+                begin
+                    registers_str[registers_ctr] <= hex[i_dbg_rstk_val[(registers_reg_ptr)*4+:4]];
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
+                        registers_state <= `DBG_REG_NL_7;
+                    end
+                end
+            `DBG_REG_NL_7: 
+                begin
+                    registers_str[registers_ctr] <= "\n";
+                    registers_state <= `DBG_REG_END;
                 end
             `DBG_REG_END: begin end
             default: begin $display("ERROR, unknown register state %0d", registers_state); end
@@ -461,7 +512,7 @@ always @(posedge i_clk) begin
         counter           <= 9'b0;
         registers_ctr     <= 9'd0;
         registers_state   <= `DBG_REG_PC_STR;
-        registers_reg_ptr <= 5'b0;
+        registers_reg_ptr <= 6'b0;
         o_dbg_register    <= `ALU_REG_NONE;
         registers_done    <= 1'b0;
         write_out         <= 1'b0;

@@ -53,6 +53,8 @@ module saturn_control_unit (
     i_dbg_register,
     i_dbg_reg_ptr,
     o_dbg_reg_nibble,
+    i_dbg_rstk_ptr,
+    o_dbg_rstk_val,
 
     o_alu_reg_dest,
     o_alu_reg_src_1,
@@ -95,6 +97,8 @@ output wire [15:0] o_reg_st;
 input  wire [4:0]  i_dbg_register;
 input  wire [3:0]  i_dbg_reg_ptr;
 output reg  [3:0]  o_dbg_reg_nibble;
+input  wire [2:0]  i_dbg_rstk_ptr;
+output wire [19:0] o_dbg_rstk_val;
  
 output wire [4:0]  o_alu_reg_dest;
 output wire [4:0]  o_alu_reg_src_1;
@@ -150,6 +154,7 @@ saturn_inst_decoder instruction_decoder(
     .o_jump_length      (dec_jump_length),
 
     .o_instr_type       (dec_instr_type),
+    .o_push_pc          (dec_push_pc),
     .o_instr_decoded    (dec_instr_decoded),
     .o_instr_execute    (dec_instr_execute),
 
@@ -167,6 +172,7 @@ wire [4:0] dec_alu_opcode;
 wire [2:0] dec_jump_length;
 
 wire [3:0] dec_instr_type;
+wire [0:0] dec_push_pc;
 wire [0:0] dec_instr_decoded;
 wire [0:0] dec_instr_execute;
 
@@ -225,9 +231,13 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_nibble           (i_nibble),
     .i_jump_instr       (inst_jump),
     .i_jump_length      (dec_jump_length),
+    .i_push_pc          (dec_push_pc),
     
     .o_current_pc       (reg_PC),
-    .o_reload_pc        (reload_PC)
+    .o_reload_pc        (reload_PC),
+
+    .i_dbg_rstk_ptr     (i_dbg_rstk_ptr),
+    .o_dbg_rstk_val     (o_dbg_rstk_val)
 );
 
 /**************************************************************************************************

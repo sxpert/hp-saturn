@@ -66,5 +66,23 @@
 `define DBG_REG_RSTK2_VALUE     52
 `define DBG_REG_NL_5            53
 
-`define DBG_REG_END             63
+`define DBG_REG_D0_STR          54
+`define DBG_REG_D0_VALUE        55
+`define DBG_REG_D0_SPACES       56
+`define DBG_REG_D1_STR          57
+`define DBG_REG_D1_VALUE        58
+`define DBG_REG_D1_SPACES       59
+`define DBG_REG_R4_STR          60
+`define DBG_REG_R4_VALUE        61
+`define DBG_REG_R4_SPACES       62
+`define DBG_REG_RSTK1_STR       63
+`define DBG_REG_RSTK1_VALUE     64
+`define DBG_REG_NL_6            65
+
+`define DBG_REG_SPACES_7        66
+`define DBG_REG_RSTK0_STR       67
+`define DBG_REG_RSTK0_VALUE     68
+`define DBG_REG_NL_7            69
+
+`define DBG_REG_END             127
 `endif

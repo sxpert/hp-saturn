@@ -147,7 +147,7 @@ always @(posedge i_clk) begin
     end 
 
 `ifdef SIM
-    if (cycle_ctr == 85) begin
+    if (cycle_ctr == 91) begin
         bus_halt <= 1'b1;
         $display("BUS      %0d: [%d] enough cycles for now", phase, cycle_ctr);
     end

@@ -33,9 +33,14 @@ module saturn_regs_pc_rstk (
     i_nibble,
     i_jump_instr,
     i_jump_length,
+    i_push_pc,
 
     o_current_pc,
-    o_reload_pc
+    o_reload_pc,
+
+    /* debugger access */
+    i_dbg_rstk_ptr,
+    o_dbg_rstk_val
 );
 
 input  wire [0:0]  i_clk;
@@ -50,9 +55,15 @@ input  wire [0:0]  i_bus_busy;
 input  wire [3:0]  i_nibble;
 input  wire [0:0]  i_jump_instr;
 input  wire [2:0]  i_jump_length;
-
+input  wire [0:0]  i_push_pc;
+ 
 output wire [19:0] o_current_pc;
 output reg  [0:0]  o_reload_pc;
+
+input  wire [2:0]  i_dbg_rstk_ptr;
+output wire [19:0] o_dbg_rstk_val;
+
+assign o_dbg_rstk_val = reg_RSTK[i_dbg_rstk_ptr];
 
 /**************************************************************************************************
  *
@@ -67,6 +78,7 @@ wire [0:0]  do_jump_instr = !just_reset && i_jump_instr;
  */
 
 reg  [0:0]  just_reset;
+reg  [2:0]  init_counter;
 reg  [0:0]  jump_decode;
 reg  [0:0]  jump_exec;
 reg  [2:0]  jump_counter;
@@ -93,17 +105,21 @@ always @(*) begin
 end
 
 
-reg  [19:0] PC;
+reg  [19:0] reg_PC;
+reg  [2:0]  reg_rstk_ptr;
+reg  [19:0] reg_RSTK[0:7];
 
-assign o_current_pc = PC;
+assign o_current_pc = reg_PC;
 
 initial begin
     o_reload_pc  = 1'b0;
     just_reset   = 1'b1;
+    init_counter = 3'd0;
     jump_decode  = 1'b0;
     jump_exec    = 1'b0;
     jump_counter = 3'd0;
-    PC           = 20'h00000;
+    reg_PC       = 20'h00000;
+    reg_rstk_ptr = 3'd7;
 end
 
 /*
@@ -111,7 +127,14 @@ end
  */
 
 always @(posedge i_clk) begin
-  
+
+    /* initialize RSTK */
+    if (just_reset || (init_counter != 0)) begin
+        $display("PC_RSTK  %0d: [%d] initializing RSTK[%0d]", i_phase, i_cycle_ctr, init_counter);
+        reg_RSTK[init_counter] <= 20'h00000;
+        init_counter <= init_counter + 3'd1;
+    end
+
     /*
      * only do something when nothing is busy doing some other tasks
      * either talking to the bus, or debugging something
@@ -128,8 +151,8 @@ always @(posedge i_clk) begin
         end
 
         if (i_phases[1] && !just_reset) begin
-            $display("PC_RSTK  %0d: [%d] inc_pc %5h => %5h", i_phase, i_cycle_ctr, PC, PC + 20'h00001);
-            PC <= PC + 20'h00001;
+            $display("PC_RSTK  %0d: [%d] inc_pc %5h => %5h", i_phase, i_cycle_ctr, reg_PC, reg_PC + 20'h00001);
+            reg_PC <= reg_PC + 20'h00001;
         end
 
         /* 
@@ -138,9 +161,9 @@ always @(posedge i_clk) begin
 
         /* start the jump instruction */
         if (i_phases[3] && do_jump_instr && !jump_decode && !jump_exec) begin
-            $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, i_jump_length, PC);
+            $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, i_jump_length, reg_PC);
             jump_counter <= 3'd0;
-            jump_base    <= PC;
+            jump_base    <= reg_PC;
             jump_decode  <= 1'b1;
         end
 
@@ -156,24 +179,41 @@ always @(posedge i_clk) begin
             end
         end
 
-        /* all done, apply to PC */
+        /* all done, apply to PC and RSTK */
         if (i_phases[3] && do_jump_instr && jump_exec) begin
-            $display("PC_RSTK  %0d: [%d] execute jump %0d ", i_phase, i_cycle_ctr, i_jump_length);
-            PC          <= jump_relative ? jump_offset + jump_base : jump_offset;
+            $write("PC_RSTK  %0d: [%d] execute jump %0d", i_phase, i_cycle_ctr, i_jump_length);
+            if (i_push_pc) begin
+                $write(" ( push %5h => RSTK[%0d])", reg_PC, reg_rstk_ptr + 3'd1);
+                reg_RSTK[reg_rstk_ptr + 3'd1] <= reg_PC;
+                reg_rstk_ptr <= reg_rstk_ptr + 3'd1;
+            end
+            $display("");
+            reg_PC      <= jump_relative ? jump_offset + jump_base : jump_offset;
             jump_exec   <= 1'b0;
             o_reload_pc <= 1'b0;
         end
 
     end
 
+    if (i_phases[0] && i_clk_en) begin
+        $write("RSTK : ptr %0d | ", reg_rstk_ptr);
+        for (tmp_ctr = 4'd0; tmp_ctr < 4'd8; tmp_ctr = tmp_ctr + 4'd1)
+            $write("%0d => %5h | ", tmp_ctr, reg_RSTK[tmp_ctr]);
+        $write("\n");
+    end
+
     if (i_reset) begin
         o_reload_pc  <= 1'b0;
         just_reset   <= 1'b1;
+        init_counter <= 3'd0;
         jump_decode  <= 1'b0;
         jump_exec    <= 1'b0;
         jump_counter <= 3'd0;
-        PC           <= 20'h00000;
+        reg_PC       <= 20'h00000;
+        reg_rstk_ptr <= 3'd7;
     end
 end
+
+reg [3:0] tmp_ctr;
 
 endmodule

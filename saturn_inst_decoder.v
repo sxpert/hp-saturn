@@ -49,6 +49,7 @@ module saturn_inst_decoder (
     o_jump_length,
 
     o_instr_type,
+    o_push_pc,
     o_instr_decoded,
     o_instr_execute,
 
@@ -83,6 +84,7 @@ output reg  [4:0]  o_alu_opcode;
 output reg  [2:0]  o_jump_length;
 
 output reg  [3:0]  o_instr_type;
+output reg  [0:0]  o_push_pc;
 /* instruction is fully decoded */
 output reg  [0:0]  o_instr_decoded;
 /* instruction is sufficiently decoded to start execution */
@@ -151,6 +153,7 @@ initial begin
     o_alu_opcode    = `ALU_OP_NOP;
 
     o_instr_type    = 4'd15;
+    o_push_pc       = 1'd0;
     o_instr_decoded = 1'b0;
     o_instr_execute = 1'b0;
 
@@ -280,7 +283,7 @@ always @(posedge i_clk) begin
                 case (i_nibble)
                     4'h0: block_80x <= 1'b1;
                     4'h2: block_82x <= 1'b1;
-                    4'h4, 4'h5:
+                    4'h4, 4'h5: 
                         begin
                             o_alu_reg_dest  <= `ALU_REG_ST;
                             o_alu_reg_src_1 <= `ALU_REG_IMM;
@@ -290,10 +293,10 @@ always @(posedge i_clk) begin
                             o_instr_type    <= `INSTR_TYPE_ALU;
                             block_84x_85x   <= 1'b1;
                         end
-                    4'hD, 4'hF: 
+                    4'hD, 4'hF: /* GOVLNG or GOSBVL */
                         begin
                             o_instr_type    <= `INSTR_TYPE_JUMP;
-                            o_push_pc       <= 1'b1;
+                            o_push_pc       <= i_nibble[1]; 
                             o_jump_length   <= 3'd4;
                             jump_counter    <= 3'd0;
                             o_instr_execute <= 1'b1;
@@ -394,6 +397,7 @@ always @(posedge i_clk) begin
             o_instr_decoded <= 1'b0;
             o_instr_execute <= 1'b0;
             o_instr_type    <= `INSTR_TYPE_NONE;
+            o_push_pc       <= 1'b0;
         end
 
     end
@@ -410,6 +414,7 @@ always @(posedge i_clk) begin
         o_alu_opcode    <= `ALU_OP_NOP;
 
         o_instr_type    <= 4'd15;
+        o_push_pc       <= 1'b0;
         o_instr_decoded <= 1'b0;
         o_instr_execute <= 1'b0;
 
