@@ -284,6 +284,13 @@ always @(posedge i_clk) begin
 
             if (block_80x) begin
                 case (i_nibble)
+                    4'hA: /* RESET */
+                        begin
+                            o_instr_type    <= `INSTR_TYPE_RESET;
+                            o_instr_decoded <= 1'b1;
+                            o_instr_execute <= 1'b1;
+                            decode_started  <= 1'b0;  
+                        end
                     4'hC: block_80Cx <= 1'b1;
                     default: 
                         begin

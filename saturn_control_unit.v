@@ -258,6 +258,7 @@ reg  [4:0] bus_program[0:31];
 reg  [4:0] bus_prog_addr;
 reg  [2:0] addr_nibble_ptr;
 reg  [0:0] load_pc_loop;
+reg  [0:0] send_pc_read;
 
 wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
 
@@ -394,10 +395,25 @@ always @(posedge i_clk) begin
                          */
                     end
                 `INSTR_TYPE_JUMP: begin end
-                default: begin 
+                `INSTR_TYPE_RESET:
+                    begin
+                        $display("CTRL     %0d: [%d] exec : RESET", i_phase, i_cycle_ctr);
+                        bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_RESET };
+                        bus_prog_addr <= bus_prog_addr + 5'd1;
+                        send_pc_read  <= 1'b1;
+                    end
+                default: 
+                    begin 
                         $display("CTRL     %0d: [%d] unsupported instruction", i_phase, i_cycle_ctr);
                     end
             endcase
+        end
+        
+        if (send_pc_read) begin
+            $display("CTRL     %0d: [%d] exec : RESET - send PC_READ", i_phase, i_cycle_ctr);
+            bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_PC_READ };
+            bus_prog_addr <= bus_prog_addr + 5'd1;
+            send_pc_read  <= 1'b0;
         end
 
     end
