@@ -35,6 +35,7 @@ module saturn_debugger (
 
     /* interface from the control unit */
     i_current_pc,
+    i_reg_alu_mode,
     i_reg_hst,
     i_reg_st,
     i_reg_p,
@@ -67,6 +68,7 @@ output reg  [0:0]  o_debug_cycle;
 
 /* inteface from the control unit */
 input  wire [19:0] i_current_pc;
+input  wire [0:0]  i_reg_alu_mode;
 input  wire [3:0]  i_reg_hst;
 input  wire [15:0] i_reg_st;
 input  wire [3:0]  i_reg_p;
@@ -227,9 +229,9 @@ always @(posedge i_clk) begin
                         5'd0: registers_str[registers_ctr] <= "h";
                         5'd1: registers_str[registers_ctr] <= ":";
                         5'd2: registers_str[registers_ctr] <= " ";
-                        5'd3: registers_str[registers_ctr] <= "@";
+                        5'd3: registers_str[registers_ctr] <= i_reg_alu_mode?"D":"H";
                         5'd4: registers_str[registers_ctr] <= "E";
-                        5'd5: registers_str[registers_ctr] <= "@";
+                        5'd5: registers_str[registers_ctr] <= i_reg_alu_mode?"C":"X";
                         5'd6: registers_str[registers_ctr] <= " ";
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 5'd1;

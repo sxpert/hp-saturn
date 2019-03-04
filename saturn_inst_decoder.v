@@ -121,11 +121,13 @@ reg [0:0] decode_started;
  * decoder block variables
  */
 
+reg [0:0] block_0x;
 reg [0:0] block_2x;
 reg [0:0] block_6x;
 reg [0:0] block_8x;
 reg [0:0] block_80x;
 reg [0:0] block_80Cx;
+reg [0:0] block_82x;
 reg [0:0] block_84x_85x;
 
 reg [0:0] block_JUMP;
@@ -159,11 +161,13 @@ initial begin
     just_reset      = 1'b1;
     decode_started  = 1'b0;
 
+    block_0x        = 1'b0;
     block_2x        = 1'b0;
     block_6x        = 1'b0;
     block_8x        = 1'b0;
     block_80x       = 1'b0;
     block_80Cx      = 1'b0;
+    block_82x       = 1'b0;
     block_84x_85x   = 1'b0;
 
     block_JUMP      = 1'b0;
@@ -208,6 +212,7 @@ always @(posedge i_clk) begin
 
             decode_started <= 1'b1;
             case (i_nibble)
+                4'h0: block_0x <= 1'b1;
                 4'h2: block_2x <= 1'b1;
                 4'h6: 
                     begin
@@ -228,6 +233,25 @@ always @(posedge i_clk) begin
 
         if (i_phases[2] && decode_started) begin
             $display("DECODER  %0d: [%d] nb= %h - decoding", i_phase, i_cycle_ctr, i_nibble);
+
+            if (block_0x) begin
+                case (i_nibble)
+                    4'h4, 4'h5:
+                        begin
+                            o_instr_type <= `INSTR_TYPE_SET_MODE;
+                            o_alu_imm_value <= {3'b000, i_nibble[0]};
+                            o_instr_decoded <= 1'b1;
+                            o_instr_execute <= 1'b1;
+                            decode_started  <= 1'b0;
+                        end                            
+                    default: 
+                        begin
+                            $display("DECODER  %0d: [%d] block_0x %h", i_phase, i_cycle_ctr, i_nibble);
+                            o_decoder_error <= 1'b1;
+                        end
+                endcase
+                block_0x        <= 1'b0;
+            end
 
             if (block_2x) begin
                 o_alu_reg_dest  <= `ALU_REG_P;
@@ -255,6 +279,7 @@ always @(posedge i_clk) begin
             if (block_8x) begin
                 case (i_nibble)
                     4'h0: block_80x <= 1'b1;
+                    4'h2: block_82x <= 1'b1;
                     4'h4, 4'h5:
                         begin
                             o_alu_reg_dest  <= `ALU_REG_ST;
@@ -265,9 +290,10 @@ always @(posedge i_clk) begin
                             o_instr_type    <= `INSTR_TYPE_ALU;
                             block_84x_85x   <= 1'b1;
                         end
-                    4'hD: 
+                    4'hD, 4'hF: 
                         begin
                             o_instr_type    <= `INSTR_TYPE_JUMP;
+                            o_push_pc       <= 1'b1;
                             o_jump_length   <= 3'd4;
                             jump_counter    <= 3'd0;
                             o_instr_execute <= 1'b1;
@@ -313,6 +339,30 @@ always @(posedge i_clk) begin
                 o_instr_decoded <= 1'b1;
                 o_instr_execute <= 1'b1;
                 block_80Cx      <= 1'b0;
+                decode_started  <= 1'b0;
+            end
+
+            if (block_82x) begin
+`ifdef SIM
+                $write("DECODER  %0d: [%d] block_82x ", i_phase, i_cycle_ctr);
+                case (i_nibble)
+                    4'h1: $display("XM=0");
+                    4'h2: $display("SB=0");
+                    4'h4: $display("SR=0");
+                    4'h8: $display("MP=0");
+                    4'hF: $display("CLRHST");
+                    default: $display("CLRHST %h", i_nibble);
+                endcase
+`endif
+                o_alu_reg_dest  <= `ALU_REG_HST;
+                o_alu_reg_src_1 <= `ALU_REG_IMM;
+                o_alu_reg_src_2 <= `ALU_REG_NONE;
+                o_alu_imm_value <= i_nibble;
+                o_alu_opcode    <= `ALU_OP_CLR_MASK;
+                o_instr_type    <= `INSTR_TYPE_ALU;
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                block_82x       <= 1'b0;
                 decode_started  <= 1'b0;
             end
 
@@ -370,11 +420,13 @@ always @(posedge i_clk) begin
         just_reset      <= 1'b1;
         decode_started  <= 1'b0;
 
+        block_0x        <= 1'b0;
         block_2x        <= 1'b0;
         block_6x        <= 1'b0;
         block_8x        <= 1'b0;
         block_80x       <= 1'b0;
         block_80Cx      <= 1'b0;
+        block_82x       <= 1'b0;
         block_84x_85x   <= 1'b0;
 
         block_JUMP      <= 1'b0;

@@ -45,6 +45,7 @@ module saturn_control_unit (
     /* debugger interface */
 
     o_current_pc,
+    o_reg_alu_mode,
     o_reg_p,
     o_reg_hst,
     o_reg_st,
@@ -85,6 +86,8 @@ assign o_error = control_unit_error || dec_error;
 /* debugger interface */
 
 output wire [19:0] o_current_pc;
+output wire [0:0]  o_reg_alu_mode;
+assign o_reg_alu_mode = reg_alu_mode;
 output wire [3:0]  o_reg_p;
 output wire [3:0]  o_reg_hst;
 output wire [15:0] o_reg_st;
@@ -176,17 +179,20 @@ wire [0:0] dec_error;
 wire [0:0] inst_alu        = (dec_instr_type == `INSTR_TYPE_ALU);
 wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
 
-wire [0:0] reg_dest_c    = (dec_alu_reg_dest == `ALU_REG_C);
-wire [0:0] reg_dest_st   = (dec_alu_reg_dest == `ALU_REG_ST);
-wire [0:0] reg_dest_p    = (dec_alu_reg_dest == `ALU_REG_P);
+wire [0:0] reg_dest_c      = (dec_alu_reg_dest == `ALU_REG_C);
+wire [0:0] reg_dest_hst    = (dec_alu_reg_dest == `ALU_REG_HST);
+wire [0:0] reg_dest_st     = (dec_alu_reg_dest == `ALU_REG_ST);
+wire [0:0] reg_dest_p      = (dec_alu_reg_dest == `ALU_REG_P);
 
-wire [0:0] reg_src_1_p   = (dec_alu_reg_src_1 == `ALU_REG_P);
-wire [0:0] reg_src_1_imm = (dec_alu_reg_src_1 == `ALU_REG_IMM);
+wire [0:0] reg_src_1_p     = (dec_alu_reg_src_1 == `ALU_REG_P);
+wire [0:0] reg_src_1_imm   = (dec_alu_reg_src_1 == `ALU_REG_IMM);
 
-wire [0:0] aluop_copy    = inst_alu && (dec_alu_opcode == `ALU_OP_COPY);
+wire [0:0] aluop_copy      = inst_alu && (dec_alu_opcode == `ALU_OP_COPY);
+wire [0:0] aluop_clr_mask  = inst_alu && (dec_alu_opcode == `ALU_OP_CLR_MASK);
 
 wire [0:0] inst_alu_p_eq_n     = aluop_copy && reg_dest_p && reg_src_1_imm;
 wire [0:0] inst_alu_c_eq_p_n   = aluop_copy && reg_dest_c && reg_src_1_p;
+wire [0:0] inst_alu_clrhst_n   = aluop_clr_mask && reg_dest_hst && reg_src_1_imm;
 wire [0:0] inst_alu_st_eq_01_n = aluop_copy && reg_dest_st && reg_src_1_imm;
 
 wire [0:0] inst_alu_other      = !(inst_alu_p_eq_n || 
@@ -230,14 +236,18 @@ saturn_regs_pc_rstk regs_pc_rstk (
  *
  *************************************************************************************************/
 
+reg  [0:0]  reg_alu_mode;
+
 reg  [3:0]  reg_C[0:15];
 reg  [3:0]  reg_HST;
 reg  [15:0] reg_ST;
 reg  [3:0]  reg_P;
 wire [19:0] reg_PC;
+
+
 wire [0:0]  reload_PC;
 
-always @(*) begin
+always @(i_dbg_register, i_dbg_reg_ptr) begin
     case (i_dbg_register)
     `ALU_REG_C: o_dbg_reg_nibble <= reg_C[i_dbg_reg_ptr];
     default: o_dbg_reg_nibble <= 4'h0;
@@ -277,6 +287,7 @@ initial begin
     load_pc_loop       = 1'b0;
 
     /* registers */
+    reg_alu_mode       = 1'b0;
     reg_HST            = 4'b0;
     reg_ST             = 16'b0;
     reg_P              = 4'b0; 
@@ -383,6 +394,20 @@ always @(posedge i_clk) begin
                             reg_C[dec_alu_ptr_begin] <= reg_P;
                         end
 
+                        if (inst_alu_clrhst_n) begin
+`ifdef SIM
+                            $write("CTRL     %0d: [%d] exec : ", i_phase, i_cycle_ctr);
+                            case (dec_alu_imm_value)
+                                4'h1: $display("XM=0");
+                                4'h2: $display("SB=0");
+                                4'h4: $display("SR=0");
+                                4'h8: $display("MP=0");
+                                4'hF: $display("CLRHST");
+                                default: $display("CLRHST %h", dec_alu_imm_value);
+                            endcase
+`endif
+                            reg_HST = reg_HST & ~dec_alu_imm_value;
+                        end
 
                         /* 8[45]n  ST=[01]    n */
                         if (inst_alu_st_eq_01_n) begin
@@ -393,6 +418,18 @@ always @(posedge i_clk) begin
                         /*
                          * the general case
                          */
+                    end
+                `INSTR_TYPE_SET_MODE :
+                    begin
+`ifdef SIM
+                        $write("CTRL     %0d: [%d] exec : ", i_phase, i_cycle_ctr);
+                        case (dec_alu_imm_value)
+                            4'h0: $display("SETHEX");
+                            4'h1: $display("SETDEC");
+                            default: begin end /* does not exist */
+                        endcase
+`endif
+                        reg_alu_mode <= dec_alu_imm_value[0];
                     end
                 `INSTR_TYPE_JUMP: begin end
                 `INSTR_TYPE_RESET:
@@ -430,6 +467,7 @@ always @(posedge i_clk) begin
         load_pc_loop       <= 1'b0;
 
         /* registers */
+        reg_alu_mode       <= 1'b0;
         reg_HST            <= 4'b0;
         reg_ST             <= 16'b0;
         reg_P              <= 4'b0; 

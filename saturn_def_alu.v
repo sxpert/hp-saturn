@@ -97,11 +97,12 @@
  */
 
 
-`define INSTR_TYPE_NOP   0
-`define INSTR_TYPE_ALU   1
-`define INSTR_TYPE_JUMP  2
-`define INSTR_TYPE_RESET 3
+`define INSTR_TYPE_NOP          0
+`define INSTR_TYPE_ALU          1
+`define INSTR_TYPE_SET_MODE     2
+`define INSTR_TYPE_JUMP         3
+`define INSTR_TYPE_RESET        4
 
-`define INSTR_TYPE_NONE 15
+`define INSTR_TYPE_NONE         15
 
 `endif
