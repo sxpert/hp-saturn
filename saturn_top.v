@@ -91,7 +91,7 @@ module saturn_top (
 input  wire [0:0] clk_25mhz;
 input  wire [6:0] btn;
 output reg  [7:0] led;
-output reg  [0:0] wifi_gpio0;
+output wire [0:0] wifi_gpio0;
 
 /* this is necessary, otherwise, the esp32 module reboots the fpga in passthrough */
 assign wifi_gpio0 = btn[0];
@@ -106,7 +106,7 @@ saturn_bus main_bus (
     .o_char_to_send (t_led)
 );
 
-reg  [23:0] delay;
+reg  [25:0] delay;
 reg  [0:0]  clk2;
 reg  [0:0]  clk_en;
 reg  [0:0]  reset;
@@ -117,7 +117,7 @@ wire [7:0]  t_led;
 
 /* 1/16 s */
 `define DELAY_START 26'h08287C
-`define TEST_BIT    25
+`define TEST_BIT    21
 
 /* 1/32 s */
 // `define DELAY_START 26'h4143E
