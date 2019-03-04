@@ -64,29 +64,29 @@ reg  [9:0]  data_reg;
 reg  [12:0] bit_delay;
 
 initial begin
-    bit_delay    <= `BIT_DELAY_START;
-    clocking_reg <= {10{1'b1}};
-    data_reg     <= {10{1'b1}};
+    bit_delay    = `BIT_DELAY_START;
+    clocking_reg = {10{1'b1}};
+    data_reg     = {10{1'b1}};
 end
 
-assign o_serial_busy = !clocking_reg[9];
-assign o_serial_tx   = data_reg[9];
+assign o_serial_busy = !clocking_reg[0];
+assign o_serial_tx   = data_reg[0];
 
 always @(posedge i_clk) begin
+    bit_delay    <= bit_delay + 13'd1;
     // $display("%0d", bit_delay);
     if (i_char_valid && !o_serial_busy) begin
         $display("serial storing char %c", i_char_to_send);
         clocking_reg <= 10'b0;
-        data_reg     <= { 1'b0, i_char_to_send, 1'b1 };
+        data_reg     <= { 1'b1, i_char_to_send, 1'b0 };
         bit_delay    <= `BIT_DELAY_START;
     end
     if (!i_char_valid && o_serial_busy && bit_delay[`BIT_DELAY_TEST]) begin
         $display("%b %b", o_serial_tx, data_reg);
-        clocking_reg <= { clocking_reg[8:0], 1'b1};
-        data_reg     <= { data_reg[8:0],     1'b1};
+        clocking_reg <= { 1'b1, clocking_reg[9:1] };
+        data_reg     <= { 1'b1, data_reg[9:1]     };
         bit_delay    <= `BIT_DELAY_START;
     end
-    bit_delay    <= bit_delay + 13'd1;
 end
 
 endmodule
