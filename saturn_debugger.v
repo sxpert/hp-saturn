@@ -299,8 +299,15 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_NL_0: 
                 begin
-                    registers_str[registers_ctr] <= "\n";
-                    registers_state <= `DBG_REG_P;
+                    case (registers_reg_ptr)
+                        6'd0: registers_str[registers_ctr] <= 8'd10;
+                        6'd1: registers_str[registers_ctr] <= 8'd13;
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd1) begin
+                        registers_reg_ptr <= 6'd0;
+                        registers_state <= `DBG_REG_P;
+                    end
                 end
             `DBG_REG_P:
                 begin 
@@ -409,8 +416,15 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_NL_1: 
                 begin
-                    registers_str[registers_ctr] <= "\n";
-                    registers_state <= `DBG_REG_C_STR;
+                    case (registers_reg_ptr)
+                        6'd0: registers_str[registers_ctr] <= 8'd10;
+                        6'd1: registers_str[registers_ctr] <= 8'd13;
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd1) begin
+                        registers_reg_ptr <= 6'd0;
+                        registers_state <= `DBG_REG_C_VALUE;
+                    end
                 end
             `DBG_REG_C_STR:
                 begin 
@@ -439,8 +453,15 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_NL_6: 
                 begin
-                    registers_str[registers_ctr] <= "\n";
-                    registers_state <= `DBG_REG_SPACES_7;
+                    case (registers_reg_ptr)
+                        6'd0: registers_str[registers_ctr] <= 8'd10;
+                        6'd1: registers_str[registers_ctr] <= 8'd13;
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd1) begin
+                        registers_reg_ptr <= 6'd0;
+                        registers_state <= `DBG_REG_SPACES_7;
+                    end
                 end
             `DBG_REG_SPACES_7:
                 begin
@@ -480,8 +501,15 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_NL_7: 
                 begin
-                    registers_str[registers_ctr] <= "\n";
-                    registers_state <= `DBG_REG_END;
+                    case (registers_reg_ptr)
+                        6'd0: registers_str[registers_ctr] <= 8'd10;
+                        6'd1: registers_str[registers_ctr] <= 8'd13;
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd1) begin
+                        registers_reg_ptr <= 6'd0;
+                        registers_state <= `DBG_REG_END;
+                    end
                 end
             `DBG_REG_END: begin end
             default: begin $display("ERROR, unknown register state %0d", registers_state); end
