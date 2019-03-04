@@ -51,8 +51,14 @@ reg  [9:0]  data_reg;
 `define BIT_DELAY_START 13'h0
 `define BIT_DELAY_TEST  0
 `else
-`define BIT_DELAY_START 13'h54D
-`define BIT_DELAY_TEST  12
+/* 9600 */
+// `define BIT_DELAY_START 13'h54D
+//`define BIT_DELAY_TEST  12
+
+/* 115200 */
+`define BIT_DELAY_START 13'h27
+`define BIT_DELAY_TEST  8
+
 `endif
 
 reg  [12:0] bit_delay;
