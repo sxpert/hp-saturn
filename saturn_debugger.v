@@ -21,6 +21,7 @@
 `default_nettype none
 
 `include "saturn_def_debugger.v"
+`include "saturn_def_alu.v"
 
 module saturn_debugger (
     i_clk,
@@ -37,6 +38,10 @@ module saturn_debugger (
     i_reg_hst,
     i_reg_st,
     i_reg_p,
+
+    o_dbg_register,
+    o_dbg_reg_ptr,
+    i_dbg_reg_nibble,
 
     i_alu_reg_dest,
     i_alu_reg_src_1,
@@ -66,6 +71,11 @@ input  wire [3:0]  i_reg_hst;
 input  wire [15:0] i_reg_st;
 input  wire [3:0]  i_reg_p;
 
+output reg  [4:0]  o_dbg_register;
+output wire [3:0]  o_dbg_reg_ptr;
+assign o_dbg_reg_ptr = registers_reg_ptr[3:0];
+input  wire [3:0]  i_dbg_reg_nibble;
+
 input  wire [4:0]  i_alu_reg_dest;
 input  wire [4:0]  i_alu_reg_src_1;
 input  wire [4:0]  i_alu_reg_src_2;
@@ -94,7 +104,7 @@ reg  [7:0]  hex[0:15];
 
 reg  [8:0]  registers_ctr;
 reg  [7:0]  registers_str[0:511];
-reg  [4:0]  registers_state;
+reg  [5:0]  registers_state;
 reg  [4:0]  registers_reg_ptr;
 reg  [0:0]  registers_done;
 
@@ -123,6 +133,7 @@ initial begin
     registers_ctr     = 9'd0;
     registers_state   = `DBG_REG_PC_STR;
     registers_reg_ptr = 5'b0;
+    o_dbg_register    = `ALU_REG_NONE;
     registers_done    = 1'b0;
     carry = 1'b1;
 end
@@ -385,7 +396,32 @@ always @(posedge i_clk) begin
             `DBG_REG_NL_1: 
                 begin
                     registers_str[registers_ctr] <= "\n";
-                    registers_state <= `DBG_REG_END;
+                    registers_state <= `DBG_REG_C_STR;
+                end
+            `DBG_REG_C_STR:
+                begin 
+                    case (registers_reg_ptr)
+                        5'd0: registers_str[registers_ctr] <= "C";
+                        5'd1: registers_str[registers_ctr] <= ":";
+                        5'd2: registers_str[registers_ctr] <= " ";
+                        5'd3: registers_str[registers_ctr] <= " ";
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 5'd1;
+                    if (registers_reg_ptr == 5'd3) begin
+                        registers_reg_ptr <= 5'd15;
+                        o_dbg_register  <= `ALU_REG_C;
+                        registers_state <= `DBG_REG_C_VALUE;
+                    end
+                end
+            `DBG_REG_C_VALUE:
+                begin
+                    registers_str[registers_ctr] <= hex[i_dbg_reg_nibble];
+                    registers_reg_ptr <= registers_reg_ptr - 1;
+                    if (registers_reg_ptr == 5'd0) begin
+                        registers_reg_ptr <= 5'd0;
+                        o_dbg_register  <= `ALU_REG_NONE;
+                        registers_state <= `DBG_REG_END;
+                    end
                 end
             `DBG_REG_END: begin end
             default: begin $display("ERROR, unknown register state %0d", registers_state); end
@@ -424,6 +460,7 @@ always @(posedge i_clk) begin
         registers_ctr     <= 9'd0;
         registers_state   <= `DBG_REG_PC_STR;
         registers_reg_ptr <= 5'b0;
+        o_dbg_register    <= `ALU_REG_NONE;
         registers_done    <= 1'b0;
         write_out         <= 1'b0;
     end

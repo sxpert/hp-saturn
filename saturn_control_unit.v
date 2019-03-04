@@ -48,6 +48,10 @@ module saturn_control_unit (
     o_reg_p,
     o_reg_hst,
     o_reg_st,
+    /* register access */
+    i_dbg_register,
+    i_dbg_reg_ptr,
+    o_dbg_reg_nibble,
 
     o_alu_reg_dest,
     o_alu_reg_src_1,
@@ -84,7 +88,11 @@ output wire [19:0] o_current_pc;
 output wire [3:0]  o_reg_p;
 output wire [3:0]  o_reg_hst;
 output wire [15:0] o_reg_st;
-
+/* register access */
+input  wire [4:0]  i_dbg_register;
+input  wire [3:0]  i_dbg_reg_ptr;
+output reg  [3:0]  o_dbg_reg_nibble;
+ 
 output wire [4:0]  o_alu_reg_dest;
 output wire [4:0]  o_alu_reg_src_1;
 output wire [4:0]  o_alu_reg_src_2;
@@ -168,15 +176,22 @@ wire [0:0] dec_error;
 wire [0:0] inst_alu        = (dec_instr_type == `INSTR_TYPE_ALU);
 wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
 
+wire [0:0] reg_dest_c    = (dec_alu_reg_dest == `ALU_REG_C);
 wire [0:0] reg_dest_st   = (dec_alu_reg_dest == `ALU_REG_ST);
 wire [0:0] reg_dest_p    = (dec_alu_reg_dest == `ALU_REG_P);
+
+wire [0:0] reg_src_1_p   = (dec_alu_reg_src_1 == `ALU_REG_P);
 wire [0:0] reg_src_1_imm = (dec_alu_reg_src_1 == `ALU_REG_IMM);
 
 wire [0:0] aluop_copy    = inst_alu && (dec_alu_opcode == `ALU_OP_COPY);
 
 wire [0:0] inst_alu_p_eq_n     = aluop_copy && reg_dest_p && reg_src_1_imm;
+wire [0:0] inst_alu_c_eq_p_n   = aluop_copy && reg_dest_c && reg_src_1_p;
 wire [0:0] inst_alu_st_eq_01_n = aluop_copy && reg_dest_st && reg_src_1_imm;
-wire [0:0] inst_alu_other      = !(inst_alu_p_eq_n || inst_alu_st_eq_01_n);
+
+wire [0:0] inst_alu_other      = !(inst_alu_p_eq_n || 
+                                   inst_alu_st_eq_01_n ||
+                                   inst_alu_c_eq_p_n);
 
 
 /**************************************************************************************************
@@ -215,11 +230,19 @@ saturn_regs_pc_rstk regs_pc_rstk (
  *
  *************************************************************************************************/
 
+reg  [3:0]  reg_C[0:15];
 reg  [3:0]  reg_HST;
 reg  [15:0] reg_ST;
 reg  [3:0]  reg_P;
 wire [19:0] reg_PC;
 wire [0:0]  reload_PC;
+
+always @(*) begin
+    case (i_dbg_register)
+    `ALU_REG_C: o_dbg_reg_nibble <= reg_C[i_dbg_reg_ptr];
+    default: o_dbg_reg_nibble <= 4'h0;
+    endcase
+end
 
 /**************************************************************************************************
  *
@@ -229,6 +252,7 @@ wire [0:0]  reload_PC;
 
 reg  [0:0] control_unit_error;
 reg  [0:0] just_reset;
+reg  [3:0] init_counter;
 reg  [0:0] control_unit_ready;
 reg  [4:0] bus_program[0:31];
 reg  [4:0] bus_prog_addr;
@@ -245,6 +269,7 @@ initial begin
     o_no_read          = 1'b0;
     control_unit_error = 1'b0;
     just_reset         = 1'b1;
+    init_counter       = 4'b0;
     control_unit_ready = 1'b0;
     bus_prog_addr      = 5'd0;
     addr_nibble_ptr    = 3'd0;
@@ -257,6 +282,12 @@ initial begin
 end
 
 always @(posedge i_clk) begin
+
+    if (just_reset || (init_counter != 0)) begin
+        $display("CTRL     %0d: [%d] initializing registers %0d", i_phase, i_cycle_ctr, init_counter);
+        reg_C[init_counter] <= 4'b0;
+        init_counter <= init_counter + 4'b1;
+    end
 
     /************************
      *
@@ -346,6 +377,12 @@ always @(posedge i_clk) begin
                             reg_P <= dec_alu_imm_value;
                         end
 
+                        /* 80Cn    C=P        n */
+                        if (inst_alu_c_eq_p_n) begin
+                            reg_C[dec_alu_ptr_begin] <= reg_P;
+                        end
+
+
                         /* 8[45]n  ST=[01]    n */
                         if (inst_alu_st_eq_01_n) begin
                             $display("CTRL     %0d: [%d] exec : ST=%b %h", i_phase, i_cycle_ctr, dec_alu_imm_value[0], dec_alu_ptr_begin);
@@ -370,6 +407,7 @@ always @(posedge i_clk) begin
         o_no_read          <= 1'b0;
         control_unit_error <= 1'b0;
         just_reset         <= 1'b1;
+        init_counter       <= 4'b0;
         control_unit_ready <= 1'b0;
         bus_prog_addr      <= 5'd0;
         addr_nibble_ptr    <= 3'd0;

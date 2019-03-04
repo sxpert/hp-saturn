@@ -124,6 +124,8 @@ reg [0:0] decode_started;
 reg [0:0] block_2x;
 reg [0:0] block_6x;
 reg [0:0] block_8x;
+reg [0:0] block_80x;
+reg [0:0] block_80Cx;
 reg [0:0] block_84x_85x;
 
 reg [0:0] block_JUMP;
@@ -160,6 +162,8 @@ initial begin
     block_2x        = 1'b0;
     block_6x        = 1'b0;
     block_8x        = 1'b0;
+    block_80x       = 1'b0;
+    block_80Cx      = 1'b0;
     block_84x_85x   = 1'b0;
 
     block_JUMP      = 1'b0;
@@ -250,6 +254,7 @@ always @(posedge i_clk) begin
 
             if (block_8x) begin
                 case (i_nibble)
+                    4'h0: block_80x <= 1'b1;
                     4'h4, 4'h5:
                         begin
                             o_alu_reg_dest  <= `ALU_REG_ST;
@@ -275,6 +280,33 @@ always @(posedge i_clk) begin
                         end
                 endcase
                 block_8x <= 1'b0;
+            end
+
+            if (block_80x) begin
+                case (i_nibble)
+                    4'hC: block_80Cx <= 1'b1;
+                    default: 
+                        begin
+                            $display("DECODER  %0d: [%d] block_80x %h", i_phase, i_cycle_ctr, i_nibble);
+                            o_decoder_error <= 1'b1;
+                        end
+                endcase
+                block_80x <= 1'b0;
+            end
+
+            if (block_80Cx) begin
+                $display("DECODER  %0d: [%d] block_80Cx C=P %h", i_phase, i_cycle_ctr, i_nibble);
+                o_alu_reg_dest  <= `ALU_REG_C;
+                o_alu_reg_src_1 <= `ALU_REG_P;
+                o_alu_reg_src_2 <= `ALU_REG_NONE;
+                o_alu_ptr_begin <= i_nibble;
+                o_alu_ptr_end   <= i_nibble;
+                o_alu_opcode    <= `ALU_OP_COPY;
+                o_instr_type    <= `INSTR_TYPE_ALU;
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                block_80Cx      <= 1'b0;
+                decode_started  <= 1'b0;
             end
 
             if (block_84x_85x) begin
@@ -334,6 +366,8 @@ always @(posedge i_clk) begin
         block_2x        <= 1'b0;
         block_6x        <= 1'b0;
         block_8x        <= 1'b0;
+        block_80x       <= 1'b0;
+        block_80Cx      <= 1'b0;
         block_84x_85x   <= 1'b0;
 
         block_JUMP      <= 1'b0;

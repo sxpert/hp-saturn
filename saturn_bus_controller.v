@@ -83,6 +83,10 @@ saturn_control_unit control_unit (
     .o_reg_st          (ctrl_reg_st),
     .o_reg_p           (ctrl_reg_p),
 
+    .i_dbg_register    (dbg_register),
+    .i_dbg_reg_ptr     (dbg_reg_ptr),
+    .o_dbg_reg_nibble  (ctrl_reg_nibble),
+
     .o_alu_reg_dest    (dec_alu_reg_dest),
     .o_alu_reg_src_1   (dec_alu_reg_src_1),
     .o_alu_reg_src_2   (dec_alu_reg_src_2),
@@ -103,6 +107,8 @@ wire [19:0] ctrl_current_pc;
 wire [3:0]  ctrl_reg_hst;
 wire [15:0] ctrl_reg_st;
 wire [3:0]  ctrl_reg_p;
+
+wire [3:0]  ctrl_reg_nibble;
 
 wire [4:0]  dec_alu_reg_dest;
 wire [4:0]  dec_alu_reg_src_1;
@@ -135,6 +141,10 @@ saturn_debugger debugger (
     .i_reg_st          (ctrl_reg_st),
     .i_reg_p           (ctrl_reg_p),
 
+    .o_dbg_register    (dbg_register),
+    .o_dbg_reg_ptr     (dbg_reg_ptr),
+    .i_dbg_reg_nibble  (ctrl_reg_nibble),
+
     .i_alu_reg_dest    (dec_alu_reg_dest),
     .i_alu_reg_src_1   (dec_alu_reg_src_1),
     .i_alu_reg_src_2   (dec_alu_reg_src_2),
@@ -146,6 +156,9 @@ saturn_debugger debugger (
 
     .o_char_to_send    (o_char_to_send)
 );
+
+wire [4:0] dbg_register;
+wire [3:0] dbg_reg_ptr;
 
 wire [0:0] dbg_debug_cycle;
 assign o_debug_cycle = dbg_debug_cycle;
