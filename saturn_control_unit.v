@@ -55,6 +55,7 @@ module saturn_control_unit (
     o_dbg_reg_nibble,
     i_dbg_rstk_ptr,
     o_dbg_rstk_val,
+    o_reg_rstk_ptr,
 
     o_alu_reg_dest,
     o_alu_reg_src_1,
@@ -99,6 +100,7 @@ input  wire [3:0]  i_dbg_reg_ptr;
 output reg  [3:0]  o_dbg_reg_nibble;
 input  wire [2:0]  i_dbg_rstk_ptr;
 output wire [19:0] o_dbg_rstk_val;
+output wire [2:0]  o_reg_rstk_ptr;
  
 output wire [4:0]  o_alu_reg_dest;
 output wire [4:0]  o_alu_reg_src_1;
@@ -237,7 +239,8 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .o_reload_pc        (reload_PC),
 
     .i_dbg_rstk_ptr     (i_dbg_rstk_ptr),
-    .o_dbg_rstk_val     (o_dbg_rstk_val)
+    .o_dbg_rstk_val     (o_dbg_rstk_val),
+    .o_reg_rstk_ptr     (o_reg_rstk_ptr)
 );
 
 /**************************************************************************************************
@@ -307,7 +310,7 @@ always @(posedge i_clk) begin
 
     if (just_reset || (init_counter != 0)) begin
         $display("CTRL     %0d: [%d] initializing registers %0d", i_phase, i_cycle_ctr, init_counter);
-        reg_C[init_counter] <= 4'b0;
+        reg_C[init_counter] <= 4'h0;
         init_counter <= init_counter + 4'b1;
     end
 
@@ -442,6 +445,18 @@ always @(posedge i_clk) begin
                         reg_alu_mode <= dec_alu_imm_value[0];
                     end
                 `INSTR_TYPE_JUMP: begin end
+                `INSTR_TYPE_LOAD: 
+                    begin
+                        case (dec_alu_reg_dest)
+                            `ALU_REG_A: begin end
+                            `ALU_REG_C: 
+                                begin
+                                    $display("CTRL     %0d: [%d] C[%2d] <= %h", i_phase, i_cycle_ctr, dec_alu_ptr_begin, dec_alu_imm_value);
+                                    reg_C[dec_alu_ptr_begin] <= dec_alu_imm_value;
+                                end
+                            default:    $display("CTRL     %0d: [%d] unsupported register for load %0d", i_phase, i_cycle_ctr, dec_alu_reg_dest);
+                        endcase
+                    end
                 `INSTR_TYPE_RESET:
                     begin
                         $display("CTRL     %0d: [%d] exec : RESET", i_phase, i_cycle_ctr);

@@ -45,6 +45,7 @@ module saturn_debugger (
     i_dbg_reg_nibble,
     o_dbg_rstk_ptr,
     i_dbg_rstk_val,
+    i_reg_rstk_ptr,
 
     i_alu_reg_dest,
     i_alu_reg_src_1,
@@ -81,6 +82,7 @@ assign o_dbg_reg_ptr = registers_reg_ptr[3:0];
 input  wire [3:0]  i_dbg_reg_nibble;
 output reg  [2:0]  o_dbg_rstk_ptr;
 input  wire [19:0] i_dbg_rstk_val;
+input  wire [2:0]  i_reg_rstk_ptr;
 
 input  wire [4:0]  i_alu_reg_dest;
 input  wire [4:0]  i_alu_reg_src_1;
@@ -252,7 +254,7 @@ always @(posedge i_clk) begin
                         6'd1: registers_str[registers_ctr] <= "p";
                         6'd2: registers_str[registers_ctr] <= ":";
                         6'd3: registers_str[registers_ctr] <= " ";
-                        6'd4: registers_str[registers_ctr] <= "?";
+                        6'd4: registers_str[registers_ctr] <= hex[{1'b0, i_reg_rstk_ptr}];
                         6'd5: registers_str[registers_ctr] <= " ";
                         6'd6: registers_str[registers_ctr] <= " ";
                         6'd7: registers_str[registers_ctr] <= " ";
@@ -387,13 +389,13 @@ always @(posedge i_clk) begin
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd6) begin
                         registers_reg_ptr <= 6'd4;
+                        o_dbg_rstk_ptr  <= 3'd6;
                         registers_state <= `DBG_REG_RSTK6_VALUE;
                     end
                 end
             `DBG_REG_RSTK6_VALUE:
                 begin
-                    registers_str[registers_ctr] <= "?";
-                    // registers_str[registers_ctr] <= hex[i_current_pc[(registers_reg_ptr)*4+:4]];
+                    registers_str[registers_ctr] <= hex[i_dbg_rstk_val[(registers_reg_ptr)*4+:4]];
                     registers_reg_ptr <= registers_reg_ptr - 6'd1;
                     if (registers_reg_ptr == 6'd0) begin
                         registers_reg_ptr <= 6'd0;

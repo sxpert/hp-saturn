@@ -101,7 +101,8 @@
 `define INSTR_TYPE_ALU          1
 `define INSTR_TYPE_SET_MODE     2
 `define INSTR_TYPE_JUMP         3
-`define INSTR_TYPE_RESET        4
+`define INSTR_TYPE_LOAD         4
+`define INSTR_TYPE_RESET        5
 
 `define INSTR_TYPE_NONE         15
 

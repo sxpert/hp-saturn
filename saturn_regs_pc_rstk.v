@@ -40,7 +40,8 @@ module saturn_regs_pc_rstk (
 
     /* debugger access */
     i_dbg_rstk_ptr,
-    o_dbg_rstk_val
+    o_dbg_rstk_val,
+    o_reg_rstk_ptr
 );
 
 input  wire [0:0]  i_clk;
@@ -62,8 +63,10 @@ output reg  [0:0]  o_reload_pc;
 
 input  wire [2:0]  i_dbg_rstk_ptr;
 output wire [19:0] o_dbg_rstk_val;
+output wire [2:0]  o_reg_rstk_ptr;
 
 assign o_dbg_rstk_val = reg_RSTK[i_dbg_rstk_ptr];
+assign o_reg_rstk_ptr     = reg_rstk_ptr;
 
 /**************************************************************************************************
  *
@@ -184,7 +187,7 @@ always @(posedge i_clk) begin
             $write("PC_RSTK  %0d: [%d] execute jump %0d", i_phase, i_cycle_ctr, i_jump_length);
             if (i_push_pc) begin
                 $write(" ( push %5h => RSTK[%0d])", reg_PC, reg_rstk_ptr + 3'd1);
-                reg_RSTK[reg_rstk_ptr + 3'd1] <= reg_PC;
+                reg_RSTK[(reg_rstk_ptr + 3'o1)&3'o7] <= reg_PC;
                 reg_rstk_ptr <= reg_rstk_ptr + 3'd1;
             end
             $display("");
@@ -195,12 +198,12 @@ always @(posedge i_clk) begin
 
     end
 
-    if (i_phases[0] && i_clk_en) begin
-        $write("RSTK : ptr %0d | ", reg_rstk_ptr);
-        for (tmp_ctr = 4'd0; tmp_ctr < 4'd8; tmp_ctr = tmp_ctr + 4'd1)
-            $write("%0d => %5h | ", tmp_ctr, reg_RSTK[tmp_ctr]);
-        $write("\n");
-    end
+    // if (i_phases[0] && i_clk_en) begin
+    //     $write("RSTK : ptr %0d | ", reg_rstk_ptr);
+    //     for (tmp_ctr = 4'd0; tmp_ctr < 4'd8; tmp_ctr = tmp_ctr + 4'd1)
+    //         $write("%0d => %5h | ", tmp_ctr, reg_RSTK[tmp_ctr]);
+    //     $write("\n");
+    // end
 
     if (i_reset) begin
         o_reload_pc  <= 1'b0;

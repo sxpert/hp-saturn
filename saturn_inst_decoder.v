@@ -125,6 +125,7 @@ reg [0:0] decode_started;
 
 reg [0:0] block_0x;
 reg [0:0] block_2x;
+reg [0:0] block_3x;
 reg [0:0] block_6x;
 reg [0:0] block_8x;
 reg [0:0] block_80x;
@@ -133,11 +134,14 @@ reg [0:0] block_82x;
 reg [0:0] block_84x_85x;
 
 reg [0:0] block_JUMP;
+reg [0:0] block_LOAD;
 
 /*
  * temporary variables
  */
 reg [2:0] jump_counter;
+reg [3:0] load_counter;
+reg [3:0] load_count;
 
 /*
  * initialization
@@ -166,6 +170,7 @@ initial begin
 
     block_0x        = 1'b0;
     block_2x        = 1'b0;
+    block_3x        = 1'b0;
     block_6x        = 1'b0;
     block_8x        = 1'b0;
     block_80x       = 1'b0;
@@ -174,9 +179,12 @@ initial begin
     block_84x_85x   = 1'b0;
 
     block_JUMP      = 1'b0;
+    block_LOAD      = 1'b0;
 
     /* local variables */
     jump_counter    = 3'd0;
+    load_counter    = 4'd0;
+    load_count      = 4'd0;
 
     /* last line of defense */
     o_decoder_error = 1'b0;
@@ -217,6 +225,7 @@ always @(posedge i_clk) begin
             case (i_nibble)
                 4'h0: block_0x <= 1'b1;
                 4'h2: block_2x <= 1'b1;
+                4'h3: block_3x <= 1'b1;
                 4'h6: 
                     begin
                         o_instr_type    <= `INSTR_TYPE_JUMP;
@@ -267,6 +276,18 @@ always @(posedge i_clk) begin
                 o_instr_execute <= 1'b1;
                 block_2x        <= 1'b0;
                 decode_started  <= 1'b0;
+            end
+
+            if (block_3x) begin
+                $display("DECODER  %0d: [%d] LC %h", i_phase, i_cycle_ctr, i_nibble);
+                o_alu_reg_dest  <= `ALU_REG_C;
+                o_alu_ptr_begin <= i_reg_p;
+                o_alu_ptr_end   <= (i_reg_p + i_nibble) & 4'hF;
+                load_counter    <= 4'h0;
+                load_count      <= i_nibble;
+                o_instr_execute <= 1'b1;
+                block_LOAD      <= 1'b1;
+                block_3x        <= 1'b0;
             end
 
             if (block_6x) begin
@@ -389,6 +410,23 @@ always @(posedge i_clk) begin
                 end
             end
 
+            if (block_LOAD) begin
+                o_instr_type    <= `INSTR_TYPE_LOAD;
+                o_alu_imm_value <= i_nibble;
+                load_counter    <= load_counter + 4'd1;
+                if (load_counter == load_count) begin
+                    block_LOAD <= 1'b0;
+                    o_instr_decoded <= 1'b1;
+                    decode_started  <= 1'b0;
+                end
+            end
+
+        end
+
+        /* need to increment this at the same time the pointer is used */
+        if (i_phases[3] && block_LOAD && (o_instr_type == `INSTR_TYPE_LOAD)) begin
+            $display("DECODER  %0d: [%d] load ptr_begin <= %0d", i_phase, i_cycle_ctr, (o_alu_ptr_begin + 4'd1) & 4'hF);
+            o_alu_ptr_begin <= (o_alu_ptr_begin + 4'd1) & 4'hF;
         end
 
         /* decoder cleanup only after the instruction is completely decoded and execution has started */
@@ -427,6 +465,7 @@ always @(posedge i_clk) begin
 
         block_0x        <= 1'b0;
         block_2x        <= 1'b0;
+        block_3x        <= 1'b0;
         block_6x        <= 1'b0;
         block_8x        <= 1'b0;
         block_80x       <= 1'b0;
@@ -435,9 +474,12 @@ always @(posedge i_clk) begin
         block_84x_85x   <= 1'b0;
 
         block_JUMP      <= 1'b0;
+        block_LOAD      <= 1'b0;
 
         /* local variables */
         jump_counter    = 3'd0;
+        load_counter    = 4'd0;
+        load_count      = 4'd0;
 
         /* invalid instruction */
         o_decoder_error = 1'b0;
