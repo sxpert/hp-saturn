@@ -57,7 +57,9 @@ module saturn_debugger (
     i_instr_decoded,
 
     /* output to leds */
-    o_char_to_send
+    o_char_to_send,
+    o_char_valid,
+    i_serial_busy
 );
 
 input  wire [0:0]  i_clk;
@@ -94,6 +96,8 @@ input  wire [3:0]  i_instr_type;
 input  wire [0:0]  i_instr_decoded;
 
 output reg  [7:0]  o_char_to_send;
+output reg  [0:0]  o_char_valid;
+input  wire [0:0]  i_serial_busy;
 
 /**************************************************************************************************
  *
@@ -143,6 +147,7 @@ initial begin
     registers_reg_ptr = 6'b0;
     o_dbg_register    = `ALU_REG_NONE;
     registers_done    = 1'b0;
+    o_char_valid      = 1'b0;
     carry = 1'b1;
 end
 
@@ -492,8 +497,10 @@ always @(posedge i_clk) begin
         write_out <= 1'b1;
     end
 
-    if (i_clk_en && write_out) begin
+    /* writes the chars to the serial port */
+    if (i_clk_en && write_out && !o_char_valid && !i_serial_busy) begin
         o_char_to_send <= registers_str[counter];
+        o_char_valid   <= 1'b1;
         counter <= counter + 9'd1;
 `ifdef SIM
         $write("%c", registers_str[counter]);
@@ -508,6 +515,10 @@ always @(posedge i_clk) begin
             o_debug_cycle  <= 1'b0;
         end
     end
+    /* clear the char clock enable */
+    if (write_out && o_char_valid) begin
+        o_char_valid <= 1'b0;
+    end
 
     if (i_reset) begin
         o_debug_cycle     <= 1'b0;
@@ -518,6 +529,7 @@ always @(posedge i_clk) begin
         o_dbg_register    <= `ALU_REG_NONE;
         registers_done    <= 1'b0;
         write_out         <= 1'b0;
+        o_char_valid      <= 1'b0;
     end
 
 end

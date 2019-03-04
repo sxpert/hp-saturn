@@ -11,7 +11,7 @@
 # fi
 #iverilog -v -Wall -DSIM -o mask_gen_tb mask_gen.v
 iverilog -v -Wall -DSIM -o z_saturn_test.iv -s saturn_top \
-    saturn_top.v \
+    saturn_top.v saturn_serial.v \
     saturn_bus.v saturn_hp48gx_rom.v \
     saturn_bus_controller.v saturn_debugger.v \
     saturn_control_unit.v saturn_inst_decoder.v \

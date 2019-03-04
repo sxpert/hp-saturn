@@ -28,10 +28,22 @@ saturn_bus main_bus (
     .i_clk_en       (clk_en),
     .i_reset        (reset),
     .o_halt         (halt),
-    .o_char_to_send (t_led)
+    .o_char_to_send (char_to_send),
+    .o_char_valid   (char_valid),
+    .i_serial_busy  (serial_busy)
 );
 
-wire [7:0] t_led;
+saturn_serial serial_port (
+    .i_clk          (clk),
+    .i_char_to_send (char_to_send),
+    .i_char_valid   (char_valid),
+    .o_serial_busy  (serial_busy)
+);
+
+wire [7:0] char_to_send;
+wire [0:0] char_valid;
+wire [0:0] serial_busy;
+
 wire [7:0]  led;
 reg  [0:0] reset;
 wire [0:0] halt;
@@ -85,13 +97,15 @@ module saturn_top (
 	clk_25mhz,
 	btn,
 	led,
-    wifi_gpio0
+    wifi_gpio0,
+    ftdi_rxd
 );
 
 input  wire [0:0] clk_25mhz;
 input  wire [6:0] btn;
 output reg  [7:0] led;
 output wire [0:0] wifi_gpio0;
+output wire [0:0] ftdi_rxd;
 
 /* this is necessary, otherwise, the esp32 module reboots the fpga in passthrough */
 assign wifi_gpio0 = btn[0];
@@ -103,7 +117,17 @@ saturn_bus main_bus (
     .o_halt         (halt),
     .o_phase        (phase),
     .o_cycle_ctr    (cycle_ctr),
-    .o_char_to_send (t_led)
+    .o_char_to_send (char_to_send),
+    .o_char_valid   (char_valid),
+    .i_serial_busy  (serial_busy)
+);
+
+saturn_serial serial_port (
+    .i_clk          (clk_25mhz),
+    .i_char_to_send (char_to_send),
+    .i_char_valid   (char_valid),
+    .o_serial_tx    (ftdi_rxd),
+    .o_serial_busy  (serial_busy)
 );
 
 reg  [25:0] delay;
@@ -113,7 +137,9 @@ reg  [0:0]  reset;
 wire [0:0]  halt;
 wire [1:0]  phase;
 wire [31:0] cycle_ctr;
-wire [7:0]  t_led;
+wire [7:0]  char_to_send;
+wire [0:0]  char_valid;
+wire [0:0]  serial_busy;
 
 
 /* 1/4 s */
@@ -154,7 +180,7 @@ always @(posedge clk_25mhz) begin
 
     if (clk2 && !halt) begin
         clk_en <= 1'b1;
-        led    <= t_led;
+        led    <= char_to_send;
     end
 
     if (clk_en) 
