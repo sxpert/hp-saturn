@@ -159,10 +159,9 @@ end
 
 always @(posedge i_clk) begin
 
-    if (i_clk_en && i_phases[3] && i_instr_decoded) begin
+    if (i_clk_en && i_phases[3] && i_instr_decoded && !debug_done) begin
         $display("DEBUGGER %0d: [%d] start debugger cycle", i_phase, i_cycle_ctr);
         o_debug_cycle   <= 1'b1;
-        counter         <= 9'd0;
         registers_ctr   <= 9'd0;
         registers_state <= `DBG_REG_PC_STR;
     end
@@ -187,13 +186,15 @@ always @(posedge i_clk) begin
             `DBG_REG_PC_STR: 
                 begin 
                     case (registers_reg_ptr)
-                        6'd0: registers_str[registers_ctr] <= "P";
-                        6'd1: registers_str[registers_ctr] <= "C";
-                        6'd2: registers_str[registers_ctr] <= ":";
-                        6'd3: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= 8'd10;
+                        6'd1: registers_str[registers_ctr] <= 8'd13;
+                        6'd2: registers_str[registers_ctr] <= "P";
+                        6'd3: registers_str[registers_ctr] <= "C";
+                        6'd4: registers_str[registers_ctr] <= ":";
+                        6'd5: registers_str[registers_ctr] <= " ";
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
-                    if (registers_reg_ptr == 6'd3) begin
+                    if (registers_reg_ptr == 6'd5) begin
                         registers_reg_ptr <= 6'd4;
                         registers_state <= `DBG_REG_PC_VALUE;
                     end
@@ -294,34 +295,24 @@ always @(posedge i_clk) begin
                     registers_reg_ptr <= registers_reg_ptr - 6'd1;
                     if (registers_reg_ptr == 6'd0) begin
                         registers_reg_ptr <= 6'd0;
-                        registers_state <= `DBG_REG_NL_0;
-                    end
-                end
-            `DBG_REG_NL_0: 
-                begin
-                    case (registers_reg_ptr)
-                        6'd0: registers_str[registers_ctr] <= 8'd10;
-                        6'd1: registers_str[registers_ctr] <= 8'd13;
-                    endcase
-                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
-                    if (registers_reg_ptr == 6'd1) begin
-                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_P;
                     end
                 end
             `DBG_REG_P:
                 begin 
                     case (registers_reg_ptr)
-                        6'd0: registers_str[registers_ctr] <= "P";
-                        6'd1: registers_str[registers_ctr] <= ":";
-                        6'd2: registers_str[registers_ctr] <= " ";
-                        6'd3: registers_str[registers_ctr] <= " ";
-                        6'd4: registers_str[registers_ctr] <= hex[i_reg_p];
+                        6'd0: registers_str[registers_ctr] <= 8'd10;
+                        6'd1: registers_str[registers_ctr] <= 8'd13;
+                        6'd2: registers_str[registers_ctr] <= "P";
+                        6'd3: registers_str[registers_ctr] <= ":";
+                        6'd4: registers_str[registers_ctr] <= " ";
                         6'd5: registers_str[registers_ctr] <= " ";
-                        6'd6: registers_str[registers_ctr] <= " ";
+                        6'd6: registers_str[registers_ctr] <= hex[i_reg_p];
+                        6'd7: registers_str[registers_ctr] <= " ";
+                        6'd8: registers_str[registers_ctr] <= " ";
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
-                    if (registers_reg_ptr == 6'd6) begin
+                    if (registers_reg_ptr == 6'd8) begin
                         registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_HST;
                     end
@@ -371,7 +362,7 @@ always @(posedge i_clk) begin
                 end
             `DBG_REG_ST_VALUE:
                 begin
-                    registers_str[registers_ctr] <= hex[{3'b000, i_reg_st[registers_reg_ptr]}];
+                    registers_str[registers_ctr] <= hex[{3'b000, i_reg_st[registers_reg_ptr[3:0]]}];
                     registers_reg_ptr <= registers_reg_ptr - 6'd1;
                     if (registers_reg_ptr == 6'd0) begin
                         registers_reg_ptr <= 6'd0;
@@ -411,31 +402,21 @@ always @(posedge i_clk) begin
                     registers_reg_ptr <= registers_reg_ptr - 6'd1;
                     if (registers_reg_ptr == 6'd0) begin
                         registers_reg_ptr <= 6'd0;
-                        registers_state <= `DBG_REG_NL_1;
-                    end
-                end
-            `DBG_REG_NL_1: 
-                begin
-                    case (registers_reg_ptr)
-                        6'd0: registers_str[registers_ctr] <= 8'd10;
-                        6'd1: registers_str[registers_ctr] <= 8'd13;
-                    endcase
-                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
-                    if (registers_reg_ptr == 6'd1) begin
-                        registers_reg_ptr <= 6'd0;
-                        registers_state <= `DBG_REG_C_VALUE;
+                        registers_state <= `DBG_REG_C_STR;
                     end
                 end
             `DBG_REG_C_STR:
                 begin 
                     case (registers_reg_ptr)
-                        6'd0: registers_str[registers_ctr] <= "C";
-                        6'd1: registers_str[registers_ctr] <= ":";
-                        6'd2: registers_str[registers_ctr] <= " ";
-                        6'd3: registers_str[registers_ctr] <= " ";
+                        6'd0: registers_str[registers_ctr] <= 8'd10;
+                        6'd1: registers_str[registers_ctr] <= 8'd13;
+                        6'd2: registers_str[registers_ctr] <= "C";
+                        6'd3: registers_str[registers_ctr] <= ":";
+                        6'd4: registers_str[registers_ctr] <= " ";
+                        6'd5: registers_str[registers_ctr] <= " ";
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
-                    if (registers_reg_ptr == 6'd3) begin
+                    if (registers_reg_ptr == 6'd5) begin
                         registers_reg_ptr <= 6'd15;
                         o_dbg_register  <= `ALU_REG_C;
                         registers_state <= `DBG_REG_C_VALUE;
@@ -448,26 +429,18 @@ always @(posedge i_clk) begin
                     if (registers_reg_ptr == 6'd0) begin
                         registers_reg_ptr <= 6'd0;
                         o_dbg_register  <= `ALU_REG_NONE;
-                        registers_state <= `DBG_REG_NL_6;
-                    end
-                end
-            `DBG_REG_NL_6: 
-                begin
-                    case (registers_reg_ptr)
-                        6'd0: registers_str[registers_ctr] <= 8'd10;
-                        6'd1: registers_str[registers_ctr] <= 8'd13;
-                    endcase
-                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
-                    if (registers_reg_ptr == 6'd1) begin
-                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_SPACES_7;
                     end
                 end
             `DBG_REG_SPACES_7:
                 begin
-                    registers_str[registers_ctr] <= " ";
+                    case (registers_reg_ptr)
+                        6'd0:    registers_str[registers_ctr] <= 8'd10;
+                        6'd1:    registers_str[registers_ctr] <= 8'd13;
+                        default: registers_str[registers_ctr] <= " ";
+                    endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
-                    if (registers_reg_ptr == 6'd45) begin
+                    if (registers_reg_ptr == 6'd47) begin
                         registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_RSTK0_STR;
                     end
@@ -522,11 +495,12 @@ always @(posedge i_clk) begin
 
     if (i_clk_en && o_debug_cycle && debug_done && !write_out) begin
         $display("DEBUGGER %0d: [%d] end debugger cycle", i_phase, i_cycle_ctr);
+        counter   <= 9'd0;
         write_out <= 1'b1;
     end
 
     /* writes the chars to the serial port */
-    if (i_clk_en && write_out && !o_char_valid && !i_serial_busy) begin
+    if ( write_out && !o_char_valid && !i_serial_busy) begin
         o_char_to_send <= registers_str[counter];
         o_char_valid   <= 1'b1;
         counter <= counter + 9'd1;
@@ -535,8 +509,7 @@ always @(posedge i_clk) begin
 `endif
         if (counter == registers_ctr) begin
 `ifdef SIM
-            $write("$ %0d chars written", counter + 9'd1);
-            $display("");
+            $display("$ %0d chars written", counter + 9'd1);
 `endif
             write_out      <= 1'b0;
             registers_done <= 1'b0;
