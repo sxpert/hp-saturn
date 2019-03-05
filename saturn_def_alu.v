@@ -47,6 +47,7 @@
 `define ALU_OP_JMP_ABS5 20
 `define ALU_OP_CLR_MASK 21
 
+`define ALU_OP_SET_CRY  28
 `define ALU_OP_TEST_GO  30
 `define ALU_OP_NOP      31
 
@@ -101,8 +102,11 @@
 `define INSTR_TYPE_ALU          1
 `define INSTR_TYPE_SET_MODE     2
 `define INSTR_TYPE_JUMP         3
-`define INSTR_TYPE_LOAD         4
-`define INSTR_TYPE_RESET        5
+`define INSTR_TYPE_RTN          4
+`define INSTR_TYPE_LOAD         5
+`define INSTR_TYPE_CONFIG       6
+`define INSTR_TYPE_RESET        7
+
 
 `define INSTR_TYPE_NONE         15
 

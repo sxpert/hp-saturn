@@ -33,7 +33,9 @@ module saturn_regs_pc_rstk (
     i_nibble,
     i_jump_instr,
     i_jump_length,
+    i_block_0x,
     i_push_pc,
+    i_rtn_instr,
 
     o_current_pc,
     o_reload_pc,
@@ -56,7 +58,9 @@ input  wire [0:0]  i_bus_busy;
 input  wire [3:0]  i_nibble;
 input  wire [0:0]  i_jump_instr;
 input  wire [2:0]  i_jump_length;
+input  wire [0:0]  i_block_0x;
 input  wire [0:0]  i_push_pc;
+input  wire [0:0]  i_rtn_instr;
  
 output wire [19:0] o_current_pc;
 output reg  [0:0]  o_reload_pc;
@@ -193,6 +197,32 @@ always @(posedge i_clk) begin
             $display("");
             reg_PC      <= jump_relative ? jump_offset + jump_base : jump_offset;
             jump_exec   <= 1'b0;
+            o_reload_pc <= 1'b0;
+        end
+
+        /*
+         * RTN instruction
+         */
+
+        /* this happens at the same time in the decoder */
+        if (i_phases[2] && i_block_0x && (i_nibble[3:2] == 2'b00)) begin
+            /* this is an RTN */
+            $write("PC_RSTK  %0d: [%d] RTN", i_phase, i_cycle_ctr); 
+            case (i_nibble)
+                4'h0: $display("SXM");
+                4'h2: $display("SC");
+                4'h3: $display("CC");
+                default: begin end
+            endcase
+            o_reload_pc            <= 1'b1; 
+        end
+
+        if (i_phases[3] && i_rtn_instr) begin
+            $display("PC_RSTK  %0d: [%d] execute RTN back to %5h", i_phase, i_cycle_ctr, reg_RSTK[reg_rstk_ptr]);
+            reg_PC                 <= reg_RSTK[reg_rstk_ptr];
+            reg_RSTK[reg_rstk_ptr] <= 20'h00000;
+            reg_rstk_ptr           <= (reg_rstk_ptr - 3'd1) & 3'd7;
+            /* o_reload_pc was set in advance above */
             o_reload_pc <= 1'b0;
         end
 

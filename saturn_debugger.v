@@ -36,6 +36,7 @@ module saturn_debugger (
     /* interface from the control unit */
     i_current_pc,
     i_reg_alu_mode,
+    i_reg_carry,
     i_reg_hst,
     i_reg_st,
     i_reg_p,
@@ -81,6 +82,7 @@ output reg  [0:0]  o_debug_cycle;
 /* inteface from the control unit */
 input  wire [19:0] i_current_pc;
 input  wire [0:0]  i_reg_alu_mode;
+input  wire [0:0]  i_reg_carry;
 input  wire [3:0]  i_reg_hst;
 input  wire [15:0] i_reg_st;
 input  wire [3:0]  i_reg_p;
@@ -135,8 +137,6 @@ reg  [6:0]  registers_state;
 reg  [5:0]  registers_reg_ptr;
 reg  [0:0]  registers_done;
 
-reg  [0:0]  carry;
-
 initial begin
     o_debug_cycle     = 1'b0;
     counter           = 9'd0;
@@ -164,7 +164,6 @@ initial begin
     registers_done    = 1'b0;
     o_char_valid      = 1'b0;
     o_char_send       = 1'b0;
-    carry = 1'b1;
 end
 
 /**************************************************************************************************
@@ -243,7 +242,7 @@ always @(posedge i_clk) begin
                         6'd4: registers_str[registers_ctr] <= "y";
                         6'd5: registers_str[registers_ctr] <= ":";
                         6'd6: registers_str[registers_ctr] <= " ";
-                        6'd7: registers_str[registers_ctr] <= hex[{3'b000,carry}];
+                        6'd7: registers_str[registers_ctr] <= hex[{3'b000,i_reg_carry}];
                         6'd8: registers_str[registers_ctr] <= " ";
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
@@ -538,33 +537,12 @@ always @(posedge i_clk) begin
         end
     end
  
+    /*
+     * dumps nibbles read from the bus
+     */
     if (i_bus_read_valid) begin
         o_char_send <= ~o_char_send;
         o_char_to_send <= hex[i_bus_nibble_in];
-        o_char_valid   <= 1'b1;
-    end
-
-    if (i_clk_en && i_bus_busy) begin
-        o_char_send <= ~o_char_send;
-        case (i_phase)
-        2'b00: o_char_to_send <= "!";
-        2'b01: o_char_to_send <= "@";
-        2'b10: o_char_to_send <= "#";
-        2'b11: o_char_to_send <= "$";
-        endcase
-        if (i_instr_decoded) o_char_to_send <= "=";
-        o_char_valid   <= 1'b1;
-    end
-
-    if (i_clk_en && i_instr_execute && i_phases[3]) begin
-        o_char_send <= ~o_char_send;
-        o_char_to_send <= "^";
-        o_char_valid   <= 1'b1;
-    end
-
-    if (i_clk_en && i_instr_decoded && i_phases[3]) begin
-        o_char_send <= ~o_char_send;
-        o_char_to_send <= "|";
         o_char_valid   <= 1'b1;
     end
 

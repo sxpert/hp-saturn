@@ -47,6 +47,7 @@ module saturn_inst_decoder (
     o_alu_opcode,
 
     o_jump_length,
+    o_block_0x,
 
     o_instr_type,
     o_push_pc,
@@ -82,6 +83,8 @@ output reg  [3:0]  o_alu_imm_value;
 output reg  [4:0]  o_alu_opcode;
 
 output reg  [2:0]  o_jump_length;
+output wire [0:0]  o_block_0x;
+assign o_block_0x = block_0x;
 
 output reg  [3:0]  o_instr_type;
 output reg  [0:0]  o_push_pc;
@@ -247,9 +250,19 @@ always @(posedge i_clk) begin
 
             if (block_0x) begin
                 case (i_nibble)
+                    4'h2, 4'h3:
+                        begin
+                            $display("DECODER  %0d: [%d] RTN%cC", i_phase, i_cycle_ctr, i_nibble[0]?"C":"S");
+                            o_instr_type    <= `INSTR_TYPE_RTN;
+                            o_alu_imm_value <= {3'b000, !i_nibble[0]};
+                            o_alu_opcode    <= `ALU_OP_SET_CRY;
+                            o_instr_decoded <= 1'b1;
+                            o_instr_execute <= 1'b1;
+                            decode_started  <= 1'b0;
+                        end
                     4'h4, 4'h5:
                         begin
-                            o_instr_type <= `INSTR_TYPE_SET_MODE;
+                            o_instr_type    <= `INSTR_TYPE_SET_MODE;
                             o_alu_imm_value <= {3'b000, i_nibble[0]};
                             o_instr_decoded <= 1'b1;
                             o_instr_execute <= 1'b1;
@@ -323,6 +336,13 @@ always @(posedge i_clk) begin
 
             if (block_80x) begin
                 case (i_nibble)
+                    4'h5: /* CONFIG */
+                        begin
+                            o_instr_type    <= `INSTR_TYPE_CONFIG;
+                            o_instr_decoded <= 1'b1;
+                            o_instr_execute <= 1'b1;
+                            decode_started  <= 1'b0;
+                        end
                     4'hA: /* RESET */
                         begin
                             o_instr_type    <= `INSTR_TYPE_RESET;

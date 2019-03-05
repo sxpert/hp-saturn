@@ -46,6 +46,7 @@ module saturn_control_unit (
 
     o_current_pc,
     o_reg_alu_mode,
+    o_reg_carry,
     o_reg_p,
     o_reg_hst,
     o_reg_st,
@@ -91,7 +92,7 @@ assign o_error = control_unit_error || dec_error;
 
 output wire [19:0] o_current_pc;
 output wire [0:0]  o_reg_alu_mode;
-assign o_reg_alu_mode = reg_alu_mode;
+output wire [0:0]  o_reg_carry;
 output wire [3:0]  o_reg_p;
 output wire [3:0]  o_reg_hst;
 output wire [15:0] o_reg_st;
@@ -114,6 +115,8 @@ output wire [0:0]  o_instr_decoded;
 output wire [0:0]  o_instr_execute;
 
 assign o_current_pc    = reg_PC;
+assign o_reg_alu_mode  = reg_alu_mode;
+assign o_reg_carry     = reg_CARRY;
 assign o_reg_p         = reg_P;
 assign o_reg_hst       = reg_HST;
 assign o_reg_st        = reg_ST;
@@ -157,6 +160,7 @@ saturn_inst_decoder instruction_decoder(
     .o_alu_opcode       (dec_alu_opcode),
 
     .o_jump_length      (dec_jump_length),
+    .o_block_0x         (dec_block_0x),
 
     .o_instr_type       (dec_instr_type),
     .o_push_pc          (dec_push_pc),
@@ -175,6 +179,8 @@ wire [3:0] dec_alu_imm_value;
 wire [4:0] dec_alu_opcode;
 
 wire [2:0] dec_jump_length;
+/* this is necessary to identify possible RTN in time */
+wire [0:0] dec_block_0x;
 
 wire [3:0] dec_instr_type;
 wire [0:0] dec_push_pc;
@@ -189,6 +195,7 @@ wire [0:0] dec_error;
 
 wire [0:0] inst_alu        = (dec_instr_type == `INSTR_TYPE_ALU);
 wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
+wire [0:0] inst_rtn        = (dec_instr_type == `INSTR_TYPE_RTN);
 
 wire [0:0] reg_dest_c      = (dec_alu_reg_dest == `ALU_REG_C);
 wire [0:0] reg_dest_hst    = (dec_alu_reg_dest == `ALU_REG_HST);
@@ -236,7 +243,9 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_nibble           (i_nibble),
     .i_jump_instr       (inst_jump),
     .i_jump_length      (dec_jump_length),
+    .i_block_0x         (dec_block_0x),
     .i_push_pc          (dec_push_pc),
+    .i_rtn_instr        (inst_rtn),
     
     .o_current_pc       (reg_PC),
     .o_reload_pc        (reload_PC),
@@ -254,6 +263,7 @@ saturn_regs_pc_rstk regs_pc_rstk (
 
 reg  [0:0]  reg_alu_mode;
 
+reg  [0:0]  reg_CARRY;
 reg  [3:0]  reg_C[0:15];
 reg  [3:0]  reg_HST;
 reg  [15:0] reg_ST;
@@ -284,6 +294,7 @@ reg  [4:0] bus_program[0:31];
 reg  [4:0] bus_prog_addr;
 reg  [2:0] addr_nibble_ptr;
 reg  [0:0] load_pc_loop;
+reg  [0:0] send_reg_C_A;
 reg  [0:0] send_pc_read;
 
 wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
@@ -301,9 +312,12 @@ initial begin
     bus_prog_addr      = 5'd0;
     addr_nibble_ptr    = 3'd0;
     load_pc_loop       = 1'b0;
+    send_reg_C_A       = 1'b0;
+    send_pc_read       = 1'b0;
 
     /* registers */
     reg_alu_mode       = 1'b0;
+    reg_CARRY          = 1'b0;
     reg_HST            = 4'b0;
     reg_ST             = 16'b0;
     reg_P              = 4'b0; 
@@ -448,6 +462,17 @@ always @(posedge i_clk) begin
                         reg_alu_mode <= dec_alu_imm_value[0];
                     end
                 `INSTR_TYPE_JUMP: begin end
+                `INSTR_TYPE_RTN: 
+                    begin
+                        case (dec_alu_opcode)
+                            `ALU_OP_SET_CRY: reg_CARRY <= o_alu_imm_value[0];
+                            default: 
+                                begin
+                                    $display("CTRL     %0d: [%d] alu_opcode for RTN %0d", i_phase, i_cycle_ctr, dec_alu_opcode);
+                                    control_unit_error <= 1'b1;
+                                end
+                        endcase
+                    end
                 `INSTR_TYPE_LOAD: 
                     begin
                         case (dec_alu_reg_dest)
@@ -457,8 +482,20 @@ always @(posedge i_clk) begin
                                     $display("CTRL     %0d: [%d] C[%2d] <= %h", i_phase, i_cycle_ctr, dec_alu_ptr_begin, dec_alu_imm_value);
                                     reg_C[dec_alu_ptr_begin] <= dec_alu_imm_value;
                                 end
-                            default:    $display("CTRL     %0d: [%d] unsupported register for load %0d", i_phase, i_cycle_ctr, dec_alu_reg_dest);
+                            default: 
+                                begin 
+                                    $display("CTRL     %0d: [%d] unsupported register for load %0d", i_phase, i_cycle_ctr, dec_alu_reg_dest);
+                                    control_unit_error <= 1'b1;
+                                end
                         endcase
+                    end
+                `INSTR_TYPE_CONFIG:
+                    begin
+                        $display("CTRL     %0d: [%d] exec : CONFIG", i_phase, i_cycle_ctr);
+                        bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_CONFIGURE };
+                        bus_prog_addr   <= bus_prog_addr + 5'd1;
+                        addr_nibble_ptr <= 3'b0;
+                        send_reg_C_A    <= 1'b1;
                     end
                 `INSTR_TYPE_RESET:
                     begin
@@ -470,10 +507,29 @@ always @(posedge i_clk) begin
                 default: 
                     begin 
                         $display("CTRL     %0d: [%d] unsupported instruction", i_phase, i_cycle_ctr);
+                        control_unit_error <= 1'b1;
                     end
             endcase
         end
+
+        /*
+         * send C(A)
+         * used for CONFIG and UNCNFG
+         */
+        if (send_reg_C_A) begin
+            bus_program[bus_prog_addr] <= { 1'b0, reg_C[{1'b0, addr_nibble_ptr}]};
+            addr_nibble_ptr <= addr_nibble_ptr + 3'd1;
+            bus_prog_addr <= bus_prog_addr + 5'd1;
+            if (addr_nibble_ptr == 3'd4) begin
+                addr_nibble_ptr <= 3'd0;
+                send_pc_read <= 1'b1;
+                send_reg_C_A <= 1'b0;
+            end
+        end
         
+        /*
+         * sends the PC_READ command to restore devices after some other bus command
+         */
         if (send_pc_read) begin
             $display("CTRL     %0d: [%d] exec : RESET - send PC_READ", i_phase, i_cycle_ctr);
             bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_PC_READ };
@@ -493,9 +549,12 @@ always @(posedge i_clk) begin
         bus_prog_addr      <= 5'd0;
         addr_nibble_ptr    <= 3'd0;
         load_pc_loop       <= 1'b0;
+        send_reg_C_A       <= 1'b0;
+        send_pc_read       <= 1'b0; 
 
         /* registers */
         reg_alu_mode       <= 1'b0;
+        reg_CARRY          <= 1'b0;
         reg_HST            <= 4'b0;
         reg_ST             <= 16'b0;
         reg_P              <= 4'b0; 
