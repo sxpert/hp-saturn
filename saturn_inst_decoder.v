@@ -135,9 +135,12 @@ reg [0:0] block_80x;
 reg [0:0] block_80Cx;
 reg [0:0] block_82x;
 reg [0:0] block_84x_85x;
+reg [0:0] block_Ax;
+reg [0:0] block_Axx;
 
 reg [0:0] block_JUMP;
 reg [0:0] block_LOAD;
+reg [0:0] block_FIELDS;
 
 /*
  * temporary variables
@@ -180,9 +183,12 @@ initial begin
     block_80Cx      = 1'b0;
     block_82x       = 1'b0;
     block_84x_85x   = 1'b0;
+    block_Ax        = 1'b0;
+    block_Axx       = 1'b0;
 
     block_JUMP      = 1'b0;
     block_LOAD      = 1'b0;
+    block_FIELDS    = 1'b0;
 
     /* local variables */
     jump_counter    = 3'd0;
@@ -240,6 +246,11 @@ always @(posedge i_clk) begin
                         block_JUMP      <= 1'b1;
                     end
                 4'h8: block_8x <= 1'b1;
+                4'hA: 
+                    begin
+                        block_Ax     <= 1'b1;
+                        block_FIELDS <= 1'b1;
+                    end
                 default: 
                     begin
                         $display("invalid instruction");
@@ -433,6 +444,19 @@ always @(posedge i_clk) begin
                 block_84x_85x   <= 1'b0;
             end
 
+            if (block_Ax) begin
+                $display("DECODER  %0d: [%d] block_Ax %h", i_phase, i_cycle_ctr, i_nibble);
+                /* work here is done by the block_FIELDS */
+                block_Axx <= 1'b1;
+                block_Ax  <= 1'b0;
+            end
+
+            if (block_Axx) begin
+                $display("DECODER  %0d: [%d] block_Axx %h", i_phase, i_cycle_ctr, i_nibble);
+                o_decoder_error <= 1'b1;
+                block_Axx <= 1'b0;
+            end
+
             /* special cases */
 
             if (block_JUMP) begin
@@ -453,6 +477,11 @@ always @(posedge i_clk) begin
                     o_instr_decoded <= 1'b1;
                     decode_started  <= 1'b0;
                 end
+            end
+
+            if (block_FIELDS) begin
+                $display("DECODER  %0d: [%d] block_FIELDS %h", i_phase, i_cycle_ctr, i_nibble);
+                block_FIELDS <= 1'b0;
             end
 
         end
@@ -507,9 +536,12 @@ always @(posedge i_clk) begin
         block_80Cx      <= 1'b0;
         block_82x       <= 1'b0;
         block_84x_85x   <= 1'b0;
+        block_Ax        <= 1'b0;
+        block_Axx       <= 1'b0;
 
         block_JUMP      <= 1'b0;
         block_LOAD      <= 1'b0;
+        block_FIELDS    <= 1'b0;
 
         /* local variables */
         jump_counter    <= 3'd0;
