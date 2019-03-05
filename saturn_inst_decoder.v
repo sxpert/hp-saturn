@@ -41,6 +41,7 @@ module saturn_inst_decoder (
     o_alu_reg_dest,
     o_alu_reg_src_1,
     o_alu_reg_src_2,
+    o_alu_field,
     o_alu_ptr_begin,
     o_alu_ptr_end,
     o_alu_imm_value,
@@ -77,6 +78,7 @@ output reg  [19:0] o_instr_pc;
 output reg  [4:0]  o_alu_reg_dest;
 output reg  [4:0]  o_alu_reg_src_1;
 output reg  [4:0]  o_alu_reg_src_2;
+output reg  [3:0]  o_alu_field;
 output reg  [3:0]  o_alu_ptr_begin;
 output reg  [3:0]  o_alu_ptr_end;
 output reg  [3:0]  o_alu_imm_value;
@@ -136,7 +138,8 @@ reg [0:0] block_80Cx;
 reg [0:0] block_82x;
 reg [0:0] block_84x_85x;
 reg [0:0] block_Ax;
-reg [0:0] block_Axx;
+reg [0:0] block_Aax;
+reg [0:0] block_Abx;
 
 reg [0:0] block_JUMP;
 reg [0:0] block_LOAD;
@@ -148,6 +151,7 @@ reg [0:0] block_FIELDS;
 reg [2:0] jump_counter;
 reg [3:0] load_counter;
 reg [3:0] load_count;
+reg [1:0] fields_table;
 
 /*
  * initialization
@@ -157,6 +161,7 @@ initial begin
     o_alu_reg_dest  = `ALU_REG_NONE;
     o_alu_reg_src_1 = `ALU_REG_NONE;
     o_alu_reg_src_2 = `ALU_REG_NONE;
+    o_alu_field     = `FT_FIELD_NONE;
     o_alu_ptr_begin = 4'h0;
     o_alu_ptr_end   = 4'h0;
     o_alu_imm_value = 4'b0;
@@ -184,7 +189,8 @@ initial begin
     block_82x       = 1'b0;
     block_84x_85x   = 1'b0;
     block_Ax        = 1'b0;
-    block_Axx       = 1'b0;
+    block_Aax       = 1'b0;
+    block_Abx       = 1'b0;
 
     block_JUMP      = 1'b0;
     block_LOAD      = 1'b0;
@@ -194,6 +200,7 @@ initial begin
     jump_counter    = 3'd0;
     load_counter    = 4'd0;
     load_count      = 4'd0;
+    fields_table    = `FT_NONE;
 
     /* last line of defense */
     o_decoder_error = 1'b0;
@@ -250,6 +257,7 @@ always @(posedge i_clk) begin
                     begin
                         block_Ax     <= 1'b1;
                         block_FIELDS <= 1'b1;
+                        fields_table <= `FT_A_B;
                     end
                 default: 
                     begin
@@ -447,14 +455,23 @@ always @(posedge i_clk) begin
             if (block_Ax) begin
                 $display("DECODER  %0d: [%d] block_Ax %h", i_phase, i_cycle_ctr, i_nibble);
                 /* work here is done by the block_FIELDS */
-                block_Axx <= 1'b1;
+                block_Aax <= !i_nibble[3];
+                block_Abx <=  i_nibble[3];
                 block_Ax  <= 1'b0;
             end
 
-            if (block_Axx) begin
-                $display("DECODER  %0d: [%d] block_Axx %h", i_phase, i_cycle_ctr, i_nibble);
+            if (block_Aax) begin
+                $display("DECODER  %0d: [%d] block_Aax %h (%0d [%h:%h])", 
+                         i_phase, i_cycle_ctr, i_nibble, o_alu_field, o_alu_ptr_end, o_alu_ptr_begin);
                 o_decoder_error <= 1'b1;
-                block_Axx <= 1'b0;
+                block_Aax <= 1'b0;
+            end
+
+            if (block_Abx) begin
+                $display("DECODER  %0d: [%d] block_Abx %h (%0d [%h:%h])", 
+                         i_phase, i_cycle_ctr, i_nibble, o_alu_field, o_alu_ptr_end, o_alu_ptr_begin);
+                o_decoder_error <= 1'b1;
+                block_Abx <= 1'b0;
             end
 
             /* special cases */
@@ -481,6 +498,67 @@ always @(posedge i_clk) begin
 
             if (block_FIELDS) begin
                 $display("DECODER  %0d: [%d] block_FIELDS %h", i_phase, i_cycle_ctr, i_nibble);
+                o_alu_field <= { 1'b0, i_nibble[2:0] };
+                case (i_nibble[2:0])
+                    3'o0: 
+                        begin
+                            /* field pointed by P */
+                            o_alu_ptr_begin <= i_reg_p;
+                            o_alu_ptr_end   <= i_reg_p;
+                        end
+                    3'o1:
+                        begin
+                            /* field the width of P, starting at 0 */
+                            o_alu_ptr_begin <= 4'h0;
+                            o_alu_ptr_end   <= i_reg_p;
+                        end
+                    3'o2:
+                        begin
+                            /* field XS */
+                            o_alu_ptr_begin <= 4'h2;
+                            o_alu_ptr_end   <= 4'h2;
+                        end
+                    3'o3:
+                        begin
+                            /* field X */
+                            o_alu_ptr_begin <= 4'h0;
+                            o_alu_ptr_end   <= 4'h2;
+                        end
+                    3'o4:
+                        begin
+                            /* field S */
+                            o_alu_ptr_begin <= 4'hF;
+                            o_alu_ptr_end   <= 4'hF;
+                        end
+                    3'o5:
+                        begin
+                            /* field M */
+                            o_alu_ptr_begin <= 4'h3;
+                            o_alu_ptr_end   <= 4'hE;
+                        end
+                    3'o6:
+                        begin
+                            /* field B */
+                            o_alu_ptr_begin <= 4'h0;
+                            o_alu_ptr_end   <= 4'h1;
+                        end
+                    3'o7:
+                        begin
+                            if ((fields_table == `FT_F) && i_nibble[3]) 
+                                begin
+                                    /* this is field A */
+                                    o_alu_field     <= i_nibble;
+                                    o_alu_ptr_begin <= 4'h0;
+                                    o_alu_ptr_end   <= 4'h4;
+                                end
+                            else
+                                begin
+                                    /* else this is field W */
+                                    o_alu_ptr_begin <= 4'h0;
+                                    o_alu_ptr_end   <= 4'hF;
+                                end
+                        end
+                endcase
                 block_FIELDS <= 1'b0;
             end
 
@@ -495,7 +573,8 @@ always @(posedge i_clk) begin
         /* decoder cleanup only after the instruction is completely decoded and execution has started */
         if (i_phases[3] && o_instr_decoded) begin
             // $display("DECODER  %0d: [%d] decoder cleanup", i_phase, i_cycle_ctr);
-
+            fields_table    <= `FT_NONE;
+            o_alu_field     <= `FT_FIELD_NONE;
             o_instr_decoded <= 1'b0;
             o_instr_execute <= 1'b0;
             o_instr_type    <= `INSTR_TYPE_NONE;
@@ -510,6 +589,7 @@ always @(posedge i_clk) begin
         o_alu_reg_dest  <= `ALU_REG_NONE;
         o_alu_reg_src_1 <= `ALU_REG_NONE;
         o_alu_reg_src_2 <= `ALU_REG_NONE;
+        o_alu_field     <= `FT_FIELD_NONE;
         o_alu_ptr_begin <= 4'h0;
         o_alu_ptr_end   <= 4'h0;
         o_alu_imm_value <= 4'b0;
@@ -537,7 +617,8 @@ always @(posedge i_clk) begin
         block_82x       <= 1'b0;
         block_84x_85x   <= 1'b0;
         block_Ax        <= 1'b0;
-        block_Axx       <= 1'b0;
+        block_Aax       <= 1'b0;
+        block_Abx       <= 1'b0;
 
         block_JUMP      <= 1'b0;
         block_LOAD      <= 1'b0;
@@ -547,6 +628,7 @@ always @(posedge i_clk) begin
         jump_counter    <= 3'd0;
         load_counter    <= 4'd0;
         load_count      <= 4'd0;
+        fields_table    <= `FT_NONE;
 
         /* invalid instruction */
         o_decoder_error <= 1'b0;

@@ -11,6 +11,15 @@
 `define T_PTR_0		     0
 `define T_PTR_1		     1
 
+
+`define FT_NONE          0
+`define FT_A_B           1
+`define FT_F             2
+`define FT_FIELD_P       0
+`define FT_FIELD_NONE   14
+`define FT_FIELD_A      15
+
+
 /*
  * 
  * Opcodes for the ALU
