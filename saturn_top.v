@@ -156,16 +156,16 @@ wire [0:0]  serial_busy;
 
 
 /* 1/4 s */
-`define DELAY_START 26'h20A1F0
-`define TEST_BIT    23
+// `define DELAY_START 26'h20A1F0
+// `define TEST_BIT    23
 
 /* 1/8 s */
 // `define DELAY_START 26'h1050F8
 // `define TEST_BIT    22
 
 /* 1/16 s */
-// `define DELAY_START 26'h08287C
-// `define TEST_BIT    21
+`define DELAY_START 26'h08287C
+`define TEST_BIT    21
 
 /* 1/32 s */
 // `define DELAY_START 26'h4143E

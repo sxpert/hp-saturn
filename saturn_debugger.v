@@ -67,7 +67,8 @@ module saturn_debugger (
     i_serial_busy,
 
     i_bus_nibble_in,
-    i_bus_read_valid
+    i_bus_read_valid,
+    i_bus_busy_valid
 );
 
 input  wire [0:0]  i_clk;
@@ -115,6 +116,7 @@ input  wire [0:0]  i_serial_busy;
 
 input  wire [3:0]  i_bus_nibble_in;
 input  wire [0:0]  i_bus_read_valid; 
+input  wire [0:0]  i_bus_busy_valid; 
 
 /**************************************************************************************************
  *
@@ -673,6 +675,12 @@ always @(posedge i_clk) begin
     if (i_bus_read_valid) begin
         o_char_send <= ~o_char_send;
         o_char_to_send <= hex[i_bus_nibble_in];
+        o_char_valid   <= 1'b1;
+    end
+
+    if (i_bus_busy_valid) begin
+        o_char_send <= ~o_char_send;
+        o_char_to_send <= ".";
         o_char_valid   <= 1'b1;
     end
 

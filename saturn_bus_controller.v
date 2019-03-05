@@ -190,7 +190,8 @@ saturn_debugger debugger (
     .i_serial_busy     (i_serial_busy),
  
     .i_bus_nibble_in   (i_bus_nibble_in),
-    .i_bus_read_valid  (bus_read_valid)
+    .i_bus_read_valid  (bus_read_valid),
+    .i_bus_busy_valid  (bus_busy_valid)
 );
 
 wire [4:0] dbg_register;
@@ -237,6 +238,7 @@ initial begin
 end
 
 wire [0:0] bus_read_valid = bus_clk_en && i_phases[2] && !bus_busy;
+wire [0:0] bus_busy_valid = bus_clk_en && i_phases[2] && bus_busy;
 
 /*
  * bus chronograms
