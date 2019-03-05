@@ -264,7 +264,12 @@ saturn_regs_pc_rstk regs_pc_rstk (
 reg  [0:0]  reg_alu_mode;
 
 reg  [0:0]  reg_CARRY;
+reg  [3:0]  reg_A[0:15];
+reg  [3:0]  reg_B[0:15];
 reg  [3:0]  reg_C[0:15];
+reg  [3:0]  reg_D[0:15];
+reg  [3:0]  reg_D0[0:4];
+reg  [3:0]  reg_D1[0:4];
 reg  [3:0]  reg_HST;
 reg  [15:0] reg_ST;
 reg  [3:0]  reg_P;
@@ -275,7 +280,12 @@ wire [0:0]  reload_PC;
 
 always @(i_dbg_register, i_dbg_reg_ptr) begin
     case (i_dbg_register)
-    `ALU_REG_C: o_dbg_reg_nibble <= reg_C[i_dbg_reg_ptr];
+    `ALU_REG_A:  o_dbg_reg_nibble <= reg_A[i_dbg_reg_ptr];
+    `ALU_REG_B:  o_dbg_reg_nibble <= reg_B[i_dbg_reg_ptr];
+    `ALU_REG_C:  o_dbg_reg_nibble <= reg_C[i_dbg_reg_ptr];
+    `ALU_REG_D:  o_dbg_reg_nibble <= reg_D[i_dbg_reg_ptr];
+    `ALU_REG_D0: o_dbg_reg_nibble <= reg_D0[i_dbg_reg_ptr];
+    `ALU_REG_D1: o_dbg_reg_nibble <= reg_D1[i_dbg_reg_ptr];
     default: o_dbg_reg_nibble <= 4'h0;
     endcase
 end
@@ -327,7 +337,12 @@ always @(posedge i_clk) begin
 
     if (just_reset || (init_counter != 0)) begin
         $display("CTRL     %0d: [%d] initializing registers %0d", i_phase, i_cycle_ctr, init_counter);
+        reg_A[init_counter] <= 4'h0;
+        reg_B[init_counter] <= 4'h0;
         reg_C[init_counter] <= 4'h0;
+        reg_D[init_counter] <= 4'h0;
+        reg_D0[init_counter] <= 4'h0;
+        reg_D1[init_counter] <= 4'h0;
         init_counter <= init_counter + 4'b1;
     end
 
@@ -476,12 +491,8 @@ always @(posedge i_clk) begin
                 `INSTR_TYPE_LOAD: 
                     begin
                         case (dec_alu_reg_dest)
-                            `ALU_REG_A: begin end
-                            `ALU_REG_C: 
-                                begin
-                                    $display("CTRL     %0d: [%d] C[%2d] <= %h", i_phase, i_cycle_ctr, dec_alu_ptr_begin, dec_alu_imm_value);
-                                    reg_C[dec_alu_ptr_begin] <= dec_alu_imm_value;
-                                end
+                            `ALU_REG_C:  reg_C[dec_alu_ptr_begin] <= dec_alu_imm_value;
+                            `ALU_REG_D0: reg_D0[dec_alu_ptr_begin] <= dec_alu_imm_value;
                             default: 
                                 begin 
                                     $display("CTRL     %0d: [%d] unsupported register for load %0d", i_phase, i_cycle_ctr, dec_alu_reg_dest);

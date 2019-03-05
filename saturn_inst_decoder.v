@@ -127,6 +127,7 @@ reg [0:0] decode_started;
  */
 
 reg [0:0] block_0x;
+reg [0:0] block_1x;
 reg [0:0] block_2x;
 reg [0:0] block_3x;
 reg [0:0] block_8x;
@@ -171,6 +172,7 @@ initial begin
     decode_started  = 1'b0;
 
     block_0x        = 1'b0;
+    block_1x        = 1'b0;
     block_2x        = 1'b0;
     block_3x        = 1'b0;
     block_8x        = 1'b0;
@@ -225,6 +227,7 @@ always @(posedge i_clk) begin
             decode_started <= 1'b1;
             case (i_nibble)
                 4'h0: block_0x <= 1'b1;
+                4'h1: block_1x <= 1'b1;
                 4'h2: block_2x <= 1'b1;
                 4'h3: block_3x <= 1'b1;
                 4'h6: 
@@ -275,6 +278,28 @@ always @(posedge i_clk) begin
                         end
                 endcase
                 block_0x        <= 1'b0;
+            end
+
+            if (block_1x) begin
+                case (i_nibble)
+                    4'hB:
+                        begin
+                            $display("DECODER  %0d: [%d] D)=(5)", i_phase, i_cycle_ctr, i_nibble);
+                            o_alu_reg_dest  <= `ALU_REG_D0;
+                            o_alu_ptr_begin <= 4'h0;
+                            o_alu_ptr_end   <= 4'h4;
+                            load_counter    <= 4'h0;
+                            load_count      <= 4'h4;
+                            o_instr_execute <= 1'b1;
+                            block_LOAD      <= 1'b1;
+                        end
+                    default: 
+                        begin
+                            $display("DECODER  %0d: [%d] block_1x %h", i_phase, i_cycle_ctr, i_nibble);
+                            o_decoder_error <= 1'b1;
+                        end
+                endcase
+                block_1x        <= 1'b0;
             end
 
             if (block_2x) begin
@@ -474,6 +499,7 @@ always @(posedge i_clk) begin
         decode_started  <= 1'b0;
 
         block_0x        <= 1'b0;
+        block_1x        <= 1'b0;
         block_2x        <= 1'b0;
         block_3x        <= 1'b0;
         block_8x        <= 1'b0;
