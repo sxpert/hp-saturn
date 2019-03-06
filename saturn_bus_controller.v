@@ -242,8 +242,8 @@ initial begin
     bus_busy      = 1'b1;
 end
 
-wire [0:0] bus_read_valid = bus_clk_en && i_phases[2] && !bus_busy;
-wire [0:0] bus_busy_valid = bus_clk_en && i_phases[2] && bus_busy;
+wire [0:0] bus_read_valid = bus_clk_en && i_phases[2] && !bus_busy && !alu_busy;
+wire [0:0] bus_busy_valid = bus_clk_en && i_phases[2] && bus_busy && !alu_busy;
 
 /*
  * bus chronograms
