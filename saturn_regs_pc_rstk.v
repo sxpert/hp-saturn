@@ -29,6 +29,7 @@ module saturn_regs_pc_rstk (
     i_cycle_ctr,
 
     i_bus_busy,
+    i_alu_busy,
 
     i_nibble,
     i_jump_instr,
@@ -54,6 +55,7 @@ input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
 
 input  wire [0:0]  i_bus_busy;
+input  wire [0:0]  i_alu_busy;
 
 input  wire [3:0]  i_nibble;
 input  wire [0:0]  i_jump_instr;
@@ -150,7 +152,7 @@ always @(posedge i_clk) begin
     // if (!i_debug_cycle)
     //     $display("PC_RSTK  %0d: [%d] !i_bus_busy %b", i_phase, i_cycle_ctr, !i_bus_busy);
 
-    if (i_clk_en && !i_bus_busy) begin
+    if (i_clk_en && !i_bus_busy && !i_alu_busy) begin
 
         if (i_phases[3] && just_reset) begin
             $display("PC_RSTK  %0d: [%d] exit from reset mode", i_phase, i_cycle_ctr);

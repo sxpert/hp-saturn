@@ -42,6 +42,9 @@ module saturn_control_unit (
 
     o_error,
 
+    /* alu is busy doing something */
+    o_alu_busy,
+
     /* debugger interface */
 
     o_current_pc,
@@ -87,6 +90,9 @@ input  wire [3:0]  i_nibble;
 
 output wire [0:0]  o_error;
 assign o_error = control_unit_error || dec_error;
+
+output wire [0:0]  o_alu_busy;
+assign o_alu_busy = inst_alu_other || alu_start;
 
 /* debugger interface */
 
@@ -146,6 +152,7 @@ saturn_inst_decoder instruction_decoder(
     .i_cycle_ctr        (i_cycle_ctr),
 
     .i_bus_busy         (i_bus_busy),
+    .i_alu_busy         (o_alu_busy),
 
     .i_nibble           (i_nibble),
     .i_reg_p            (reg_P),
@@ -205,6 +212,7 @@ wire [0:0] reg_dest_p      = (dec_alu_reg_dest == `ALU_REG_P);
 wire [0:0] reg_src_1_p     = (dec_alu_reg_src_1 == `ALU_REG_P);
 wire [0:0] reg_src_1_imm   = (dec_alu_reg_src_1 == `ALU_REG_IMM);
 
+wire [0:0] aluop_zero      = inst_alu && (dec_alu_opcode == `ALU_OP_ZERO);
 wire [0:0] aluop_copy      = inst_alu && (dec_alu_opcode == `ALU_OP_COPY);
 wire [0:0] aluop_clr_mask  = inst_alu && (dec_alu_opcode == `ALU_OP_CLR_MASK);
 
@@ -213,16 +221,12 @@ wire [0:0] inst_alu_c_eq_p_n   = aluop_copy && reg_dest_c && reg_src_1_p;
 wire [0:0] inst_alu_clrhst_n   = aluop_clr_mask && reg_dest_hst && reg_src_1_imm;
 wire [0:0] inst_alu_st_eq_01_n = aluop_copy && reg_dest_st && reg_src_1_imm;
 
-wire [0:0] inst_alu_other      = !(inst_alu_p_eq_n || 
-                                   inst_alu_st_eq_01_n ||
-                                   inst_alu_c_eq_p_n);
-
-
-/**************************************************************************************************
- *
- * registers module (contains A, B, C, D, R0, R1, R2, R3, R4)
- *
- *************************************************************************************************/
+wire [0:0] inst_alu_other      =  inst_alu &&
+                                  !(inst_alu_p_eq_n || 
+                                   inst_alu_c_eq_p_n ||
+                                   inst_alu_clrhst_n ||
+                                   inst_alu_st_eq_01_n
+                                  );
 
 /**************************************************************************************************
  *
@@ -239,6 +243,7 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_cycle_ctr        (i_cycle_ctr),
 
     .i_bus_busy         (i_bus_busy),
+    .i_alu_busy         (o_alu_busy),
 
     .i_nibble           (i_nibble),
     .i_jump_instr       (inst_jump),
@@ -257,7 +262,7 @@ saturn_regs_pc_rstk regs_pc_rstk (
 
 /**************************************************************************************************
  *
- * other processor registers
+ * Processor registers
  *
  *************************************************************************************************/
 
@@ -275,7 +280,77 @@ reg  [15:0] reg_ST;
 reg  [3:0]  reg_P;
 wire [19:0] reg_PC;
 
+/**************************************************************************************************
+ *
+ * ALU module
+ * 
+ *************************************************************************************************/
 
+saturn_alu_module alu_module (
+    .i_clk              (i_clk),
+    .i_clk_en           (i_clk_en),
+    .i_reset            (i_reset),
+    .i_phases           (i_phases),
+    .i_phase            (i_phase),
+    .i_cycle_ctr        (i_cycle_ctr),
+
+    .i_opcode           (alu_opcode),
+    .i_ptr_begin        (alu_ptr_begin),
+    .i_ptr_end          (alu_ptr_end),
+
+    .i_run              (alu_run),
+    .i_done             (alu_done),  
+
+    .i_prep_src_1_val   (alu_prep_src_1_val),
+    .i_prep_src_2_val   (alu_prep_src_2_val),
+    .i_prep_carry       (alu_prep_carry),
+
+    .i_calc_pos         (alu_calc_pos),
+    .o_calc_res_1_val   (alu_calc_res_1_val),
+    .o_calc_res_2_val   (alu_calc_res_2_val),
+    .o_calc_carry       (alu_calc_carry)
+);
+
+/*
+ * ALU control variable
+ */
+
+reg  [0:0]  alu_start;
+
+reg  [4:0]  alu_opcode;
+reg  [4:0]  alu_reg_dest;
+reg  [4:0]  alu_reg_src_1;
+reg  [4:0]  alu_reg_src_2;
+
+reg  [3:0]  alu_ptr_begin;
+reg  [3:0]  alu_ptr_end;
+
+reg  [0:0]  alu_prep_run;
+reg  [3:0]  alu_prep_pos;
+reg  [3:0]  alu_prep_src_1_val;
+reg  [3:0]  alu_prep_src_2_val;
+reg  [0:0]  alu_prep_carry;
+reg  [0:0]  alu_prep_done;
+
+reg  [0:0]  alu_calc_run;
+reg  [3:0]  alu_calc_pos;
+wire [3:0]  alu_calc_res_1_val;
+wire [3:0]  alu_calc_res_2_val;
+wire [0:0]  alu_calc_carry;
+reg  [0:0]  alu_calc_done;
+
+reg  [0:0]  alu_save_run;
+reg  [3:0]  alu_save_pos;
+reg  [0:0]  alu_save_done;
+
+reg  [3:0]  alu_imm_value;
+
+wire [0:0]  alu_run  = alu_calc_run  || alu_save_run;
+wire [0:0]  alu_done = alu_calc_done || alu_save_done; 
+
+/*
+ * should we reload the PC after it has been changed
+ */
 wire [0:0]  reload_PC;
 
 always @(i_dbg_register, i_dbg_reg_ptr) begin
@@ -307,6 +382,7 @@ reg  [0:0] load_pc_loop;
 reg  [0:0] send_reg_C_A;
 reg  [0:0] send_pc_read;
 
+
 wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
 
 assign o_program_data = bus_program[i_program_address];
@@ -324,6 +400,9 @@ initial begin
     load_pc_loop       = 1'b0;
     send_reg_C_A       = 1'b0;
     send_pc_read       = 1'b0;
+
+    /* alu control signals */
+    alu_start          = 1'b0;
 
     /* registers */
     reg_alu_mode       = 1'b0;
@@ -463,6 +542,27 @@ always @(posedge i_clk) begin
                         /*
                          * the general case
                          */
+                        if (inst_alu_other) begin
+                            $display("CTRL     %0d: [%d] exec : generic ALU operation", i_phase, i_cycle_ctr);
+                            alu_start     <= 1'b1;
+                            alu_opcode    <= dec_alu_opcode;
+                            alu_reg_dest  <= dec_alu_reg_dest;
+                            alu_reg_src_1 <= dec_alu_reg_src_1;
+                            alu_reg_src_2 <= dec_alu_reg_src_2;
+                            alu_ptr_begin <= dec_alu_ptr_begin;
+                            alu_ptr_end   <= dec_alu_ptr_end;
+                            alu_prep_pos  <= dec_alu_ptr_begin;
+                            alu_calc_pos  <= dec_alu_ptr_begin;
+                            alu_save_pos  <= dec_alu_ptr_begin;
+                            alu_imm_value <= dec_alu_imm_value;
+
+                            alu_prep_done <= 1'b0;
+                            alu_calc_done <= 1'b0;
+                            alu_save_done <= 1'b0;
+
+                            if (aluop_zero) alu_save_run  <= 1'b1;
+                            else alu_prep_run <= 1'b1;
+                        end
                     end
                 `INSTR_TYPE_SET_MODE :
                     begin
@@ -519,6 +619,7 @@ always @(posedge i_clk) begin
                     begin 
                         $display("CTRL     %0d: [%d] unsupported instruction", i_phase, i_cycle_ctr);
                         control_unit_error <= 1'b1;
+
                     end
             endcase
         end
@@ -548,6 +649,59 @@ always @(posedge i_clk) begin
             send_pc_read  <= 1'b0;
         end
 
+
+        /******************************************************************************************
+         *
+         * ALU control
+         *
+         *****************************************************************************************/
+
+        if (alu_start && alu_prep_run && !alu_prep_done) begin
+            $display("ALU_PREP %0d: [%d] b %h | p %h | e %h", i_phase, i_cycle_ctr, alu_ptr_begin, alu_prep_pos, alu_ptr_end);
+
+            if (alu_prep_pos == alu_ptr_end) begin
+                alu_prep_done <= 1'b1;
+                alu_prep_run  <= 1'b0;
+            end
+            alu_prep_pos <= alu_prep_pos + 4'h1;
+        end
+
+        if (alu_start && alu_calc_run && !alu_calc_done) begin
+            $display("ALU_CALC %0d: [%d] b %h | p %h | e %h", i_phase, i_cycle_ctr, alu_ptr_begin, alu_calc_pos, alu_ptr_end);
+
+            if (alu_calc_pos == alu_ptr_end) begin
+                alu_calc_done <= 1'b1;
+                alu_calc_run  <= 1'b0;
+            end
+            alu_calc_pos <= alu_calc_pos + 4'h1;
+        end
+
+        if (alu_start && alu_save_run && !alu_save_done) begin
+            $display("ALU_SAVE %0d: [%d] b %h | p %h | e %h | r1 %h | r2 %h | c %b", 
+                     i_phase, i_cycle_ctr, 
+                     alu_ptr_begin, alu_save_pos, alu_ptr_end,
+                     alu_calc_res_1_val, alu_calc_res_2_val, alu_calc_carry);
+            case (alu_reg_dest)
+                `ALU_REG_C: reg_C[alu_save_pos] <= alu_calc_res_1_val;
+                default: $display("ALU_SAVE %0d: [%d] dest register %0d not supported", i_phase, i_cycle_ctr, alu_reg_dest);
+            endcase
+            if (alu_save_pos == alu_ptr_end) begin
+                alu_save_done <= 1'b1;
+                alu_save_run  <= 1'b0;
+            end
+            alu_save_pos <= alu_save_pos + 4'h1;
+        end
+
+        if (i_phases[2] && alu_start && alu_save_done) begin
+            $display("CTRL     %0d: [%d] end of ALU operation", i_phase, i_cycle_ctr);
+            alu_start <= 1'b0;
+        end
+
+        if (i_phases[3] && !alu_start) begin
+            $display("CTRL     %0d: [%d] ALU is not started", i_phase, i_cycle_ctr);
+        end
+        
+
     end
 
     if (i_reset) begin
@@ -562,6 +716,9 @@ always @(posedge i_clk) begin
         load_pc_loop       <= 1'b0;
         send_reg_C_A       <= 1'b0;
         send_pc_read       <= 1'b0; 
+
+        /* alu control signals */
+        alu_start          <= 1'b0;
 
         /* registers */
         reg_alu_mode       <= 1'b0;

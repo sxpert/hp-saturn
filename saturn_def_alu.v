@@ -16,6 +16,13 @@
 `define FT_A_B           1
 `define FT_F             2
 `define FT_FIELD_P       0
+`define FT_FIELD_WP      1
+`define FT_FIELD_XS      2
+`define FT_FIELD_X       3
+`define FT_FIELD_S       4
+`define FT_FIELD_M       5 
+`define FT_FIELD_B       6
+`define FT_FIELD_W       7
 `define FT_FIELD_NONE   14
 `define FT_FIELD_A      15
 

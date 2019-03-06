@@ -32,6 +32,7 @@ module saturn_debugger (
     i_cycle_ctr,
 
     o_debug_cycle,
+    i_alu_busy,
 
     /* interface from the control unit */
     i_current_pc,
@@ -79,6 +80,7 @@ input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
 
 output reg  [0:0]  o_debug_cycle;
+input  wire [0:0]  i_alu_busy;
 
 /* inteface from the control unit */
 input  wire [19:0] i_current_pc;
@@ -166,6 +168,9 @@ initial begin
     registers_done    = 1'b0;
     o_char_valid      = 1'b0;
     o_char_send       = 1'b0;
+
+    // $monitor ("i_clk_en %b | i_phases[3] %b | i_instr_decoded %b | debug_done %b | i_alu_busy %b",
+    //           i_clk_en,      i_phases[3],     i_instr_decoded,     debug_done,     i_alu_busy);
 end
 
 /**************************************************************************************************
@@ -176,8 +181,8 @@ end
 
 always @(posedge i_clk) begin
 
-    if (i_clk_en && i_phases[3] && i_instr_decoded && !debug_done) begin
-        $display("DEBUGGER %0d: [%d] start debugger cycle", i_phase, i_cycle_ctr);
+    if (i_clk_en && i_phases[3] && i_instr_decoded && !debug_done && !i_alu_busy) begin
+        $display("DEBUGGER %0d: [%d] start debugger cycle (alu_busy %b)", i_phase, i_cycle_ctr, i_alu_busy);
         o_debug_cycle   <= 1'b1;
         registers_ctr   <= 9'd0;
         registers_state <= `DBG_REG_PC_STR;

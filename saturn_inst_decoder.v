@@ -31,6 +31,7 @@ module saturn_inst_decoder (
     i_cycle_ctr,
     
     i_bus_busy,
+    i_alu_busy,
 
     i_nibble,
     i_reg_p,
@@ -68,6 +69,7 @@ input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
 
 input  wire [0:0]  i_bus_busy;
+input  wire [0:0]  i_alu_busy;
 
 input  wire [3:0]  i_nibble;
 input  wire [3:0]  i_reg_p;
@@ -208,6 +210,14 @@ end
 
 /****************************
  *
+ * registers blocks wires
+ *
+ */
+
+wire [4:0] regs_ABCD = { 3'b000, i_nibble[1:0] };
+
+/****************************
+ *
  * main process
  *
  */
@@ -225,7 +235,7 @@ always @(posedge i_clk) begin
         o_instr_decoded <= 1'b1;
     end
 
-    if (i_clk_en && !i_bus_busy) begin
+    if (i_clk_en && !i_bus_busy && !i_alu_busy) begin
  
         if (i_phases[1] && !decode_started) begin
             // $display("DECODER  %0d: [%d] store current PC as instruction start %5h", i_phase, i_cycle_ctr, i_current_pc);
@@ -439,8 +449,8 @@ always @(posedge i_clk) begin
                 o_instr_type    <= `INSTR_TYPE_ALU;
                 o_instr_decoded <= 1'b1;
                 o_instr_execute <= 1'b1;
-                block_82x       <= 1'b0;
                 decode_started  <= 1'b0;
+                block_82x       <= 1'b0;
             end
 
             if (block_84x_85x) begin
@@ -468,10 +478,21 @@ always @(posedge i_clk) begin
             end
 
             if (block_Abx) begin
-                $display("DECODER  %0d: [%d] block_Abx %h (%0d [%h:%h])", 
-                         i_phase, i_cycle_ctr, i_nibble, o_alu_field, o_alu_ptr_end, o_alu_ptr_begin);
-                o_decoder_error <= 1'b1;
-                block_Abx <= 1'b0;
+                o_alu_reg_src_2 <= `ALU_REG_NONE;
+                case ({i_nibble[3], i_nibble[2]})
+                    2'b00: begin o_alu_reg_dest <= regs_ABCD; o_alu_reg_src_1 <= `ALU_REG_NONE; o_alu_opcode <= `ALU_OP_ZERO; end
+                default:
+                    begin
+                        $display("DECODER  %0d: [%d] block_Abx %h (%0d [%h:%h])", 
+                                 i_phase, i_cycle_ctr, i_nibble, o_alu_field, o_alu_ptr_end, o_alu_ptr_begin);
+                        o_decoder_error <= 1'b1;
+                    end
+                endcase
+                o_instr_type    <= `INSTR_TYPE_ALU;
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                decode_started  <= 1'b0;
+                block_Abx       <= 1'b0;
             end
 
             /* special cases */
@@ -570,17 +591,24 @@ always @(posedge i_clk) begin
             o_alu_ptr_begin <= (o_alu_ptr_begin + 4'd1) & 4'hF;
         end
 
+        /* o_instr_decoded goes away only when the ALU is not busy anymore */
+        if (i_phases[3] && o_instr_decoded) begin
+            $display("DECODER  %0d: [%d] decoder cleanup 1", i_phase, i_cycle_ctr);
+            o_instr_decoded <= 1'b0;
+        end
+
+    end
+
+    if (i_clk_en && !i_bus_busy) begin
         /* decoder cleanup only after the instruction is completely decoded and execution has started */
         if (i_phases[3] && o_instr_decoded) begin
-            // $display("DECODER  %0d: [%d] decoder cleanup", i_phase, i_cycle_ctr);
+            $display("DECODER  %0d: [%d] decoder cleanup 2", i_phase, i_cycle_ctr);
             fields_table    <= `FT_NONE;
             o_alu_field     <= `FT_FIELD_NONE;
-            o_instr_decoded <= 1'b0;
             o_instr_execute <= 1'b0;
             o_instr_type    <= `INSTR_TYPE_NONE;
             o_push_pc       <= 1'b0;
         end
-
     end
 
 

@@ -88,6 +88,8 @@ saturn_control_unit control_unit (
 
     .o_error           (ctrl_unit_error),
 
+    .o_alu_busy        (alu_busy),
+
     /* debugger interface */
     .o_current_pc      (ctrl_current_pc),
     .o_reg_alu_mode    (ctrl_reg_alu_mode),
@@ -119,6 +121,8 @@ wire [4:0]  ctrl_unit_prog_addr;
 wire [4:0]  ctrl_unit_prog_data;
 wire [0:0]  ctrl_unit_no_read;
 
+wire [0:0]  alu_busy;
+
 /* debugger insterface */
 wire [19:0] ctrl_current_pc;
 wire [0:0]  ctrl_reg_alu_mode;
@@ -148,14 +152,15 @@ wire [0:0]  dec_instr_execute;
  *************************************************************************************************/
 
 saturn_debugger debugger (
-    .i_clk         (i_clk),
-    .i_clk_en      (i_clk_en),
-    .i_reset       (i_reset),
-    .i_phases      (i_phases),
-    .i_phase       (i_phase),
-    .i_cycle_ctr   (i_cycle_ctr),
+    .i_clk             (i_clk),
+    .i_clk_en          (i_clk_en),
+    .i_reset           (i_reset),
+    .i_phases          (i_phases),
+    .i_phase           (i_phase),
+    .i_cycle_ctr       (i_cycle_ctr),
 
-    .o_debug_cycle (dbg_debug_cycle),
+    .o_debug_cycle     (dbg_debug_cycle),
+    .i_alu_busy        (alu_busy),
 
     /* debugger interface */
     .i_current_pc      (ctrl_current_pc),
@@ -248,7 +253,7 @@ wire [0:0] bus_busy_valid = bus_clk_en && i_phases[2] && bus_busy;
  */
 
 always @(posedge i_clk) begin
-    if (bus_clk_en) begin
+    if (bus_clk_en && !alu_busy) begin
         case (i_phases)
             4'b0001:
                 begin
