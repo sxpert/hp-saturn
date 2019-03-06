@@ -67,9 +67,9 @@ module saturn_debugger (
     o_char_send,
     i_serial_busy,
 
-    i_bus_nibble_in,
-    i_bus_read_valid,
-    i_bus_busy_valid
+    i_bus_debug,
+    i_bus_action,
+    i_bus_data
 );
 
 input  wire [0:0]  i_clk;
@@ -116,9 +116,9 @@ output reg  [0:0]  o_char_valid;
 output reg  [0:0]  o_char_send;
 input  wire [0:0]  i_serial_busy;
 
-input  wire [3:0]  i_bus_nibble_in;
-input  wire [0:0]  i_bus_read_valid; 
-input  wire [0:0]  i_bus_busy_valid; 
+input  wire [0:0]  i_bus_debug;
+input  wire [1:0]  i_bus_action;
+input  wire [3:0]  i_bus_data;
 
 /**************************************************************************************************
  *
@@ -128,6 +128,10 @@ input  wire [0:0]  i_bus_busy_valid;
 
 reg  [8:0] counter;
 reg  [0:0] write_out;
+
+/* do we have some bus data to write ? */
+reg  [0:0] write_bus_data;
+reg  [3:0] bus_data_save;
 
 wire [0:0] debug_done;
 
@@ -168,6 +172,8 @@ initial begin
     registers_done    = 1'b0;
     o_char_valid      = 1'b0;
     o_char_send       = 1'b0;
+    write_bus_data    = 1'b0;
+    bus_data_save     = 4'h0;
 
     // $monitor ("i_clk_en %b | i_phases[3] %b | i_instr_decoded %b | debug_done %b | i_alu_busy %b",
     //           i_clk_en,      i_phases[3],     i_instr_decoded,     debug_done,     i_alu_busy);
@@ -677,16 +683,26 @@ always @(posedge i_clk) begin
     /*
      * dumps nibbles read from the bus
      */
-    if (i_bus_read_valid) begin
-        o_char_send <= ~o_char_send;
-        o_char_to_send <= hex[i_bus_nibble_in];
+
+    if (i_bus_debug) begin
+        o_char_send    <= ~o_char_send;
+        case (i_bus_action)
+            2'b00: o_char_to_send <= "w";
+            2'b01: o_char_to_send <= "c";
+            2'b10: o_char_to_send <= "r";
+            2'b11: o_char_to_send <= ".";
+        endcase
         o_char_valid   <= 1'b1;
+        write_bus_data <= 1'b1;
+        bus_data_save  <= i_bus_data;
     end
 
-    if (i_bus_busy_valid) begin
-        o_char_send <= ~o_char_send;
-        o_char_to_send <= ".";
+    /* send the hex character */
+    if (write_bus_data && !o_char_valid && !i_serial_busy) begin
+        o_char_send    <= ~o_char_send;
+        o_char_to_send <= hex[bus_data_save];
         o_char_valid   <= 1'b1;
+        write_bus_data <= 1'b0;
     end
 
     /* clear the char clock enable */
@@ -704,6 +720,8 @@ always @(posedge i_clk) begin
         registers_done    <= 1'b0;
         write_out         <= 1'b0;
         o_char_valid      <= 1'b0;
+        write_bus_data    <= 1'b0;
+        bus_data_save     <= 4'h0;
     end
 
 end

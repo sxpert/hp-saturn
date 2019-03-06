@@ -194,9 +194,9 @@ saturn_debugger debugger (
     .o_char_send       (o_char_send),
     .i_serial_busy     (i_serial_busy),
  
-    .i_bus_nibble_in   (i_bus_nibble_in),
-    .i_bus_read_valid  (bus_read_valid),
-    .i_bus_busy_valid  (bus_busy_valid)
+    .i_bus_debug       (dbg_bus_info),
+    .i_bus_action      (dbg_bus_action),
+    .i_bus_data        (dbg_bus_data)
 );
 
 wire [4:0] dbg_register;
@@ -205,6 +205,10 @@ wire [2:0] dbg_rstk_ptr;
 
 wire [0:0] dbg_debug_cycle;
 assign o_debug_cycle = dbg_debug_cycle;
+
+reg  [0:0] dbg_bus_info;
+reg  [1:0] dbg_bus_action;
+reg  [3:0] dbg_bus_data; 
 
 /**************************************************************************************************
  *
@@ -237,13 +241,16 @@ assign more_to_write = (bus_prog_addr != ctrl_unit_prog_addr);
 assign o_halt = bus_error || ctrl_unit_error;
 
 initial begin
-    bus_error     = 1'b0;
-    bus_prog_addr = 5'd0;
-    bus_busy      = 1'b1;
+    dbg_bus_info   = 1'b0;
+    dbg_bus_action = 2'b00;
+    dbg_bus_data   = 4'h0;
+    bus_error      = 1'b0;
+    bus_prog_addr  = 5'd0;
+    bus_busy       = 1'b1;
 end
 
-wire [0:0] bus_read_valid = bus_clk_en && i_phases[2] && !bus_busy && !alu_busy;
-wire [0:0] bus_busy_valid = bus_clk_en && i_phases[2] && bus_busy && !alu_busy;
+// wire [0:0] bus_read_valid  = bus_clk_en && i_phases[2] && !bus_busy && !alu_busy;
+// wire [0:0] bus_write_valid = bus_clk_en && i_phases[1] && bus_busy && !alu_busy;
 
 /*
  * bus chronograms
@@ -253,6 +260,8 @@ wire [0:0] bus_busy_valid = bus_clk_en && i_phases[2] && bus_busy && !alu_busy;
  */
 
 always @(posedge i_clk) begin
+    dbg_bus_action <= 2'b11;
+    dbg_bus_data   <= 4'h0;
     if (bus_clk_en && !alu_busy) begin
         case (i_phases)
             4'b0001:
@@ -272,6 +281,11 @@ always @(posedge i_clk) begin
                         o_bus_nibble_out <= ctrl_unit_prog_data[3:0];
                         o_bus_clk_en <= 1'b1;
                         bus_busy <= 1'b1;
+
+                        /* data for the debugger */
+                        dbg_bus_info   <= 1'b1; 
+                        dbg_bus_action <= { 1'b0, ctrl_unit_prog_data[4]};
+                        dbg_bus_data   <= ctrl_unit_prog_data[3:0];
                     end 
                     /*
                      * nothing to send, see if we can read, and do it
@@ -291,6 +305,8 @@ always @(posedge i_clk) begin
                         // $display("BUSCTRL  %0d: [%d] lowering bus clock_en", i_phase, i_cycle_ctr);
                         o_bus_clk_en <= 1'b0;
                     end
+
+                    /* memories write to the bus in this state */
                 end
             4'b0100:
                 begin
@@ -300,6 +316,14 @@ always @(posedge i_clk) begin
                     if (!more_to_write && bus_busy) begin
                         $display("BUSCTRL  %0d: [%d] done sending the entire program", i_phase, i_cycle_ctr);
                         bus_busy <= 1'b0;
+                    end
+
+                    /* at that poing, weread data in for the debugger */
+                    if (!bus_busy && !alu_busy) begin
+                        dbg_bus_info   <= 1'b1;
+                        dbg_bus_action <= 2'b10;
+                        dbg_bus_data   <= i_bus_nibble_in;
+                        $display("BUSCTRL  %0d: [%d] READ %h", i_phase, i_cycle_ctr, i_bus_nibble_in);
                     end
                 end
             4'b1000:
@@ -311,6 +335,9 @@ always @(posedge i_clk) begin
             default: begin end // other states should not exist
         endcase
     end
+
+    if (dbg_bus_info) 
+        dbg_bus_info <= 1'b0;
 
     if (i_reset) begin
         bus_error     <= 1'b0;
