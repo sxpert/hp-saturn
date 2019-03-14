@@ -89,6 +89,7 @@ saturn_control_unit control_unit (
     .o_error           (ctrl_unit_error),
 
     .o_alu_busy        (alu_busy),
+    .o_exec_unit_busy  (exec_unit_busy),
 
     /* debugger interface */
     .o_current_pc      (ctrl_current_pc),
@@ -122,6 +123,7 @@ wire [4:0]  ctrl_unit_prog_data;
 wire [0:0]  ctrl_unit_no_read;
 
 wire [0:0]  alu_busy;
+wire [0:0]  exec_unit_busy;
 
 /* debugger insterface */
 wire [19:0] ctrl_current_pc;
@@ -161,6 +163,7 @@ saturn_debugger debugger (
 
     .o_debug_cycle     (dbg_debug_cycle),
     .i_alu_busy        (alu_busy),
+    .i_exec_unit_busy  (exec_unit_busy),
 
     /* debugger interface */
     .i_current_pc      (ctrl_current_pc),

@@ -30,6 +30,7 @@ module saturn_regs_pc_rstk (
 
     i_bus_busy,
     i_alu_busy,
+    i_exec_unit_busy,
 
     i_nibble,
     i_jump_instr,
@@ -56,6 +57,7 @@ input  wire [31:0] i_cycle_ctr;
 
 input  wire [0:0]  i_bus_busy;
 input  wire [0:0]  i_alu_busy;
+input  wire [0:0]  i_exec_unit_busy;
 
 input  wire [3:0]  i_nibble;
 input  wire [0:0]  i_jump_instr;
@@ -152,7 +154,7 @@ always @(posedge i_clk) begin
     // if (!i_debug_cycle)
     //     $display("PC_RSTK  %0d: [%d] !i_bus_busy %b", i_phase, i_cycle_ctr, !i_bus_busy);
 
-    if (i_clk_en && !i_bus_busy && !i_alu_busy) begin
+    if (i_clk_en && !i_bus_busy && !i_exec_unit_busy) begin
 
         if (i_phases[3] && just_reset) begin
             $display("PC_RSTK  %0d: [%d] exit from reset mode", i_phase, i_cycle_ctr);
@@ -168,8 +170,12 @@ always @(posedge i_clk) begin
          * jump instruction calculations
          */ 
 
-        /* start the jump instruction */
-        if (i_phases[3] && do_jump_instr && !jump_decode && !jump_exec) begin
+        /* start the jump instruction 
+         * the jump base is:
+         * address of first nibble of the offset when goto
+         * address of nibble after the offset when gosub
+         */
+        if (i_phases[3] && do_jump_instr && !jump_decode) begin
             $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, i_jump_length, reg_PC);
             jump_counter <= 3'd0;
             jump_base    <= reg_PC;
@@ -182,25 +188,33 @@ always @(posedge i_clk) begin
             jump_offset  <= jump_next_offset;
             jump_counter <= jump_counter + 3'd1;
             if (jump_counter == i_jump_length) begin
+                $write("PC_RSTK  %0d: [%d] execute jump(%0d) jump_base %h jump_next_offset %h", i_phase, i_cycle_ctr, i_jump_length, jump_base, jump_next_offset);
                 jump_decode <= 1'b0;
-                jump_exec   <= 1'b1;
-                o_reload_pc <= 1'b1;
+                // jump_exec   <= 1'b1;
+                // o_reload_pc <= 1'b1;
+                reg_PC           <= jump_relative ? jump_next_offset + jump_base : jump_next_offset;
+                if (i_push_pc) begin
+                    $write(" ( push %5h => RSTK[%0d] )", reg_PC, reg_rstk_ptr + 3'd1);
+                    reg_RSTK[(reg_rstk_ptr + 3'o1)&3'o7] <= reg_PC;
+                    reg_rstk_ptr <= reg_rstk_ptr + 3'd1;
+                end
+                $write("\n");
             end
         end
 
-        /* all done, apply to PC and RSTK */
-        if (i_phases[3] && do_jump_instr && jump_exec) begin
-            $write("PC_RSTK  %0d: [%d] execute jump %0d", i_phase, i_cycle_ctr, i_jump_length);
-            if (i_push_pc) begin
-                $write(" ( push %5h => RSTK[%0d])", reg_PC, reg_rstk_ptr + 3'd1);
-                reg_RSTK[(reg_rstk_ptr + 3'o1)&3'o7] <= reg_PC;
-                reg_rstk_ptr <= reg_rstk_ptr + 3'd1;
-            end
-            $display("");
-            reg_PC      <= jump_relative ? jump_offset + jump_base : jump_offset;
-            jump_exec   <= 1'b0;
-            o_reload_pc <= 1'b0;
-        end
+        // /* all done, apply to PC and RSTK */
+        // if (i_phases[3] && do_jump_instr && jump_exec) begin
+        //     $write("PC_RSTK  %0d: [%d] execute jump %0d", i_phase, i_cycle_ctr, i_jump_length);
+        //     if (i_push_pc) begin
+        //         $write(" ( push %5h => RSTK[%0d])", reg_PC, reg_rstk_ptr + 3'd1);
+        //         reg_RSTK[(reg_rstk_ptr + 3'o1)&3'o7] <= reg_PC;
+        //         reg_rstk_ptr <= reg_rstk_ptr + 3'd1;
+        //     end
+        //     $display("");
+        //     reg_PC      <= jump_relative ? jump_offset + jump_base : jump_offset;
+        //     jump_exec   <= 1'b0;
+        //     o_reload_pc <= 1'b0;
+        // end
 
         /*
          * RTN instruction
@@ -216,7 +230,7 @@ always @(posedge i_clk) begin
                 4'h3: $display("CC");
                 default: begin end
             endcase
-            o_reload_pc            <= 1'b1; 
+            // o_reload_pc            <= 1'b1; 
         end
 
         if (i_phases[3] && i_rtn_instr) begin
@@ -225,7 +239,7 @@ always @(posedge i_clk) begin
             reg_RSTK[reg_rstk_ptr] <= 20'h00000;
             reg_rstk_ptr           <= (reg_rstk_ptr - 3'd1) & 3'd7;
             /* o_reload_pc was set in advance above */
-            o_reload_pc <= 1'b0;
+            // o_reload_pc <= 1'b0;
         end
 
     end

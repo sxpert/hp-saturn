@@ -33,6 +33,7 @@ module saturn_debugger (
 
     o_debug_cycle,
     i_alu_busy,
+    i_exec_unit_busy,
 
     /* interface from the control unit */
     i_current_pc,
@@ -81,6 +82,7 @@ input  wire [31:0] i_cycle_ctr;
 
 output reg  [0:0]  o_debug_cycle;
 input  wire [0:0]  i_alu_busy;
+input  wire [0:0]  i_exec_unit_busy;
 
 /* inteface from the control unit */
 input  wire [19:0] i_current_pc;
@@ -187,7 +189,7 @@ end
 
 always @(posedge i_clk) begin
 
-    if (i_clk_en && i_phases[3] && i_instr_decoded && !debug_done && !i_alu_busy) begin
+    if (i_clk_en && i_phases[3] && i_instr_decoded && !debug_done && !i_exec_unit_busy) begin
         $display("DEBUGGER %0d: [%d] start debugger cycle (alu_busy %b)", i_phase, i_cycle_ctr, i_alu_busy);
         o_debug_cycle   <= 1'b1;
         registers_ctr   <= 9'd0;
@@ -586,6 +588,65 @@ always @(posedge i_clk) begin
                     if (registers_reg_ptr == 6'd0) begin
                         registers_reg_ptr <= 6'd0;
                         o_dbg_register  <= `ALU_REG_NONE;
+                        registers_state <= `DBG_REG_R4_STR;
+                    end
+                end
+            `DBG_REG_R4_STR:
+                begin 
+                    case (registers_reg_ptr)
+                        6'd0: registers_str[registers_ctr] <= " ";
+                        6'd1: registers_str[registers_ctr] <= " ";
+                        6'd2: registers_str[registers_ctr] <= "R";
+                        6'd3: registers_str[registers_ctr] <= "4";
+                        6'd4: registers_str[registers_ctr] <= ":";
+                        6'd5: registers_str[registers_ctr] <= " ";
+                        6'd6: registers_str[registers_ctr] <= " ";
+                        default: begin end
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd6) begin
+                        registers_reg_ptr <= 6'd15;
+                        o_dbg_register  <= `ALU_REG_R4;
+                        registers_state <= `DBG_REG_R4_VALUE;
+                    end
+                end
+            `DBG_REG_R4_VALUE:
+                begin
+                    registers_str[registers_ctr] <= hex[i_dbg_reg_nibble];
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
+                        o_dbg_register  <= `ALU_REG_NONE;
+                        registers_state <= `DBG_REG_RSTK1_STR;
+                    end
+                end
+            `DBG_REG_RSTK1_STR:
+                begin 
+                    case (registers_reg_ptr)
+                        6'd0: registers_str[registers_ctr] <= " ";
+                        6'd1: registers_str[registers_ctr] <= " ";
+                        6'd2: registers_str[registers_ctr] <= "R";
+                        6'd3: registers_str[registers_ctr] <= "S";
+                        6'd4: registers_str[registers_ctr] <= "T";
+                        6'd5: registers_str[registers_ctr] <= "K";
+                        6'd6: registers_str[registers_ctr] <= "1";
+                        6'd7: registers_str[registers_ctr] <= ":";
+                        6'd8: registers_str[registers_ctr] <= " ";
+                        default: begin end
+                    endcase
+                    registers_reg_ptr <= registers_reg_ptr + 6'd1;
+                    if (registers_reg_ptr == 6'd8) begin
+                        registers_reg_ptr <= 6'd4;
+                        o_dbg_rstk_ptr  <= 3'd1;
+                        registers_state <= `DBG_REG_RSTK1_VALUE;
+                    end
+                end
+            `DBG_REG_RSTK1_VALUE:
+                begin
+                    registers_str[registers_ctr] <= hex[i_dbg_rstk_val[(registers_reg_ptr)*4+:4]];
+                    registers_reg_ptr <= registers_reg_ptr - 6'd1;
+                    if (registers_reg_ptr == 6'd0) begin
+                        registers_reg_ptr <= 6'd0;
                         registers_state <= `DBG_REG_SPACES_7;
                     end
                 end

@@ -44,6 +44,7 @@ module saturn_control_unit (
 
     /* alu is busy doing something */
     o_alu_busy,
+    o_exec_unit_busy,
 
     /* debugger interface */
 
@@ -92,7 +93,14 @@ output wire [0:0]  o_error;
 assign o_error = control_unit_error || dec_error;
 
 output wire [0:0]  o_alu_busy;
-assign o_alu_busy = inst_alu_other || alu_start;
+output wire [0:0]  o_exec_unit_busy;
+assign o_alu_busy       = inst_alu_other || alu_start;
+assign o_exec_unit_busy = i_bus_busy ||
+                          alu_busy   ||
+                          jump_busy  ||
+                          rtn_busy   ||
+                          reset_busy ||
+                          config_busy;
 
 /* debugger interface */
 
@@ -153,6 +161,7 @@ saturn_inst_decoder instruction_decoder(
 
     .i_bus_busy         (i_bus_busy),
     .i_alu_busy         (o_alu_busy),
+    .i_exec_unit_busy   (o_exec_unit_busy),
 
     .i_nibble           (i_nibble),
     .i_reg_p            (reg_P),
@@ -203,6 +212,8 @@ wire [0:0] dec_error;
 wire [0:0] inst_alu        = (dec_instr_type == `INSTR_TYPE_ALU);
 wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
 wire [0:0] inst_rtn        = (dec_instr_type == `INSTR_TYPE_RTN);
+wire [0:0] inst_reset      = (dec_instr_type == `INSTR_TYPE_RESET);
+wire [0:0] inst_config     = (dec_instr_type == `INSTR_TYPE_CONFIG);
 
 wire [0:0] reg_dest_c      = (dec_alu_reg_dest == `ALU_REG_C);
 wire [0:0] reg_dest_hst    = (dec_alu_reg_dest == `ALU_REG_HST);
@@ -228,6 +239,12 @@ wire [0:0] inst_alu_other      =  inst_alu &&
                                    inst_alu_st_eq_01_n
                                   );
 
+wire [0:0] alu_busy       = inst_alu_other                   || alu_start;
+wire [0:0] jump_busy      = (inst_jump && dec_instr_decoded) || send_reg_PC;
+wire [0:0] rtn_busy       = (inst_rtn && dec_instr_decoded)  || send_reg_PC;
+wire [0:0] reset_busy     = inst_reset;
+wire [0:0] config_busy    = inst_config;
+
 /**************************************************************************************************
  *
  * PC and RSTK module
@@ -244,6 +261,7 @@ saturn_regs_pc_rstk regs_pc_rstk (
 
     .i_bus_busy         (i_bus_busy),
     .i_alu_busy         (o_alu_busy),
+    .i_exec_unit_busy   (o_exec_unit_busy),
 
     .i_nibble           (i_nibble),
     .i_jump_instr       (inst_jump),
@@ -379,6 +397,8 @@ reg  [4:0] bus_program[0:31];
 reg  [4:0] bus_prog_addr;
 reg  [2:0] addr_nibble_ptr;
 reg  [0:0] load_pc_loop;
+
+reg  [0:0] send_reg_PC;
 reg  [0:0] send_reg_C_A;
 reg  [0:0] send_pc_read;
 
@@ -398,6 +418,8 @@ initial begin
     bus_prog_addr      = 5'd0;
     addr_nibble_ptr    = 3'd0;
     load_pc_loop       = 1'b0;
+
+    send_reg_PC        = 1'b0;
     send_reg_C_A       = 1'b0;
     send_pc_read       = 1'b0;
 
@@ -432,18 +454,12 @@ always @(posedge i_clk) begin
      *
      */
 
-    if (i_clk_en && (just_reset || reload_PC) && i_phases[3])  begin
+    if (i_clk_en && just_reset && i_phases[3])  begin
         /* this happend right after reset */
-        if (just_reset) begin
 `ifdef SIM
-            $display("CTRL     %0d: [%d] we were just reset, loading PC", i_phase, i_cycle_ctr);
+        $display("CTRL     %0d: [%d] we were just reset, loading PC", i_phase, i_cycle_ctr);
 `endif
-            just_reset <= 1'b0;
-        end else begin
-`ifdef SIM
-            $display("CTRL     %0d: [%d] reloading PC", i_phase, i_cycle_ctr);
-`endif
-        end
+        just_reset <= 1'b0;
         /* this loads the PC to the modules */
         bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
 `ifdef SIM
@@ -576,23 +592,38 @@ always @(posedge i_clk) begin
 `endif
                         reg_alu_mode <= dec_alu_imm_value[0];
                     end
-                `INSTR_TYPE_JUMP: begin end
+                `INSTR_TYPE_JUMP,
                 `INSTR_TYPE_RTN: 
                     begin
-                        case (dec_alu_opcode)
-                            `ALU_OP_SET_CRY: reg_CARRY <= o_alu_imm_value[0];
-                            default: 
-                                begin
-                                    $display("CTRL     %0d: [%d] alu_opcode for RTN %0d", i_phase, i_cycle_ctr, dec_alu_opcode);
-                                    control_unit_error <= 1'b1;
-                                end
-                        endcase
+                        if (inst_jump) begin 
+                            $display("CTRL     %0d: [%d] JUMP", i_phase, i_cycle_ctr); 
+                        end
+                        if (inst_rtn) begin 
+                            $display("CTRL     %0d: [%d] RTN", i_phase, i_cycle_ctr); 
+                            case (dec_alu_opcode)
+                                `ALU_OP_SET_CRY: reg_CARRY <= o_alu_imm_value[0];
+                                default: 
+                                    begin
+                                        $display("CTRL     %0d: [%d] alu_opcode for RTN %0d", i_phase, i_cycle_ctr, dec_alu_opcode);
+                                        control_unit_error <= 1'b1;
+                                    end
+                            endcase
+                        end
+
+                        if (dec_instr_decoded) begin
+                            $display("CTRL     %0d: [%d] exec : JUMP/RTN reload pc to %5h", i_phase, i_cycle_ctr, reg_PC); 
+                            bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
+                            bus_prog_addr   <= bus_prog_addr + 5'd1;
+                            addr_nibble_ptr <= 3'b0;
+                            send_reg_PC     <= 1'b1;
+                        end
+
                     end
                 `INSTR_TYPE_LOAD: 
                     begin
                         case (dec_alu_reg_dest)
                             `ALU_REG_C:  reg_C[dec_alu_ptr_begin] <= dec_alu_imm_value;
-                            `ALU_REG_D0: reg_D0[dec_alu_ptr_begin] <= dec_alu_imm_value;
+                            `ALU_REG_D0: reg_D0[dec_alu_ptr_begin[2:0]] <= dec_alu_imm_value;
                             default: 
                                 begin 
                                     $display("CTRL     %0d: [%d] unsupported register for load %0d", i_phase, i_cycle_ctr, dec_alu_reg_dest);
@@ -624,6 +655,27 @@ always @(posedge i_clk) begin
             endcase
         end
 
+    end
+
+    /**********************************************************************************************
+     *
+     * sending bus programs 
+     *
+     *********************************************************************************************/
+
+    if (i_clk_en && control_unit_ready) begin
+
+        if (send_reg_PC) begin
+            $display("CTRL     %0d: [%d] exec: send_reg_PC[%0d] %h", i_phase, i_cycle_ctr, addr_nibble_ptr, reg_PC[addr_nibble_ptr*4+:4] );
+            bus_program[bus_prog_addr] <= { 1'b0, reg_PC[addr_nibble_ptr*4+:4] };
+            addr_nibble_ptr <= addr_nibble_ptr + 3'd1;
+            bus_prog_addr   <= bus_prog_addr + 5'd1;
+            if (addr_nibble_ptr == 3'd4) begin
+                addr_nibble_ptr <= 3'd0;
+                send_reg_PC     <= 1'b0;
+            end
+        end
+
         /*
          * send C(A)
          * used for CONFIG and UNCNFG
@@ -650,11 +702,16 @@ always @(posedge i_clk) begin
         end
 
 
-        /******************************************************************************************
-         *
-         * ALU control
-         *
-         *****************************************************************************************/
+    end
+
+
+    /******************************************************************************************
+     *
+     * ALU control
+     *
+     *****************************************************************************************/
+    
+    if (i_clk_en && control_unit_ready) begin
 
         if (alu_start && alu_prep_run && !alu_prep_done) begin
             $display("ALU_PREP %0d: [%d] b %h | p %h | e %h", i_phase, i_cycle_ctr, alu_ptr_begin, alu_prep_pos, alu_ptr_end);
@@ -714,6 +771,8 @@ always @(posedge i_clk) begin
         bus_prog_addr      <= 5'd0;
         addr_nibble_ptr    <= 3'd0;
         load_pc_loop       <= 1'b0;
+
+        send_reg_PC        <= 1'b0;
         send_reg_C_A       <= 1'b0;
         send_pc_read       <= 1'b0; 
 

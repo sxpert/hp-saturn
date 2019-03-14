@@ -32,6 +32,7 @@ module saturn_inst_decoder (
     
     i_bus_busy,
     i_alu_busy,
+    i_exec_unit_busy,
 
     i_nibble,
     i_reg_p,
@@ -70,6 +71,7 @@ input  wire [31:0] i_cycle_ctr;
 
 input  wire [0:0]  i_bus_busy;
 input  wire [0:0]  i_alu_busy;
+input  wire [0:0]  i_exec_unit_busy;
 
 input  wire [3:0]  i_nibble;
 input  wire [3:0]  i_reg_p;
@@ -235,7 +237,7 @@ always @(posedge i_clk) begin
         o_instr_decoded <= 1'b1;
     end
 
-    if (i_clk_en && !i_bus_busy && !i_alu_busy) begin
+    if (i_clk_en && !i_bus_busy && !i_exec_unit_busy) begin
  
         if (i_phases[1] && !decode_started) begin
             // $display("DECODER  %0d: [%d] store current PC as instruction start %5h", i_phase, i_cycle_ctr, i_current_pc);
