@@ -162,7 +162,7 @@ saturn_debugger debugger (
     .i_cycle_ctr       (i_cycle_ctr),
 
     .o_debug_cycle     (dbg_debug_cycle),
-    .i_alu_busy        (alu_busy),
+    // .i_alu_busy        (alu_busy),
     .i_exec_unit_busy  (exec_unit_busy),
 
     /* debugger interface */

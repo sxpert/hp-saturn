@@ -190,7 +190,9 @@ end
 always @(posedge i_clk) begin
 
     if (i_clk_en && i_phases[3] && i_instr_decoded && !debug_done && !i_exec_unit_busy) begin
-        $display("DEBUGGER %0d: [%d] start debugger cycle (alu_busy %b)", i_phase, i_cycle_ctr, i_alu_busy);
+`ifdef SIM
+        $display("DEBUGGER %0d: [%d] start debugger cycle (exec_unit_busy %b)", i_phase, i_cycle_ctr, i_exec_unit_busy);
+`endif
         o_debug_cycle   <= 1'b1;
         registers_ctr   <= 9'd0;
         registers_state <= `DBG_REG_PC_STR;

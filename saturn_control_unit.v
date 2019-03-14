@@ -240,7 +240,7 @@ wire [0:0] inst_alu_other      =  inst_alu &&
                                   );
 
 wire [0:0] alu_busy       = inst_alu_other                   || alu_start;
-wire [0:0] jump_busy      = (inst_jump && dec_instr_decoded) || send_reg_PC;
+wire [0:0] jump_busy      = (inst_jump && dec_instr_decoded) || send_reg_PC || just_reset;
 wire [0:0] rtn_busy       = (inst_rtn && dec_instr_decoded)  || send_reg_PC;
 wire [0:0] reset_busy     = inst_reset;
 wire [0:0] config_busy    = inst_config;
@@ -260,7 +260,7 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_cycle_ctr        (i_cycle_ctr),
 
     .i_bus_busy         (i_bus_busy),
-    .i_alu_busy         (o_alu_busy),
+    // .i_alu_busy         (o_alu_busy),
     .i_exec_unit_busy   (o_exec_unit_busy),
 
     .i_nibble           (i_nibble),
@@ -293,6 +293,11 @@ reg  [3:0]  reg_C[0:15];
 reg  [3:0]  reg_D[0:15];
 reg  [3:0]  reg_D0[0:4];
 reg  [3:0]  reg_D1[0:4];
+reg  [3:0]  reg_R0[0:15];
+reg  [3:0]  reg_R1[0:15];
+reg  [3:0]  reg_R2[0:15];
+reg  [3:0]  reg_R3[0:15];
+reg  [3:0]  reg_R4[0:15];
 reg  [3:0]  reg_HST;
 reg  [15:0] reg_ST;
 reg  [3:0]  reg_P;
@@ -379,6 +384,11 @@ always @(i_dbg_register, i_dbg_reg_ptr) begin
     `ALU_REG_D:  o_dbg_reg_nibble = reg_D[i_dbg_reg_ptr];
     `ALU_REG_D0: o_dbg_reg_nibble = reg_D0[i_dbg_reg_ptr[2:0]];
     `ALU_REG_D1: o_dbg_reg_nibble = reg_D1[i_dbg_reg_ptr[2:0]];
+    `ALU_REG_R0: o_dbg_reg_nibble = reg_R0[i_dbg_reg_ptr];
+    `ALU_REG_R1: o_dbg_reg_nibble = reg_R1[i_dbg_reg_ptr];
+    `ALU_REG_R2: o_dbg_reg_nibble = reg_R2[i_dbg_reg_ptr];
+    `ALU_REG_R3: o_dbg_reg_nibble = reg_R3[i_dbg_reg_ptr];
+    `ALU_REG_R4: o_dbg_reg_nibble = reg_R4[i_dbg_reg_ptr];
     default:     o_dbg_reg_nibble = 4'h0;
     endcase
 end
@@ -438,62 +448,34 @@ always @(posedge i_clk) begin
 
     if (just_reset || (init_counter != 0)) begin
         $display("CTRL     %0d: [%d] initializing registers %0d", i_phase, i_cycle_ctr, init_counter);
-        reg_A[init_counter] <= 4'h0;
-        reg_B[init_counter] <= 4'h0;
-        reg_C[init_counter] <= 4'h0;
-        reg_D[init_counter] <= 4'h0;
+        reg_A[init_counter]  <= 4'h0;
+        reg_B[init_counter]  <= 4'h0;
+        reg_C[init_counter]  <= 4'h0;
+        reg_D[init_counter]  <= 4'h0;
         reg_D0[init_counter] <= 4'h0;
         reg_D1[init_counter] <= 4'h0;
+        reg_R0[init_counter] <= 4'h0;
+        reg_R1[init_counter] <= 4'h0;
+        reg_R2[init_counter] <= 4'h0;
+        reg_R3[init_counter] <= 4'h0;
+        reg_R4[init_counter] <= 4'h0;
         init_counter <= init_counter + 4'b1;
-    end
 
-    /************************
-     *
-     * we're just starting, load the PC into the controller and modules
-     * this could also be used when loading the PC on jumps, need to identify conditions
-     *
-     */
-
-    if (i_clk_en && just_reset && i_phases[3])  begin
-        /* this happend right after reset */
-`ifdef SIM
-        $display("CTRL     %0d: [%d] we were just reset, loading PC", i_phase, i_cycle_ctr);
-`endif
-        just_reset <= 1'b0;
-        /* this loads the PC to the modules */
-        bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
-`ifdef SIM
-        $display("CTRL     %0d: [%d] pushing LOAD_PC command to pos %d", i_phase, i_cycle_ctr, bus_prog_addr);
-`endif
-        addr_nibble_ptr   <= 3'b0;
-        bus_prog_addr     <= bus_prog_addr + 5'd1;
-        load_pc_loop      <= 1'b1;
-    end 
-
-    /* loop to fill the initial PC value in the program */
-    if (i_clk_en && load_pc_loop) begin
-        /* 
-         * this should load the actual PC values...
-         */
-        bus_program[bus_prog_addr] <= {1'b0, reg_PC_nibble };
-        addr_nibble_ptr   <= addr_nibble_ptr + 3'd1;
-        bus_prog_addr     <= bus_prog_addr + 5'd1;
-`ifdef SIM
-        if (addr_nibble_ptr == 3'd0)
-            $display("CTRL     %0d: [%d] new PC value %5h", i_phase, i_cycle_ctr, reg_PC);
-        $write("CTRL     %0d: [%d] pushing ADDR : prog[%2d] <= PC[%0d] (%h)", i_phase, i_cycle_ctr, 
-               bus_prog_addr, addr_nibble_ptr, {1'b0, reg_PC_nibble });
-`endif
-        if (addr_nibble_ptr == 3'd4) begin
-            load_pc_loop       <= 1'b0;
+        /************************
+        *
+        * all registers are initialized.
+        * load the PC into the controller and modules
+        *
+        */
+        if (init_counter == 4'hF) begin
+            just_reset <= 1'b0;
+            $display("CTRL     %0d: [%d] pushing LOAD_PC command to pos %d", i_phase, i_cycle_ctr, bus_prog_addr);
+            bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_LOAD_PC };
+            bus_prog_addr     <= bus_prog_addr + 5'd1;
+            addr_nibble_ptr   <= 3'b0;
+            send_reg_PC     <= 1'b1;
             control_unit_ready <= 1'b1;
-`ifdef SIM
-            $write(" done");
-`endif      
         end
-`ifdef SIM
-        $write("\n");
-`endif
     end
 
     /************************
@@ -503,14 +485,6 @@ always @(posedge i_clk) begin
      */
 
     if (i_clk_en && control_unit_ready && !i_bus_busy) begin
-        
-// `ifdef SIM
-        // $display("CTRL     %0d: [%d] starting to do things", i_phase, i_cycle_ctr);
-// `endif
-
-        // if (i_phases[2]) begin
-        //     $display("CTRL     %0d: [%d] interpreting %h", i_phase, i_cycle_ctr, i_nibble);
-        // end
 
         if (i_phases[3] && dec_instr_execute) begin
             case (dec_instr_type) 

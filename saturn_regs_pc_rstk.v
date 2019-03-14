@@ -141,9 +141,17 @@ always @(posedge i_clk) begin
 
     /* initialize RSTK */
     if (just_reset || (init_counter != 0)) begin
+`ifdef SIM
         $display("PC_RSTK  %0d: [%d] initializing RSTK[%0d]", i_phase, i_cycle_ctr, init_counter);
+`endif
         reg_RSTK[init_counter] <= 20'h00000;
         init_counter <= init_counter + 3'd1;
+        if (init_counter == 3'd7) begin
+`ifdef SIM
+            $display("PC_RSTK  %0d: [%d] exit from reset mode", i_phase, i_cycle_ctr);
+`endif
+            just_reset <= 1'b0;
+        end
     end
 
     /*
@@ -156,10 +164,10 @@ always @(posedge i_clk) begin
 
     if (i_clk_en && !i_bus_busy && !i_exec_unit_busy) begin
 
-        if (i_phases[3] && just_reset) begin
-            $display("PC_RSTK  %0d: [%d] exit from reset mode", i_phase, i_cycle_ctr);
-            just_reset <= 1'b0;
-        end
+        // if (i_phases[3] && just_reset) begin
+        //     $display("PC_RSTK  %0d: [%d] exit from reset mode", i_phase, i_cycle_ctr);
+        //     just_reset <= 1'b0;
+        // end
 
         if (i_phases[1] && !just_reset) begin
             $display("PC_RSTK  %0d: [%d] inc_pc %5h => %5h", i_phase, i_cycle_ctr, reg_PC, reg_PC + 20'h00001);
