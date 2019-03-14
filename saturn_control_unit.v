@@ -359,8 +359,8 @@ always @(i_dbg_register, i_dbg_reg_ptr) begin
     `ALU_REG_B:  o_dbg_reg_nibble = reg_B[i_dbg_reg_ptr];
     `ALU_REG_C:  o_dbg_reg_nibble = reg_C[i_dbg_reg_ptr];
     `ALU_REG_D:  o_dbg_reg_nibble = reg_D[i_dbg_reg_ptr];
-    `ALU_REG_D0: o_dbg_reg_nibble = reg_D0[i_dbg_reg_ptr];
-    `ALU_REG_D1: o_dbg_reg_nibble = reg_D1[i_dbg_reg_ptr];
+    `ALU_REG_D0: o_dbg_reg_nibble = reg_D0[i_dbg_reg_ptr[2:0]];
+    `ALU_REG_D1: o_dbg_reg_nibble = reg_D1[i_dbg_reg_ptr[2:0]];
     default:     o_dbg_reg_nibble = 4'h0;
     endcase
 end
