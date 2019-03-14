@@ -355,13 +355,13 @@ wire [0:0]  reload_PC;
 
 always @(i_dbg_register, i_dbg_reg_ptr) begin
     case (i_dbg_register)
-    `ALU_REG_A:  o_dbg_reg_nibble <= reg_A[i_dbg_reg_ptr];
-    `ALU_REG_B:  o_dbg_reg_nibble <= reg_B[i_dbg_reg_ptr];
-    `ALU_REG_C:  o_dbg_reg_nibble <= reg_C[i_dbg_reg_ptr];
-    `ALU_REG_D:  o_dbg_reg_nibble <= reg_D[i_dbg_reg_ptr];
-    `ALU_REG_D0: o_dbg_reg_nibble <= reg_D0[i_dbg_reg_ptr];
-    `ALU_REG_D1: o_dbg_reg_nibble <= reg_D1[i_dbg_reg_ptr];
-    default: o_dbg_reg_nibble <= 4'h0;
+    `ALU_REG_A:  o_dbg_reg_nibble = reg_A[i_dbg_reg_ptr];
+    `ALU_REG_B:  o_dbg_reg_nibble = reg_B[i_dbg_reg_ptr];
+    `ALU_REG_C:  o_dbg_reg_nibble = reg_C[i_dbg_reg_ptr];
+    `ALU_REG_D:  o_dbg_reg_nibble = reg_D[i_dbg_reg_ptr];
+    `ALU_REG_D0: o_dbg_reg_nibble = reg_D0[i_dbg_reg_ptr];
+    `ALU_REG_D1: o_dbg_reg_nibble = reg_D1[i_dbg_reg_ptr];
+    default:     o_dbg_reg_nibble = 4'h0;
     endcase
 end
 
