@@ -74,9 +74,14 @@ end
 wire [0:0] do_pc_read = (last_cmd == `BUSCMD_PC_READ);
 wire [0:0] do_dp_read = (last_cmd == `BUSCMD_DP_READ);
 wire [0:0] do_read    = do_pc_read || do_dp_read;
-wire [0:0] can_read   = i_bus_clk_en && i_clk_en && i_bus_is_data && do_read;
+wire [0:0] can_read   = i_bus_clk_en && i_bus_is_data && do_read;
 
 wire [19:0] access_pointer = do_pc_read?local_pc:local_dp;
+`ifndef SIM
+/* Verilator lint_off UNUSED */
+wire [19:`ROMBITS-1] access_pointer_unused = access_pointer[19:`ROMBITS-1];
+/* Verilator lint_on UNUSED */
+`endif
 
 wire [`ROMBITS-1:0] address = access_pointer[`ROMBITS-1:0];
 
