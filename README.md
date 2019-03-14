@@ -20,14 +20,3 @@ phase_2:   __________________________________|         |___________________
                                                         _________
 phase_3:   ____________________________________________|         |_________
 ```
-
-notes for using the ULX3S
-
-Maybe linux ujprog won't find port because of insufficient priviledge. Either run ujprog as root or have udev rule:# this is for usb-serial tty device
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", \
-MODE="664", GROUP="dialout"
-this is for ujprog libusb access
-
-ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", \
-GROUP="dialout", MODE="666"
-
