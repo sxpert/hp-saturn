@@ -32,9 +32,12 @@ module saturn_hp48gx_rom (
     i_clk,
     i_clk_en,
     i_reset,
+`ifdef SIM
     i_phase,
     i_cycle_ctr,
-
+`endif
+    i_phase_0,
+    i_debug_cycle,
     i_bus_clk_en,
     i_bus_is_data,
     o_bus_nibble_out,
@@ -44,13 +47,17 @@ module saturn_hp48gx_rom (
 input  wire [0:0]  i_clk;
 input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
+`ifdef SIM
 input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
+`endif
+input  wire [0:0]  i_phase_0;
+input  wire [0:0]  i_debug_cycle;
 
-input  wire [0:0] i_bus_clk_en;
-input  wire [0:0] i_bus_is_data;
-output reg  [3:0] o_bus_nibble_out;
-input  wire [3:0] i_bus_nibble_in;
+input  wire [0:0]  i_bus_clk_en;
+input  wire [0:0]  i_bus_is_data;
+output reg  [3:0]  o_bus_nibble_out;
+input  wire [3:0]  i_bus_nibble_in;
 
 reg  [3:0]  rom_data[0:(2**`ROMBITS)-1];
 initial $readmemh("rom-gx-r.hex", rom_data, 0, (2**`ROMBITS)-1);
@@ -59,7 +66,8 @@ reg  [3:0]  last_cmd;
 reg  [2:0]  addr_pos_ctr;
 reg  [19:0] local_pc;
 reg  [19:0] local_dp;
-
+reg  [3:0]  read_nibble;
+ 
 initial begin
     last_cmd         = 4'b0;
     addr_pos_ctr     = 3'b0;
@@ -74,6 +82,9 @@ end
 wire [0:0] do_pc_read = (last_cmd == `BUSCMD_PC_READ);
 wire [0:0] do_dp_read = (last_cmd == `BUSCMD_DP_READ);
 wire [0:0] do_read    = do_pc_read || do_dp_read;
+/* pre-read happens on phase 0 */
+wire [0:0] pre_read   = i_clk_en && i_phase_0 && !i_debug_cycle && do_read;
+/* this happes on phase 1 */
 wire [0:0] can_read   = i_bus_clk_en && i_bus_is_data && do_read;
 
 wire [19:0] access_pointer = do_pc_read?local_pc:local_dp;
@@ -86,8 +97,21 @@ wire [19:`ROMBITS-1] access_pointer_unused = access_pointer[19:`ROMBITS-1];
 wire [`ROMBITS-1:0] address = access_pointer[`ROMBITS-1:0];
 
 always @(posedge i_clk) begin
-    if (can_read)
-        o_bus_nibble_out <= rom_data[address];
+    if (pre_read) begin
+`ifdef SIM
+        $display("ROM-GX-R %0d: [%d] pre_read %h <= rom[%5h]", i_phase, i_cycle_ctr, rom_data[address], address);
+`endif
+        read_nibble <= rom_data[address];
+    end       
+end
+
+always @(posedge i_clk) begin
+    if (can_read) begin
+`ifdef SIM
+        $display("ROM-GX-R %0d: [%d] can_read %h <= rom[%5h]", i_phase, i_cycle_ctr, read_nibble, address);
+`endif
+        o_bus_nibble_out <= read_nibble;
+    end
 end
 
 `ifdef SIM

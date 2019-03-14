@@ -67,8 +67,12 @@ saturn_hp48gx_rom hp48gx_rom (
     .i_clk              (i_clk),
     .i_clk_en           (i_clk_en),
     .i_reset            (i_reset),
+`ifdef SIM
     .i_phase            (phase),
     .i_cycle_ctr        (cycle_ctr),
+`endif
+    .i_phase_0          (phases[0]),
+    .i_debug_cycle      (dbg_debug_cycle),
 
     .i_bus_clk_en       (bus_clk_en),
     .i_bus_is_data      (ctrl_bus_is_data),
