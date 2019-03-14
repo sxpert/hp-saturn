@@ -11,5 +11,5 @@ echo "--------------------------------------------------------------------"
 echo "YOSYS_STATUS ${YOSYS_STATUS}"
 echo "--------------------------------------------------------------------"
 
-nextpnr-ecp5 --85k --speed 6 --freq 5 --lpf ulx3s_v20.lpf --textcfg z_saturn_test.config --json z_saturn_test.json
+nextpnr-ecp5 --85k --speed 6 --freq 50 --lpf ulx3s_v20.lpf --textcfg z_saturn_test.config --json z_saturn_test.json
 ecppack z_saturn_test.config z_saturn_test.bit
