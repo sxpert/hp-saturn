@@ -484,9 +484,9 @@ always @(posedge i_clk) begin
      *
      */
 
-    if (i_clk_en && control_unit_ready && !i_bus_busy) begin
+    if (i_clk_en && control_unit_ready) begin
 
-        if (i_phases[3] && dec_instr_execute) begin
+        if (i_phases[3] && !i_bus_busy && dec_instr_execute) begin
             case (dec_instr_type) 
                 `INSTR_TYPE_NOP: begin 
                         $display("CTRL     %0d: [%d] NOP instruction", i_phase, i_cycle_ctr);
@@ -609,6 +609,24 @@ always @(posedge i_clk) begin
                                 end
                         endcase
                     end
+                // `INSTR_TYPE_MEM_READ:
+                //     begin
+                //         $display("CTRL     %0d: [%d] MEM READ", i_phase, i_cycle_ctr);
+                //         bus_program[bus_prog_addr] <= {2'b01, `BUSCMD_LOAD_DP };
+                //         bus_prog_addr   <= bus_prog_addr + 5'd1;
+                //         addr_nibble_ptr <= 3'b0;
+                //         send_reg_D0_D1  <= 1'b1;
+                //         exec_mem_read   <= 1'b1;
+                //     end
+                // `INSTR_TYPE_MEM_WRITE:
+                //     begin
+                //         $display("CTRL     %0d: [%d] MEM WRITE", i_phase, i_cycle_ctr);
+                //         bus_program[bus_prog_addr] <= {2'b01, `BUSCMD_LOAD_DP };
+                //         bus_prog_addr   <= bus_prog_addr + 5'd1;
+                //         addr_nibble_ptr <= 3'b0;
+                //         send_reg_D0_D1  <= 1'b1;
+                //         exec_mem_write  <= 1'b1;
+                //     end
                 `INSTR_TYPE_CONFIG:
                     begin
                         $display("CTRL     %0d: [%d] exec : CONFIG", i_phase, i_cycle_ctr);
@@ -633,15 +651,17 @@ always @(posedge i_clk) begin
             endcase
         end
 
-    end
-
     /**********************************************************************************************
      *
      * sending bus programs 
      *
      *********************************************************************************************/
 
-    if (i_clk_en && control_unit_ready) begin
+        /******************************************************************************************
+         *
+         * sending the value of the PC
+         *
+         *****************************************************************************************/
 
         if (send_reg_PC) begin
             $display("CTRL     %0d: [%d] exec: send_reg_PC[%0d] %h", i_phase, i_cycle_ctr, addr_nibble_ptr, reg_PC[addr_nibble_ptr*4+:4] );
@@ -654,6 +674,12 @@ always @(posedge i_clk) begin
             end
         end
 
+        /******************************************************************************************
+         *
+         * CONFIG and UNCNFG stuff
+         *
+         *****************************************************************************************/
+        
         /*
          * send C(A)
          * used for CONFIG and UNCNFG
@@ -669,27 +695,11 @@ always @(posedge i_clk) begin
             end
         end
         
-        /*
-         * sends the PC_READ command to restore devices after some other bus command
-         */
-        if (send_pc_read) begin
-            $display("CTRL     %0d: [%d] exec : RESET - send PC_READ", i_phase, i_cycle_ctr);
-            bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_PC_READ };
-            bus_prog_addr <= bus_prog_addr + 5'd1;
-            send_pc_read  <= 1'b0;
-        end
-
-
-    end
-
-
     /******************************************************************************************
      *
      * ALU pipeline
      *
      *****************************************************************************************/
-    
-    if (i_clk_en && control_unit_ready) begin
 
         /**********
          *
@@ -815,7 +825,113 @@ always @(posedge i_clk) begin
         if (i_phases[3] && !alu_start) begin
             $display("CTRL     %0d: [%d] ALU is not started", i_phase, i_cycle_ctr);
         end
+
+        /******************************************************************************************
+         *
+         * Memory operations control
+         *
+         *****************************************************************************************/
         
+        // /*
+        //  * send D0 or D1
+        //  */
+        // if (send_reg_D0_D1) begin
+        //     $display("CTRL     %0d: [%d] exec: sending D%b[%0d] %h", i_phase, i_cycle_ctr, 
+        //              dec_mem_pointer, addr_nibble_ptr, 
+        //              dec_mem_pointer?reg_D1[addr_nibble_ptr]:reg_D0[addr_nibble_ptr]);
+        //     bus_program[bus_prog_addr] <= { 2'b00, dec_mem_pointer?reg_D1[addr_nibble_ptr]:reg_D0[addr_nibble_ptr]};
+        //     addr_nibble_ptr <= addr_nibble_ptr + 3'd1;
+        //     bus_prog_addr <= bus_prog_addr + 5'd1;
+        //     if (addr_nibble_ptr == 3'd4) begin
+        //         addr_nibble_ptr     <= 3'd0;
+        //         send_reg_D0_D1      <= 1'b0;
+        //         send_reg_D0_D1_done <= 1'b1;
+        //         send_dp_write       <= exec_mem_write;
+        //         mem_access_ptr      <= dec_alu_ptr_begin;
+        //     end
+        // end
+        
+        // /* 
+        //  * in case of memory write, send DP_WRITE command
+        //  */
+        // if (send_reg_D0_D1_done && send_dp_write && exec_mem_write) begin
+        //     $display("CTRL     %0d: [%d] exec: sending DP_WRITE", i_phase, i_cycle_ctr);
+        //     bus_program[bus_prog_addr] <= {2'b01, `BUSCMD_DP_WRITE };
+        //     bus_prog_addr <= bus_prog_addr + 5'd1;
+        //     send_dp_write <= 1'b0;
+        // end
+
+        // /*
+        //  * send the data to write
+        //  */
+        // if (send_reg_D0_D1_done && !send_dp_write && exec_mem_write) begin
+        //     $display("CTRL     %0d: [%d] exec: writing data %c[%h] %h", i_phase, i_cycle_ctr,
+        //              reg_src_1_c?"C":"A", mem_access_ptr, 
+        //              reg_src_1_c?reg_C[mem_access_ptr]:reg_A[mem_access_ptr]);
+        //     bus_program[bus_prog_addr] <= {2'b00, reg_src_1_c?reg_C[mem_access_ptr]:reg_A[mem_access_ptr]};
+        //     mem_access_ptr <= mem_access_ptr + 4'h1;
+        //     bus_prog_addr  <= bus_prog_addr + 5'd1;
+        //     if (mem_access_ptr == dec_alu_ptr_end) begin
+        //         send_reg_D0_D1_done <= 1'b0;
+        //         send_pc_read        <= 1'b1;
+        //     end
+        // end
+
+        // /*
+        //  * send the data to write
+        //  */
+        // if (send_reg_D0_D1_done && exec_mem_read) begin
+        //     $display("CTRL     %0d: [%d] exec: reading data to %c[%h]", i_phase, i_cycle_ctr,
+        //              reg_dest_c?"C":"A", mem_access_ptr);
+        //     bus_program[bus_prog_addr] <= 6'b100000;
+        //     mem_access_ptr <= mem_access_ptr + 4'h1;
+        //     bus_prog_addr  <= bus_prog_addr + 5'd1;
+        //     if (mem_access_ptr == dec_alu_ptr_end) begin
+        //         send_reg_D0_D1_done <= 1'b0;
+        //         send_pc_read        <= 1'b1;
+        //         mem_access_ptr      <= 4'b0;
+        //     end
+        // end
+
+        // /*
+        //  * wait for something to read
+        //  */
+        // if (exec_mem_read && i_phases[2] && i_read) begin
+        //     case (dec_alu_reg_dest)
+        //         `ALU_REG_A: reg_A[mem_access_ptr] <= i_nibble;
+        //         `ALU_REG_C: reg_C[mem_access_ptr] <= i_nibble;
+        //         default: $display("CTRL     %0d: [%d] exec read: unsupported register %0d", i_phase, i_cycle_ctr, dec_alu_reg_dest);
+        //     endcase
+        //     mem_access_ptr <= mem_access_ptr + 4'h1;
+        // end
+
+        // /*
+        //  * wait for the program end, cleanup the exec_read and exec_write flags
+        //  */
+        // if ((i_program_address == bus_prog_addr) && 
+        //     !(send_reg_D0_D1 || send_reg_D0_D1_done || send_dp_write) && 
+        //     (exec_mem_read || exec_mem_write)) begin
+        //     $display("CTRL     %0d: [%d] exec: memory transfer cleanup", i_phase, i_cycle_ctr);
+        //     exec_mem_read  <= 1'b0;
+        //     exec_mem_write <= 1'b0;
+        // end
+
+        /******************************************************************************************
+         *
+         * send the PC_READ command (many things end with this)
+         *
+         *****************************************************************************************/
+
+        /*
+         * sends the PC_READ command to restore devices after some other bus command
+         */
+        if (send_pc_read) begin
+            $display("CTRL     %0d: [%d] exec : RESET - send PC_READ", i_phase, i_cycle_ctr);
+            bus_program[bus_prog_addr] <= {1'b1, `BUSCMD_PC_READ };
+            bus_prog_addr <= bus_prog_addr + 5'd1;
+            send_pc_read  <= 1'b0;
+        end
+
 
     end
 
