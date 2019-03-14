@@ -44,7 +44,7 @@ module saturn_alu_module (
     i_calc_pos,
     o_calc_res_1_val,
     o_calc_res_2_val,
-    o_calc_carry,
+    o_calc_carry
 );
 
 input  wire [0:0]  i_clk;
@@ -73,7 +73,7 @@ output reg  [0:0]  o_calc_carry;
 always @(*) begin
     o_calc_res_1_val = 4'h0;
     o_calc_res_2_val = 4'h0;
-    o_calc_carry     = 2'b0;
+    o_calc_carry     = 1'b0;
     if (i_clk_en && i_run && !i_done) begin
         case (i_opcode) 
             `ALU_OP_ZERO: $display("ALU      %0d: [%d] res1 <= 0", i_phase, i_cycle_ctr);
