@@ -309,30 +309,30 @@ wire [19:0] reg_PC;
  * 
  *************************************************************************************************/
 
-saturn_alu_module alu_module (
-    .i_clk              (i_clk),
-    .i_clk_en           (i_clk_en),
-    .i_reset            (i_reset),
-    .i_phases           (i_phases),
-    .i_phase            (i_phase),
-    .i_cycle_ctr        (i_cycle_ctr),
+// saturn_alu_module alu_module (
+//     .i_clk              (i_clk),
+//     .i_clk_en           (i_clk_en),
+//     .i_reset            (i_reset),
+//     .i_phases           (i_phases),
+//     .i_phase            (i_phase),
+//     .i_cycle_ctr        (i_cycle_ctr),
 
-    .i_opcode           (alu_opcode),
-    .i_ptr_begin        (alu_ptr_begin),
-    .i_ptr_end          (alu_ptr_end),
+//     .i_opcode           (alu_opcode),
+//     .i_ptr_begin        (alu_ptr_begin),
+//     .i_ptr_end          (alu_ptr_end),
 
-    .i_run              (alu_run),
-    .i_done             (alu_done),  
+//     .i_run              (alu_run),
+//     .i_done             (alu_done),  
 
-    .i_prep_src_1_val   (alu_prep_src_1_val),
-    .i_prep_src_2_val   (alu_prep_src_2_val),
-    .i_prep_carry       (alu_prep_carry),
+//     .i_prep_src_1_val   (alu_prep_src_1_val),
+//     .i_prep_src_2_val   (alu_prep_src_2_val),
+//     .i_prep_carry       (alu_prep_carry),
 
-    .i_calc_pos         (alu_calc_pos),
-    .o_calc_res_1_val   (alu_calc_res_1_val),
-    .o_calc_res_2_val   (alu_calc_res_2_val),
-    .o_calc_carry       (alu_calc_carry)
-);
+//     .i_calc_pos         (alu_calc_pos),
+//     .o_calc_res_1_val   (alu_calc_res_1_val),
+//     .o_calc_res_2_val   (alu_calc_res_2_val),
+//     .o_calc_carry       (alu_calc_carry)
+// );
 
 /*
  * ALU control variable
@@ -357,9 +357,9 @@ reg  [0:0]  alu_prep_done;
 
 reg  [0:0]  alu_calc_run;
 reg  [3:0]  alu_calc_pos;
-wire [3:0]  alu_calc_res_1_val;
-wire [3:0]  alu_calc_res_2_val;
-wire [0:0]  alu_calc_carry;
+reg  [3:0]  alu_calc_res_1_val;
+reg  [3:0]  alu_calc_res_2_val;
+reg [0:0]  alu_calc_carry;
 reg  [0:0]  alu_calc_done;
 
 reg  [0:0]  alu_save_run;
@@ -550,7 +550,11 @@ always @(posedge i_clk) begin
                             alu_calc_done <= 1'b0;
                             alu_save_done <= 1'b0;
 
-                            if (aluop_zero) alu_save_run  <= 1'b1;
+                            if (aluop_zero) 
+                                begin
+                                    alu_calc_res_1_val <= 4'h0;
+                                    alu_save_run  <= 1'b1;
+                                end
                             else alu_prep_run <= 1'b1;
                         end
                     end
@@ -681,47 +685,127 @@ always @(posedge i_clk) begin
 
     /******************************************************************************************
      *
-     * ALU control
+     * ALU pipeline
      *
      *****************************************************************************************/
     
     if (i_clk_en && control_unit_ready) begin
 
+        /**********
+         *
+         * ALU prepare source values
+         * 
+         */
+
         if (alu_start && alu_prep_run && !alu_prep_done) begin
             $display("ALU_PREP %0d: [%d] b %h | p %h | e %h", i_phase, i_cycle_ctr, alu_ptr_begin, alu_prep_pos, alu_ptr_end);
+
+            case (dec_alu_reg_src_1)
+                `ALU_REG_A: alu_prep_src_1_val <= reg_A[alu_prep_pos];
+                `ALU_REG_B: alu_prep_src_1_val <= reg_B[alu_prep_pos];
+                `ALU_REG_C: alu_prep_src_1_val <= reg_C[alu_prep_pos];
+                `ALU_REG_D: alu_prep_src_1_val <= reg_D[alu_prep_pos];
+                default: $display("ALU_PREP %0d: [%d] unhandled src1 register %0d", i_phase, i_cycle_ctr, dec_alu_reg_src_1);
+            endcase
+
+            case (dec_alu_reg_src_2)
+                `ALU_REG_A: alu_prep_src_2_val <= reg_A[alu_prep_pos];
+                `ALU_REG_B: alu_prep_src_2_val <= reg_B[alu_prep_pos];
+                `ALU_REG_C: alu_prep_src_2_val <= reg_C[alu_prep_pos];
+                `ALU_REG_D: alu_prep_src_2_val <= reg_D[alu_prep_pos];
+                `ALU_REG_NONE: begin end
+                default: $display("ALU_PREP %0d: [%d] unhandled src2 register %0d", i_phase, i_cycle_ctr, dec_alu_reg_src_2);
+            endcase
+
+            /* need to prepare the carry here */
 
             if (alu_prep_pos == alu_ptr_end) begin
                 alu_prep_done <= 1'b1;
                 alu_prep_run  <= 1'b0;
             end
             alu_prep_pos <= alu_prep_pos + 4'h1;
+            /* start the calc thread */
+            alu_calc_run <= 1'b1;
         end
 
+        /**********
+         *
+         * ALU calculations
+         * 
+         */
+
         if (alu_start && alu_calc_run && !alu_calc_done) begin
-            $display("ALU_CALC %0d: [%d] b %h | p %h | e %h", i_phase, i_cycle_ctr, alu_ptr_begin, alu_calc_pos, alu_ptr_end);
+            $display("ALU_CALC %0d: [%d] b %h | p %h | e %h | s1 %h | s2 %h | c %b", 
+                     i_phase, i_cycle_ctr, alu_ptr_begin, alu_calc_pos, alu_ptr_end,
+                     alu_prep_src_1_val, alu_prep_src_2_val, alu_prep_carry);
+
+            case (alu_opcode)
+                `ALU_OP_ZERO: begin end // this doesn't run, handled directly by the save below
+                `ALU_OP_COPY: alu_calc_res_1_val <= alu_prep_src_1_val;
+                `ALU_OP_EXCH: 
+                    begin
+                        alu_calc_res_1_val <= alu_prep_src_2_val;
+                        alu_calc_res_2_val <= alu_prep_src_1_val;
+                    end
+                default: $display("ALU_CALC %0d: [%d] unhandled opcode %0d", i_phase, i_cycle_ctr, alu_opcode);
+            endcase
 
             if (alu_calc_pos == alu_ptr_end) begin
                 alu_calc_done <= 1'b1;
                 alu_calc_run  <= 1'b0;
             end
             alu_calc_pos <= alu_calc_pos + 4'h1;
+            /* start the save thread */
+            alu_save_run <= 1'b1;
         end
 
+        /**********
+         *
+         * ALU save results to registers
+         * 
+         */
+
         if (alu_start && alu_save_run && !alu_save_done) begin
-            $display("ALU_SAVE %0d: [%d] b %h | p %h | e %h | r1 %h | r2 %h | c %b", 
+            $display("ALU_SAVE %0d: [%d] b %h | p %h | e %h | r1 %h | r2 %h | c %b | rs1 %d | rs2 %d | d %d", 
                      i_phase, i_cycle_ctr, 
                      alu_ptr_begin, alu_save_pos, alu_ptr_end,
-                     alu_calc_res_1_val, alu_calc_res_2_val, alu_calc_carry);
+                     alu_calc_res_1_val, alu_calc_res_2_val, alu_calc_carry,
+                     alu_reg_src_1, alu_reg_src_2, alu_reg_dest);
+            
             case (alu_reg_dest)
-                `ALU_REG_C: reg_C[alu_save_pos] <= alu_calc_res_1_val;
+                `ALU_REG_A:  reg_A[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_B:  reg_B[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_C:  reg_C[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_D:  reg_D[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_D0: reg_D0[alu_save_pos[2:0]] <= alu_calc_res_1_val;
+                `ALU_REG_D1: reg_D1[alu_save_pos[2:0]] <= alu_calc_res_1_val;
                 default: $display("ALU_SAVE %0d: [%d] dest register %0d not supported", i_phase, i_cycle_ctr, alu_reg_dest);
             endcase
+            
+            if (alu_opcode == `ALU_OP_EXCH)
+                case (alu_reg_src_2)
+                    `ALU_REG_A:  reg_A[alu_save_pos]  <= alu_calc_res_2_val;
+                    `ALU_REG_B:  reg_B[alu_save_pos]  <= alu_calc_res_2_val;
+                    `ALU_REG_C:  reg_C[alu_save_pos]  <= alu_calc_res_2_val;
+                    `ALU_REG_D:  reg_D[alu_save_pos]  <= alu_calc_res_2_val;
+                    `ALU_REG_D0: reg_D0[alu_save_pos[2:0]] <= alu_calc_res_2_val;
+                    `ALU_REG_D1: reg_D1[alu_save_pos[2:0]] <= alu_calc_res_2_val;
+                    default: $display("ALU_SAVE %0d: [%d] exch: src_2 register %0d not supported", i_phase, i_cycle_ctr, alu_reg_src_2);
+                endcase
+
             if (alu_save_pos == alu_ptr_end) begin
                 alu_save_done <= 1'b1;
                 alu_save_run  <= 1'b0;
             end
             alu_save_pos <= alu_save_pos + 4'h1;
         end
+
+
+        /**********
+         *
+         * ALU end of operations
+         * 
+         */
 
         if (i_phases[2] && alu_start && alu_save_done) begin
             $display("CTRL     %0d: [%d] end of ALU operation", i_phase, i_cycle_ctr);
