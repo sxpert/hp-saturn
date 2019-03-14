@@ -52,6 +52,8 @@ module saturn_inst_decoder (
     o_jump_length,
     o_block_0x,
 
+    o_mem_pointer,
+
     o_instr_type,
     o_push_pc,
     o_instr_decoded,
@@ -91,6 +93,8 @@ output reg  [4:0]  o_alu_opcode;
 output reg  [2:0]  o_jump_length;
 output wire [0:0]  o_block_0x;
 assign o_block_0x = block_0x;
+
+output reg  [0:0]  o_mem_pointer;
 
 output reg  [3:0]  o_instr_type;
 output reg  [0:0]  o_push_pc;
@@ -134,6 +138,7 @@ reg [0:0] decode_started;
 
 reg [0:0] block_0x;
 reg [0:0] block_1x;
+reg [0:0] block_14x;
 reg [0:0] block_2x;
 reg [0:0] block_3x;
 reg [0:0] block_8x;
@@ -186,6 +191,7 @@ initial begin
 
     block_0x        = 1'b0;
     block_1x        = 1'b0;
+    block_14x       = 1'b0;
     block_2x        = 1'b0;
     block_3x        = 1'b0;
     block_8x        = 1'b0;
@@ -319,6 +325,7 @@ always @(posedge i_clk) begin
 
             if (block_1x) begin
                 case (i_nibble)
+                    4'h4: block_14x <= 1'b1;
                     4'hB:
                         begin
                             $display("DECODER  %0d: [%d] D)=(5)", i_phase, i_cycle_ctr, i_nibble);
@@ -337,6 +344,22 @@ always @(posedge i_clk) begin
                         end
                 endcase
                 block_1x        <= 1'b0;
+            end
+
+            if (block_14x) begin
+                $display("DECODER  %0d: [%d] block_14x %h", i_phase, i_cycle_ctr, i_nibble);
+                o_mem_pointer   <= i_nibble[0];
+                o_instr_type    <= i_nibble[1]?`INSTR_TYPE_MEM_READ:`INSTR_TYPE_MEM_WRITE;
+                o_alu_reg_dest  <= i_nibble[2]?`ALU_REG_C:`ALU_REG_A;
+                o_alu_reg_src_1 <= i_nibble[2]?`ALU_REG_C:`ALU_REG_A;
+                o_alu_reg_src_2 <= `ALU_REG_NONE;
+                o_alu_field     <= i_nibble[3]?`FT_FIELD_B:`FT_FIELD_A;
+                o_alu_ptr_begin <= 4'h0;
+                o_alu_ptr_end   <= i_nibble[3]?1:4;
+                o_instr_execute <= 1'b1;
+                o_instr_decoded <= 1'b1;
+                decode_started  <= 1'b0;
+                block_14x       <= 1'b0;
             end
 
             if (block_2x) begin
@@ -685,6 +708,7 @@ always @(posedge i_clk) begin
 
         block_0x        <= 1'b0;
         block_1x        <= 1'b0;
+        block_14x       <= 1'b0;
         block_2x        <= 1'b0;
         block_3x        <= 1'b0;
         block_8x        <= 1'b0;

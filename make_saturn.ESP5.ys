@@ -2,6 +2,7 @@ read_verilog -I. saturn_top.v
 read_verilog -I. saturn_serial.v
 read_verilog -I. saturn_bus.v 
 read_verilog -I. saturn_hp48gx_rom.v
+read_verilog -I. saturn_hp48gx_mmio.v
 read_verilog -I. saturn_bus_controller.v 
 read_verilog -I. saturn_debugger.v
 read_verilog -I. saturn_control_unit.v 

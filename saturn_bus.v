@@ -82,6 +82,36 @@ saturn_hp48gx_rom hp48gx_rom (
 
 wire [3:0] rom_bus_nibble_out;
 
+
+/**************************************************************************************************
+ *
+ * this is the io-ram module
+ * this module only takes one configuration parameter, size is fixed
+ *
+ *************************************************************************************************/
+
+saturn_hp48gx_mmio hp48gx_mmio (
+    .i_clk              (i_clk),
+    .i_clk_en           (i_clk_en),
+    .i_reset            (i_reset),
+    .i_phase            (phase),
+    .i_phases           (phases),
+    .i_cycle_ctr        (cycle_ctr),
+    .i_debug_cycle      (dbg_debug_cycle),
+
+    .i_bus_clk_en       (bus_clk_en),
+    .i_bus_is_data      (ctrl_bus_is_data),
+    .o_bus_nibble_out   (mmio_bus_nibble_out),
+    .i_bus_nibble_in    (ctrl_bus_nibble_out),
+    .i_bus_daisy        (1'b1),
+    .o_bus_daisy        (mmio_daisy_out),
+    .o_bus_active       (mmio_active)
+);
+
+wire [3:0] mmio_bus_nibble_out;
+wire [0:0] mmio_daisy_out;
+wire [0:0] mmio_active;
+
 /**************************************************************************************************
  *
  * the main processor is hidden behind this bus controller device
@@ -151,6 +181,7 @@ assign o_halt = bus_halt || ctrl_halt;
  */
 always @(*) begin
     ctrl_bus_nibble_in = rom_bus_nibble_out;
+    if (mmio_active) ctrl_bus_nibble_in = mmio_bus_nibble_out;
 end
 
 always @(*) begin

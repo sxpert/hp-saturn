@@ -119,9 +119,12 @@
 `define INSTR_TYPE_SET_MODE     2
 `define INSTR_TYPE_JUMP         3
 `define INSTR_TYPE_RTN          4
-`define INSTR_TYPE_LOAD         5
-`define INSTR_TYPE_CONFIG       6
-`define INSTR_TYPE_RESET        7
+`define INSTR_TYPE_LOAD_LENGTH  5
+`define INSTR_TYPE_LOAD         6
+`define INSTR_TYPE_MEM_READ     7
+`define INSTR_TYPE_MEM_WRITE    8
+`define INSTR_TYPE_CONFIG       9
+`define INSTR_TYPE_RESET       10
 
 
 `define INSTR_TYPE_NONE         15

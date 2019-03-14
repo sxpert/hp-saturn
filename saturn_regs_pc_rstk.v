@@ -95,12 +95,14 @@ reg  [0:0]  jump_exec;
 reg  [2:0]  jump_counter;
 reg  [19:0] jump_base;
 reg  [19:0] jump_offset;
+reg  [19:0] jump_rel_addr;
 
 wire [0:0]  jump_rel2 = i_jump_instr && (i_jump_length == 3'd1);
 wire [0:0]  jump_rel3 = i_jump_instr && (i_jump_length == 3'd2);
 wire [0:0]  jump_rel4 = i_jump_instr && (i_jump_length == 3'd3);
 wire [0:0]  jump_abs5 = i_jump_instr && (i_jump_length == 3'd4);
 wire [0:0]  jump_relative = jump_rel2 || jump_rel3 || jump_rel4;
+wire [0:0]  is_rtn = i_phases[2] && i_block_0x && !i_nibble[3] && !i_nibble[2];
 
 reg  [19:0] jump_next_offset;
 
@@ -120,6 +122,10 @@ reg  [19:0] reg_PC;
 reg  [2:0]  reg_rstk_ptr;
 reg  [19:0] reg_RSTK[0:7];
 
+reg  [2:0]  rstk_ptr_to_push_at;
+reg  [19:0] addr_to_return_to;
+reg  [2:0]  rstk_ptr_after_pop;
+
 assign o_current_pc = reg_PC;
 
 initial begin
@@ -131,6 +137,11 @@ initial begin
     jump_counter = 3'd0;
     reg_PC       = 20'h00000;
     reg_rstk_ptr = 3'd7;
+
+    addr_to_return_to   = 20'b0;
+    rstk_ptr_after_pop  = 3'd0;
+    rstk_ptr_to_push_at = 3'd0;
+    jump_rel_addr       = 20'b0;
 end
 
 /*
@@ -184,10 +195,13 @@ always @(posedge i_clk) begin
          * address of nibble after the offset when gosub
          */
         if (i_phases[3] && do_jump_instr && !jump_decode) begin
+`ifdef SIM
             $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, i_jump_length, reg_PC);
+`endif
             jump_counter <= 3'd0;
             jump_base    <= reg_PC;
             jump_decode  <= 1'b1;
+            rstk_ptr_to_push_at <= (reg_rstk_ptr + 3'o1) & 3'o7;
         end
 
         /* one step of the calculation (one nibble of data came in) */
@@ -209,28 +223,24 @@ always @(posedge i_clk) begin
                 $write("\n");
             end
         end
-
-        // /* all done, apply to PC and RSTK */
-        // if (i_phases[3] && do_jump_instr && jump_exec) begin
-        //     $write("PC_RSTK  %0d: [%d] execute jump %0d", i_phase, i_cycle_ctr, i_jump_length);
-        //     if (i_push_pc) begin
-        //         $write(" ( push %5h => RSTK[%0d])", reg_PC, reg_rstk_ptr + 3'd1);
-        //         reg_RSTK[(reg_rstk_ptr + 3'o1)&3'o7] <= reg_PC;
-        //         reg_rstk_ptr <= reg_rstk_ptr + 3'd1;
-        //     end
-        //     $display("");
-        //     reg_PC      <= jump_relative ? jump_offset + jump_base : jump_offset;
-        //     jump_exec   <= 1'b0;
-        //     o_reload_pc <= 1'b0;
-        // end
+    end
 
         /*
          * RTN instruction
          */
-
+    if (i_clk_en && !i_bus_busy && !i_exec_unit_busy) begin
         /* this happens at the same time in the decoder */
-        if (i_phases[2] && i_block_0x && (i_nibble[3:2] == 2'b00)) begin
+        if (i_phases[1]) begin
+            addr_to_return_to  <= reg_RSTK[reg_rstk_ptr];
+            rstk_ptr_after_pop <= (reg_rstk_ptr - 3'o1) & 3'o7; 
+        end
+
+        if (is_rtn) begin
             /* this is an RTN */
+            reg_PC                 <= addr_to_return_to;
+            reg_RSTK[reg_rstk_ptr] <= 20'h00000;
+            reg_rstk_ptr           <= rstk_ptr_after_pop;
+`ifdef SIM
             $write("PC_RSTK  %0d: [%d] RTN", i_phase, i_cycle_ctr); 
             case (i_nibble)
                 4'h0: $display("SXM");
@@ -238,19 +248,13 @@ always @(posedge i_clk) begin
                 4'h3: $display("CC");
                 default: begin end
             endcase
-            // o_reload_pc            <= 1'b1; 
+            $display("PC_RSTK  %0d: [%d] execute RTN back to %5h", i_phase, i_cycle_ctr, addr_to_return_to);
+`endif
         end
 
-        if (i_phases[3] && i_rtn_instr) begin
-            $display("PC_RSTK  %0d: [%d] execute RTN back to %5h", i_phase, i_cycle_ctr, reg_RSTK[reg_rstk_ptr]);
-            reg_PC                 <= reg_RSTK[reg_rstk_ptr];
-            reg_RSTK[reg_rstk_ptr] <= 20'h00000;
-            reg_rstk_ptr           <= (reg_rstk_ptr - 3'd1) & 3'd7;
-            /* o_reload_pc was set in advance above */
-            // o_reload_pc <= 1'b0;
-        end
 
     end
+
 
     // if (i_phases[0] && i_clk_en) begin
     //     $write("RSTK : ptr %0d | ", reg_rstk_ptr);
