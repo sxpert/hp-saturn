@@ -167,7 +167,7 @@ always @(posedge i_clk) begin
                 `BUSCMD_PC_READ: $write("PC_READ <= rom[%5h]: %h", local_pc, imm_nibble);
                 `BUSCMD_DP_READ: $write("DP_READ <= rom[%5h]: %h", local_dp, imm_nibble);
                 `BUSCMD_LOAD_PC: $write("LOAD_PC - pc %5h, %h pos %0d", local_pc, i_bus_nibble_in, addr_pos_ctr);
-                `BUSCMD_LOAD_DP: $write("LOAD_PC - pc %5h, %h pos %0d", local_pc, i_bus_nibble_in, addr_pos_ctr);
+                `BUSCMD_LOAD_DP: $write("LOAD_DP - dp %5h, %h pos %0d", local_dp, i_bus_nibble_in, addr_pos_ctr);
                 default: $write("last_command %h nibble %h - UNHANDLED", last_cmd, i_bus_nibble_in);
             endcase
             if (addr_pos_ctr == 4) begin
