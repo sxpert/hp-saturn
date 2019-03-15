@@ -198,10 +198,11 @@ always @(posedge i_clk) begin
          */
         if (i_phases[3] && do_jump_instr && !jump_decode) begin
 `ifdef SIM
-            $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, i_jump_length, reg_PC);
+            $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, 
+                     i_jump_length, i_push_pc? reg_PC + {{17{1'b0}},(i_jump_length + 3'd1)} : reg_PC);
 `endif
             jump_counter <= 3'd0;
-            jump_base    <= reg_PC;
+            jump_base    <= i_push_pc? reg_PC + {{17{1'b0}},(i_jump_length + 3'd1)} : reg_PC;
             jump_decode  <= 1'b1;
             rstk_ptr_to_push_at <= (reg_rstk_ptr + 3'o1) & 3'o7;
         end

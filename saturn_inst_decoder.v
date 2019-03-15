@@ -266,10 +266,10 @@ always @(posedge i_clk) begin
                 4'h1: block_1x <= 1'b1;
                 4'h2: block_2x <= 1'b1;
                 4'h3: block_3x <= 1'b1;
-                4'h6: 
+                4'h6, 4'h7: 
                     begin
                         o_instr_type    <= `INSTR_TYPE_JUMP;
-                        // o_push_pc       <= i_nibble[1]; 
+                        o_push_pc       <= i_nibble[0]; 
                         o_jump_length   <= 3'd2;
                         jump_counter    <= 3'd0;
                         o_instr_execute <= 1'b1;
