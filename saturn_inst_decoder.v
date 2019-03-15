@@ -137,6 +137,9 @@ reg [0:0] decode_started;
 reg [0:0] block_0x;
 reg [0:0] block_1x;
 reg [0:0] block_14x;
+reg [0:0] block_15x;
+reg [0:0] block_15xa;
+reg [0:0] block_15xn;
 reg [0:0] block_2x;
 reg [0:0] block_3x;
 reg [0:0] block_8x;
@@ -162,6 +165,7 @@ reg [2:0] jump_counter;
 reg [3:0] load_counter;
 reg [3:0] load_count;
 reg [1:0] fields_table;
+reg [0:0] read_write;
 
 /*
  * initialization
@@ -192,6 +196,9 @@ initial begin
     block_0x        = 1'b0;
     block_1x        = 1'b0;
     block_14x       = 1'b0;
+    block_15x       = 1'b0;
+    block_15xa      = 1'b0;
+    block_15xn      = 1'b0;
     block_2x        = 1'b0;
     block_3x        = 1'b0;
     block_8x        = 1'b0;
@@ -330,6 +337,7 @@ always @(posedge i_clk) begin
             if (block_1x) begin
                 case (i_nibble)
                     4'h4: block_14x <= 1'b1;
+                    4'h5: block_15x <= 1'b1;
                     4'h9, 4'hA, 4'hB, 4'hD, 4'hE, 4'hF:
                         begin
                             $display("DECODER  %0d: [%d] D)=(5)", i_phase, i_cycle_ctr, i_nibble);
@@ -364,6 +372,45 @@ always @(posedge i_clk) begin
                 o_instr_decoded <= 1'b1;
                 decode_started  <= 1'b0;
                 block_14x       <= 1'b0;
+            end
+
+            if (block_15x) begin
+                $display("DECODER  %0d: [%d] block_15x %h", i_phase, i_cycle_ctr, i_nibble);
+                o_mem_pointer   <= i_nibble[0];
+                read_write      <= i_nibble[1];
+                o_alu_reg_dest  <= i_nibble[2]?`ALU_REG_C:`ALU_REG_A;
+                o_alu_reg_src_1 <= i_nibble[2]?`ALU_REG_C:`ALU_REG_A;
+                o_alu_reg_src_2 <= `ALU_REG_NONE;
+                if (!i_nibble[3]) begin
+                    $display("DECODER  %0d: [%d] heading to block_15xa", i_phase, i_cycle_ctr);
+                    block_15xa   <= 1'b1;
+                    fields_table <= `FT_A_B;
+                    block_FIELDS <= 1'b1;
+                end else begin
+                    $display("DECODER  %0d: [%d] heading to block_15xn", i_phase, i_cycle_ctr);
+                    block_15xn  <= 1'b1;
+                end
+                block_15x       <= 1'b0;                
+            end
+
+            if (block_15xa) begin
+                $display("DECODER  %0d: [%d] block_15xa %h", i_phase, i_cycle_ctr, i_nibble);
+                o_instr_type    <= read_write?`INSTR_TYPE_MEM_READ:`INSTR_TYPE_MEM_WRITE;
+                o_instr_execute <= 1'b1;
+                o_instr_decoded <= 1'b1;
+                decode_started  <= 1'b0;
+                block_15xa      <= 1'b0;                
+            end
+
+            if (block_15xn) begin
+                $display("DECODER  %0d: [%d] block_15xn %h", i_phase, i_cycle_ctr, i_nibble);
+                o_instr_type    <= read_write?`INSTR_TYPE_MEM_READ:`INSTR_TYPE_MEM_WRITE;
+                o_alu_ptr_begin <= 4'h0;
+                o_alu_ptr_end   <= i_nibble;
+                o_instr_execute <= 1'b1;
+                o_instr_decoded <= 1'b1;
+                decode_started  <= 1'b0;
+                block_15xn      <= 1'b0;                
             end
 
             if (block_2x) begin
@@ -755,6 +802,9 @@ always @(posedge i_clk) begin
         block_0x        <= 1'b0;
         block_1x        <= 1'b0;
         block_14x       <= 1'b0;
+        block_15x       <= 1'b0;
+        block_15xa      <= 1'b0;
+        block_15xn      <= 1'b0;
         block_2x        <= 1'b0;
         block_3x        <= 1'b0;
         block_8x        <= 1'b0;
