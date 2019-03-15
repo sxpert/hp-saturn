@@ -226,6 +226,7 @@ always @(posedge i_clk) begin
                         6'd3: registers_str[registers_ctr] <= "C";
                         6'd4: registers_str[registers_ctr] <= ":";
                         6'd5: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd5) begin
@@ -263,6 +264,7 @@ always @(posedge i_clk) begin
                         6'd6: registers_str[registers_ctr] <= " ";
                         6'd7: registers_str[registers_ctr] <= hex[{3'b000,i_reg_carry}];
                         6'd8: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd8) begin
@@ -280,6 +282,7 @@ always @(posedge i_clk) begin
                         6'd4: registers_str[registers_ctr] <= "E";
                         6'd5: registers_str[registers_ctr] <= i_reg_alu_mode?"C":"X";
                         6'd6: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd6) begin
@@ -297,6 +300,7 @@ always @(posedge i_clk) begin
                         6'd4: registers_str[registers_ctr] <= hex[{1'b0, i_reg_rstk_ptr}];
                         6'd5: registers_str[registers_ctr] <= " ";
                         6'd6: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd6) begin
@@ -314,6 +318,7 @@ always @(posedge i_clk) begin
                         6'd4: registers_str[registers_ctr] <= "7";
                         6'd5: registers_str[registers_ctr] <= ":";
                         6'd6: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd6) begin
@@ -343,6 +348,7 @@ always @(posedge i_clk) begin
                         6'd6: registers_str[registers_ctr] <= hex[i_reg_p];
                         6'd7: registers_str[registers_ctr] <= " ";
                         6'd8: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd8) begin
@@ -362,6 +368,7 @@ always @(posedge i_clk) begin
                         6'd6: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[2]}];
                         6'd7: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[1]}];
                         6'd8: registers_str[registers_ctr] <= hex[{3'b000, i_reg_hst[0]}];
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd8) begin
@@ -386,6 +393,7 @@ always @(posedge i_clk) begin
                         6'd2: registers_str[registers_ctr] <= ":";
                         6'd3: registers_str[registers_ctr] <= " ";
                         6'd4: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd4) begin
@@ -414,6 +422,7 @@ always @(posedge i_clk) begin
                         6'd6: registers_str[registers_ctr] <= "6";
                         6'd7: registers_str[registers_ctr] <= ":";
                         6'd8: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd8) begin
@@ -440,6 +449,7 @@ always @(posedge i_clk) begin
                         6'd3: registers_str[registers_ctr] <= ":";
                         6'd4: registers_str[registers_ctr] <= " ";
                         6'd5: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd5) begin
@@ -467,6 +477,7 @@ always @(posedge i_clk) begin
                         6'd3: registers_str[registers_ctr] <= ":";
                         6'd4: registers_str[registers_ctr] <= " ";
                         6'd5: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd5) begin
@@ -494,6 +505,7 @@ always @(posedge i_clk) begin
                         6'd3: registers_str[registers_ctr] <= ":";
                         6'd4: registers_str[registers_ctr] <= " ";
                         6'd5: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd5) begin
@@ -521,6 +533,7 @@ always @(posedge i_clk) begin
                         6'd3: registers_str[registers_ctr] <= ":";
                         6'd4: registers_str[registers_ctr] <= " ";
                         6'd5: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd5) begin
@@ -548,6 +561,7 @@ always @(posedge i_clk) begin
                         6'd3: registers_str[registers_ctr] <= "0";
                         6'd4: registers_str[registers_ctr] <= ":";
                         6'd5: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd5) begin
@@ -575,6 +589,7 @@ always @(posedge i_clk) begin
                         6'd3: registers_str[registers_ctr] <= "1";
                         6'd4: registers_str[registers_ctr] <= ":";
                         6'd5: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd5) begin
@@ -675,6 +690,7 @@ always @(posedge i_clk) begin
                         6'd4: registers_str[registers_ctr] <= "0";
                         6'd5: registers_str[registers_ctr] <= ":";
                         6'd6: registers_str[registers_ctr] <= " ";
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd6) begin
@@ -697,6 +713,7 @@ always @(posedge i_clk) begin
                     case (registers_reg_ptr)
                         6'd0: registers_str[registers_ctr] <= 8'd10;
                         6'd1: registers_str[registers_ctr] <= 8'd13;
+                        default: begin end
                     endcase
                     registers_reg_ptr <= registers_reg_ptr + 6'd1;
                     if (registers_reg_ptr == 6'd1) begin
