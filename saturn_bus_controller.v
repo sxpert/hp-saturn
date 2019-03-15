@@ -84,6 +84,7 @@ saturn_control_unit control_unit (
     .o_program_data    (ctrl_unit_prog_data),
 
     .o_no_read         (ctrl_unit_no_read),
+    .i_read            (bus_read),
     .i_nibble          (i_bus_nibble_in),
 
     .o_error           (ctrl_unit_error),
@@ -119,7 +120,7 @@ saturn_control_unit control_unit (
 
 wire [0:0]  ctrl_unit_error;
 wire [4:0]  ctrl_unit_prog_addr;
-wire [4:0]  ctrl_unit_prog_data;
+wire [5:0]  ctrl_unit_prog_data;
 wire [0:0]  ctrl_unit_no_read;
 
 wire [0:0]  alu_busy;
@@ -225,6 +226,7 @@ reg  [3:0] dbg_bus_data;
 
 reg  [0:0] bus_error;
 reg  [0:0] bus_busy;
+reg  [0:0] bus_read;
 wire [0:0] bus_clk_en = !o_debug_cycle && i_clk_en;
 
 /* 
@@ -282,6 +284,7 @@ always @(posedge i_clk) begin
                         bus_prog_addr <= bus_prog_addr + 5'b1;
                         o_bus_is_data <= !ctrl_unit_prog_data[4];
                         o_bus_nibble_out <= ctrl_unit_prog_data[3:0];
+                        bus_read <= ctrl_unit_prog_data[5];
                         o_bus_clk_en <= 1'b1;
                         bus_busy <= 1'b1;
 
