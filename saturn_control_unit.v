@@ -604,6 +604,7 @@ always @(posedge i_clk) begin
                         case (dec_alu_reg_dest)
                             `ALU_REG_C:  reg_C[dec_alu_ptr_begin] <= dec_alu_imm_value;
                             `ALU_REG_D0: reg_D0[dec_alu_ptr_begin[2:0]] <= dec_alu_imm_value;
+                            `ALU_REG_D1: reg_D1[dec_alu_ptr_begin[2:0]] <= dec_alu_imm_value;
                             default: 
                                 begin 
                                     $display("CTRL     %0d: [%d] unsupported register for load %0d", i_phase, i_cycle_ctr, dec_alu_reg_dest);

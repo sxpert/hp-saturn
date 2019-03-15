@@ -326,14 +326,14 @@ always @(posedge i_clk) begin
             if (block_1x) begin
                 case (i_nibble)
                     4'h4: block_14x <= 1'b1;
-                    4'hB:
+                    4'h9, 4'hA, 4'hB, 4'hD, 4'hE, 4'hF:
                         begin
                             $display("DECODER  %0d: [%d] D)=(5)", i_phase, i_cycle_ctr, i_nibble);
-                            o_alu_reg_dest  <= `ALU_REG_D0;
+                            o_alu_reg_dest  <= i_nibble[2]?`ALU_REG_D1:`ALU_REG_D0;
                             o_alu_ptr_begin <= 4'h0;
-                            o_alu_ptr_end   <= 4'h4;
+                            o_alu_ptr_end   <= { 1'b0, i_nibble[1]&i_nibble[0], i_nibble[1]&!i_nibble[0], i_nibble[1]^i_nibble[0] };
                             load_counter    <= 4'h0;
-                            load_count      <= 4'h4;
+                            load_count      <= { 1'b0, i_nibble[1]&i_nibble[0], i_nibble[1]&!i_nibble[0], i_nibble[1]^i_nibble[0] };
                             o_instr_execute <= 1'b1;
                             block_LOAD      <= 1'b1;
                         end
