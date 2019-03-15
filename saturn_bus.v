@@ -82,6 +82,33 @@ saturn_hp48gx_rom hp48gx_rom (
 
 wire [3:0] rom_bus_nibble_out;
 
+/**************************************************************************************************
+ *
+ * this is the sysram module
+ *
+ *************************************************************************************************/
+
+saturn_hp48gx_sysram hp48gx_sysram (
+    .i_clk              (i_clk),
+    .i_clk_en           (i_clk_en),
+    .i_reset            (i_reset),
+    .i_phase            (phase),
+    .i_phases           (phases),
+    .i_cycle_ctr        (cycle_ctr),
+    .i_debug_cycle      (dbg_debug_cycle),
+
+    .i_bus_clk_en       (bus_clk_en),
+    .i_bus_is_data      (ctrl_bus_is_data),
+    .o_bus_nibble_out   (sysram_bus_nibble_out),
+    .i_bus_nibble_in    (ctrl_bus_nibble_out),
+    .i_bus_daisy        (mmio_daisy_out),
+    .o_bus_daisy        (sysram_daisy_out),
+    .o_bus_active       (sysram_active)
+);
+
+wire [3:0] sysram_bus_nibble_out;
+wire [0:0] sysram_daisy_out;
+wire [0:0] sysram_active;
 
 /**************************************************************************************************
  *
@@ -181,6 +208,7 @@ assign o_halt = bus_halt || ctrl_halt;
  */
 always @(*) begin
     ctrl_bus_nibble_in = rom_bus_nibble_out;
+    if (sysram_active) ctrl_bus_nibble_in = sysram_bus_nibble_out;
     if (mmio_active) ctrl_bus_nibble_in = mmio_bus_nibble_out;
 end
 
@@ -202,7 +230,7 @@ always @(posedge i_clk) begin
     end 
 
 `ifdef SIM
-    if (cycle_ctr == 202) begin
+    if (cycle_ctr == 265) begin
         bus_halt <= 1'b1;
         $display("BUS      %0d: [%d] enough cycles for now", phase, cycle_ctr);
     end
