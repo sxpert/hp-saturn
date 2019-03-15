@@ -112,6 +112,10 @@ output reg  [7:0] led;
 output wire [0:0] wifi_gpio0;
 output wire [0:0] ftdi_rxd;
 
+// Verilator lint_off UNUSED
+wire [4:0] unused = { btn[6:2] };
+// Verilator lint_on UNUSED 
+
 /* this is necessary, otherwise, the esp32 module reboots the fpga in passthrough */
 assign wifi_gpio0 = btn[0];
 
@@ -140,16 +144,23 @@ saturn_serial serial_port (
 );
 
 reg  [25:0] delay;
-reg  [0:0]  clk2;
 reg  [0:0]  clk_en;
 reg  [0:0]  reset;
 wire [0:0]  halt;
 wire [1:0]  phase;
+
+// Verilator lint_off UNUSED
 wire [31:0] cycle_ctr;
+// Verilator lint_on UNUSED 
+
 wire [0:0]  instr_decoded;
 wire [0:0]  debug_cycle;
 wire [7:0]  char_to_send;
+
+// Verilator lint_off UNUSED
 wire [9:0]  char_counter;
+// Verilator lint_on UNUSED 
+
 wire [0:0]  char_valid;
 wire [0:0]  char_send;
 wire [0:0]  serial_busy;
@@ -175,7 +186,6 @@ initial begin
     led   = 8'h00;
     delay = `DELAY_START;
     reset = 1'b1;
-    clk2  = 1'b0;
 end
 
 always @(posedge clk_25mhz) begin

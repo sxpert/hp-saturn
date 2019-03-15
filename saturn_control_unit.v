@@ -274,7 +274,6 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_cycle_ctr        (i_cycle_ctr),
 
     .i_bus_busy         (i_bus_busy),
-    // .i_alu_busy         (o_alu_busy),
     .i_exec_unit_busy   (o_exec_unit_busy),
 
     .i_nibble           (i_nibble),
@@ -282,10 +281,8 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_jump_length      (dec_jump_length),
     .i_block_0x         (dec_block_0x),
     .i_push_pc          (dec_push_pc),
-    .i_rtn_instr        (inst_rtn),
     
     .o_current_pc       (reg_PC),
-    .o_reload_pc        (reload_PC),
 
     .i_dbg_rstk_ptr     (i_dbg_rstk_ptr),
     .o_dbg_rstk_val     (o_dbg_rstk_val),
@@ -348,7 +345,7 @@ reg  [0:0]  alu_calc_run;
 reg  [3:0]  alu_calc_pos;
 reg  [3:0]  alu_calc_res_1_val;
 reg  [3:0]  alu_calc_res_2_val;
-reg [0:0]  alu_calc_carry;
+reg  [0:0]  alu_calc_carry;
 reg  [0:0]  alu_calc_done;
 
 reg  [0:0]  alu_save_run;
@@ -363,7 +360,6 @@ wire [0:0]  alu_done = alu_calc_done || alu_save_done;
 /*
  * should we reload the PC after it has been changed
  */
-wire [0:0]  reload_PC;
 
 always @(i_dbg_register, i_dbg_reg_ptr) begin
     case (i_dbg_register)
@@ -395,7 +391,6 @@ reg  [0:0]  control_unit_ready;
 reg  [5:0]  bus_program[0:31];
 reg  [4:0]  bus_prog_addr;
 reg  [2:0]  addr_nibble_ptr;
-reg  [0:0]  load_pc_loop;
 
 reg  [0:0]  send_reg_PC;
 reg  [0:0]  send_reg_C_A;
@@ -409,7 +404,7 @@ reg  [3:0]  mem_access_ptr;
 reg  [0:0]  send_pc_read;
 
 
-wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
+//wire [3:0] reg_PC_nibble = reg_PC[addr_nibble_ptr*4+:4];
 
 assign o_program_data = bus_program[i_program_address];
 assign o_program_address = bus_prog_addr;
@@ -423,7 +418,6 @@ initial begin
     control_unit_ready = 1'b0;
     bus_prog_addr      = 5'd0;
     addr_nibble_ptr    = 3'd0;
-    load_pc_loop       = 1'b0;
 
     send_reg_PC         = 1'b0;
     send_reg_C_A        = 1'b0;
@@ -454,8 +448,8 @@ always @(posedge i_clk) begin
         reg_B[init_counter]  <= 4'h0;
         reg_C[init_counter]  <= 4'h0;
         reg_D[init_counter]  <= 4'h0;
-        reg_D0[init_counter] <= 4'h0;
-        reg_D1[init_counter] <= 4'h0;
+        reg_D0[init_counter[2:0]] <= 4'h0;
+        reg_D1[init_counter[2:0]] <= 4'h0;
         reg_R0[init_counter] <= 4'h0;
         reg_R1[init_counter] <= 4'h0;
         reg_R2[init_counter] <= 4'h0;
@@ -947,7 +941,6 @@ always @(posedge i_clk) begin
         control_unit_ready <= 1'b0;
         bus_prog_addr      <= 5'd0;
         addr_nibble_ptr    <= 3'd0;
-        load_pc_loop       <= 1'b0;
 
         send_reg_PC         <= 1'b0;
         send_reg_C_A        <= 1'b0;

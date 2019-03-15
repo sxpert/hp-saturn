@@ -29,7 +29,6 @@ module saturn_regs_pc_rstk (
     i_cycle_ctr,
 
     i_bus_busy,
-    i_alu_busy,
     i_exec_unit_busy,
 
     i_nibble,
@@ -37,7 +36,6 @@ module saturn_regs_pc_rstk (
     i_jump_length,
     i_block_0x,
     i_push_pc,
-    i_rtn_instr,
 
     o_current_pc,
     o_reload_pc,
@@ -52,11 +50,15 @@ input  wire [0:0]  i_clk;
 input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
 input  wire [3:0]  i_phases;
+
+// Verilator lint_off UNUSED
+wire [0:0] unused = { i_phases[0] };
+// Verilator lint_on UNUSED 
+
 input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
 
 input  wire [0:0]  i_bus_busy;
-input  wire [0:0]  i_alu_busy;
 input  wire [0:0]  i_exec_unit_busy;
 
 input  wire [3:0]  i_nibble;
@@ -64,7 +66,6 @@ input  wire [0:0]  i_jump_instr;
 input  wire [2:0]  i_jump_length;
 input  wire [0:0]  i_block_0x;
 input  wire [0:0]  i_push_pc;
-input  wire [0:0]  i_rtn_instr;
  
 output wire [19:0] o_current_pc;
 output reg  [0:0]  o_reload_pc;
@@ -91,16 +92,14 @@ wire [0:0]  do_jump_instr = !just_reset && i_jump_instr;
 reg  [0:0]  just_reset;
 reg  [2:0]  init_counter;
 reg  [0:0]  jump_decode;
-reg  [0:0]  jump_exec;
 reg  [2:0]  jump_counter;
 reg  [19:0] jump_base;
-reg  [19:0] jump_offset;
-reg  [19:0] jump_rel_addr;
+reg  [15:0] jump_offset;
 
 wire [0:0]  jump_rel2 = i_jump_instr && (i_jump_length == 3'd1);
 wire [0:0]  jump_rel3 = i_jump_instr && (i_jump_length == 3'd2);
 wire [0:0]  jump_rel4 = i_jump_instr && (i_jump_length == 3'd3);
-wire [0:0]  jump_abs5 = i_jump_instr && (i_jump_length == 3'd4);
+//wire [0:0]  jump_abs5 = i_jump_instr && (i_jump_length == 3'd4);
 wire [0:0]  jump_relative = jump_rel2 || jump_rel3 || jump_rel4;
 
 /* this appears to be SLOW */
@@ -135,7 +134,6 @@ initial begin
     just_reset   = 1'b1;
     init_counter = 3'd0;
     jump_decode  = 1'b0;
-    jump_exec    = 1'b0;
     jump_counter = 3'd0;
     reg_PC       = 20'h00000;
     reg_rstk_ptr = 3'd7;
@@ -143,7 +141,6 @@ initial begin
     addr_to_return_to   = 20'b0;
     rstk_ptr_after_pop  = 3'd0;
     rstk_ptr_to_push_at = 3'd0;
-    jump_rel_addr       = 20'b0;
 end
 
 /*
@@ -210,7 +207,7 @@ always @(posedge i_clk) begin
         /* one step of the calculation (one nibble of data came in) */
         if (i_phases[2] && do_jump_instr && jump_decode) begin
             $display("PC_RSTK  %0d: [%d] decode jump %0d/%0d %h %5h", i_phase, i_cycle_ctr, i_jump_length, jump_counter, i_nibble, jump_next_offset);
-            jump_offset  <= jump_next_offset;
+            jump_offset  <= jump_next_offset[15:0];
             jump_counter <= jump_counter + 3'd1;
             if (jump_counter == i_jump_length) begin
                 $write("PC_RSTK  %0d: [%d] execute jump(%0d) jump_base %h jump_next_offset %h", i_phase, i_cycle_ctr, i_jump_length, jump_base, jump_next_offset);
@@ -258,26 +255,15 @@ always @(posedge i_clk) begin
 
     end
 
-
-    // if (i_phases[0] && i_clk_en) begin
-    //     $write("RSTK : ptr %0d | ", reg_rstk_ptr);
-    //     for (tmp_ctr = 4'd0; tmp_ctr < 4'd8; tmp_ctr = tmp_ctr + 4'd1)
-    //         $write("%0d => %5h | ", tmp_ctr, reg_RSTK[tmp_ctr]);
-    //     $write("\n");
-    // end
-
     if (i_reset) begin
         o_reload_pc  <= 1'b0;
         just_reset   <= 1'b1;
         init_counter <= 3'd0;
         jump_decode  <= 1'b0;
-        jump_exec    <= 1'b0;
         jump_counter <= 3'd0;
         reg_PC       <= 20'h00000;
         reg_rstk_ptr <= 3'd7;
     end
 end
-
-reg [3:0] tmp_ctr;
 
 endmodule

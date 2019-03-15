@@ -159,8 +159,6 @@ always @(posedge i_clk) begin
         o_bus_nibble_out <= sysram_data[address];
 end
 
-reg [0:0] junk_bit_0;
-
 always @(posedge i_clk) begin
     if (can_write) begin
         sysram_data[address] <= i_bus_nibble_in;
@@ -368,8 +366,7 @@ always @(posedge i_clk) begin
 end
 
 // Verilator lint_off UNUSED
-wire [(20 -`SYSRAM_BITS):0] unused;
-assign unused = { junk_bit_0, access_pointer[19:`SYSRAM_BITS] };
+wire [(19 -`SYSRAM_BITS):0] unused = { access_pointer[19:`SYSRAM_BITS] };
 // Verilator lint_on UNUSED 
 
 endmodule
