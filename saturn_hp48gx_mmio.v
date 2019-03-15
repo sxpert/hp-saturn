@@ -254,7 +254,7 @@ always @(posedge i_clk) begin
                                 if (can_read) $write("<= mmio[%5h]: %h", local_pc, imm_nibble);
                                 else $write("inactive");
                             end
-                        else $write("(ignore)");
+                        else $write("(unconfigured)");
                     end 
                 `BUSCMD_DP_READ:   
                     begin
@@ -264,7 +264,7 @@ always @(posedge i_clk) begin
                                 if (can_read) $write("<= mmio[%5h]: %h", local_dp, imm_nibble);
                                 else $write("(inactive)");
                             end
-                        else $write("(ignore)");
+                        else $write("(unconfigured)");
                     end
                 `BUSCMD_DP_WRITE:
                     begin
