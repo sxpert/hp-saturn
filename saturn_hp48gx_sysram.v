@@ -80,6 +80,9 @@ reg  [19:0] local_dp;
 reg  [0:0]  pc_active; 
 reg  [0:0]  dp_active; 
 reg  [3:0]  read_nibble;
+reg  [0:0]  exec_write;
+reg  [3:0]  write_nibble;
+reg  [`SYSRAM_BITS-1:0]  write_addr;
 
 reg  [0:0]  base_conf;
 reg  [0:0]  length_conf;
@@ -93,6 +96,10 @@ initial begin
     local_dp         = 20'b0;
     pc_active        = 1'b0;
     dp_active        = 1'b0;
+    read_nibble      = 4'b0;
+    exec_write       = 1'b0;
+    write_nibble     = 4'b0;
+    write_addr       = {`SYSRAM_BITS{1'b0}};
     base_conf        = 1'b0;
     length_conf      = 1'b0;
     base_addr        = 20'b0;
@@ -138,18 +145,23 @@ wire [`SYSRAM_BITS-1:0] address = access_pointer[`SYSRAM_BITS-1:0];
 
 
 wire [0:0]  gen_active = i_clk_en && !i_debug_cycle && i_phase_0 && (do_read || do_write);
-wire [0:0]  pre_read   = i_clk_en && i_phase_0 && !i_debug_cycle && do_read;
+wire [0:0]  pre_read   = i_clk_en && i_phase_0 && !i_debug_cycle && do_read & active;
 wire [0:0]  can_read   = i_bus_clk_en && i_bus_is_data && do_read && active;
 wire [0:0]  can_write  = i_bus_clk_en && i_bus_is_data && do_write && active;
 
-/*
- * reading and writing to I/O registers
- */
+/**************************************************************************************************
+ *
+ * reading and writing to system ram
+ *
+ *************************************************************************************************/
 
-/* 
+/**************************************************************************************************
+ *
  * generate the active signals 
- * these comparisons incur important delays
- */
+ * these comparisons incur important delays, so they're done on a clock cycle
+ *
+ *************************************************************************************************/
+
 always @(posedge i_clk) begin
     if (gen_active) begin
         pc_active <= (local_pc >= base_addr) && (local_pc < above_addr);
@@ -162,27 +174,63 @@ always @(posedge i_clk) begin
     end
 end
 
+/**************************************************************************************************
+ *
+ * read from the system ram in a pipelined fashion
+ *
+ *************************************************************************************************/
+
 always @(posedge i_clk) begin
     if (pre_read) begin
 `ifdef SIM
-        $display("ROM-GX-R %0d: [%d] pre_read %h <= rom[%5h]", i_phase, i_cycle_ctr, sysram_data[address], address);
+        $display("RAM-GX   %0d: [%d] pre_read %h <= sysram[%5h]", i_phase, i_cycle_ctr, sysram_data[address], address);
 `endif
         read_nibble <= sysram_data[address];
     end       
 end
 
 always @(posedge i_clk) begin
-    if (can_read)
+    if (can_read) begin
+`ifdef SIM
+        $display("RAM-GX   %0d: [%d] do_read %h <= sysram[%5h]", i_phase, i_cycle_ctr, read_nibble, address);
+`endif
         o_bus_nibble_out <= read_nibble;
-end
-
-always @(posedge i_clk) begin
-    if (can_write) begin
-        sysram_data[address] <= i_bus_nibble_in;
     end
 end
 
+/**************************************************************************************************
+ *
+ * write to the system ram, this is pipelined so gain some speed
+ *
+ *************************************************************************************************/
 
+always @(posedge i_clk) begin
+    if (can_write) begin
+`ifdef SIM
+        $display("RAM-GX   %0d: [%d] pre_write sysram[%5h] <= %h", i_phase, i_cycle_ctr, address, i_bus_nibble_in);
+`endif
+        write_nibble <= i_bus_nibble_in;
+        write_addr   <= address;
+        exec_write   <= 1'b1;
+    end
+    if (exec_write)
+        exec_write   <= 1'b0;
+end
+
+always @(posedge i_clk) begin
+    if (exec_write) begin
+`ifdef SIM
+        $display("RAM-GX   %0d: [%d] do_write sysram[%5h] <= %h", i_phase, i_cycle_ctr, write_addr, write_nibble);
+`endif
+        sysram_data[write_addr] <= write_nibble;
+    end
+end 
+
+/**************************************************************************************************
+ *
+ * generate length and base address for configure
+ *
+ *************************************************************************************************/
 
 `ifdef SIM
 wire [3:0]  imm_nibble = sysram_data[address];
@@ -380,7 +428,14 @@ always @(posedge i_clk) begin
         addr_pos_ctr     <= 3'b0;
         local_pc         <= 20'b0;
         local_dp         <= 20'b0;
+        pc_active        <= 1'b0;
+        dp_active        <= 1'b0;
+        read_nibble      <= 4'b0;
+        write_nibble     <= 4'b0;
+        base_conf        <= 1'b0;
+        length_conf      <= 1'b0;
         base_addr        <= 20'b0;
+        length           <= 20'b0;
     end
 end
 
