@@ -102,6 +102,8 @@ wire [0:0]  jump_rel3 = i_jump_instr && (i_jump_length == 3'd2);
 wire [0:0]  jump_rel4 = i_jump_instr && (i_jump_length == 3'd3);
 wire [0:0]  jump_abs5 = i_jump_instr && (i_jump_length == 3'd4);
 wire [0:0]  jump_relative = jump_rel2 || jump_rel3 || jump_rel4;
+
+/* this appears to be SLOW */
 wire [0:0]  is_rtn = i_phases[2] && i_block_0x && !i_nibble[3] && !i_nibble[2];
 
 reg  [19:0] jump_next_offset;
