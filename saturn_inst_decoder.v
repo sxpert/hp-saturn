@@ -307,12 +307,25 @@ always @(posedge i_clk) begin
 
             if (block_0x) begin
                 case (i_nibble)
-                    4'h2, 4'h3:
+                    4'h0, 4'h1, 4'h2, 4'h3:
                         begin
-                            $display("DECODER  %0d: [%d] RTN%cC", i_phase, i_cycle_ctr, i_nibble[0]?"C":"S");
+                            $write("DECODER  %0d: [%d] RTN", i_phase, i_cycle_ctr);
+                            case (i_nibble[1:0])
+                                2'h0: $display("SXM");
+                                2'h1: $display("");
+                                2'h2: $display("SC");
+                                2'h3: $display("CC");
+                            endcase
                             o_instr_type    <= `INSTR_TYPE_RTN;
-                            o_alu_imm_value <= {3'b000, !i_nibble[0]};
-                            o_alu_opcode    <= `ALU_OP_SET_CRY;
+                            case (i_nibble[1:0])
+                                2'h0: begin end
+                                2'h1: o_alu_opcode <= `ALU_OP_NOP;
+                                2'h2, 2'h3: 
+                                    begin
+                                        o_alu_opcode <= `ALU_OP_SET_CRY;
+                                        o_alu_imm_value <= {3'b000, !i_nibble[0]};
+                                    end
+                            endcase
                             o_instr_decoded <= 1'b1;
                             o_instr_execute <= 1'b1;
                             decode_started  <= 1'b0;

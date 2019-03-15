@@ -244,6 +244,7 @@ always @(posedge i_clk) begin
             $write("PC_RSTK  %0d: [%d] RTN", i_phase, i_cycle_ctr); 
             case (i_nibble)
                 4'h0: $display("SXM");
+                4'h1: $write("\n");
                 4'h2: $display("SC");
                 4'h3: $display("CC");
                 default: begin end

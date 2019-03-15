@@ -574,6 +574,7 @@ always @(posedge i_clk) begin
                         if (inst_rtn) begin 
                             $display("CTRL     %0d: [%d] RTN", i_phase, i_cycle_ctr); 
                             case (dec_alu_opcode)
+                                `ALU_OP_NOP: begin end
                                 `ALU_OP_SET_CRY: reg_CARRY <= o_alu_imm_value[0];
                                 default: 
                                     begin
