@@ -12,6 +12,7 @@ echo "YOSYS_STATUS ${YOSYS_STATUS}"
 echo "--------------------------------------------------------------------"
 
 time nextpnr-ecp5 --85k --speed 6 --freq 50 --lpf ulx3s_v20.lpf --textcfg z_saturn_test.config --json z_saturn_test.json
+#time nextpnr-ecp5 --um5g-85k --speed 8 --freq 50 --lpf ulx3s_v20.lpf --textcfg z_saturn_test.config --json z_saturn_test.json
 
 echo "--------------------------------------------------------------------"
 echo "Running ecppack"
