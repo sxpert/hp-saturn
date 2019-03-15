@@ -92,9 +92,12 @@ saturn_hp48gx_sysram hp48gx_sysram (
     .i_clk              (i_clk),
     .i_clk_en           (i_clk_en),
     .i_reset            (i_reset),
+`ifdef SIM
     .i_phase            (phase),
-    .i_phases           (phases),
+//    .i_phases           (phases),
     .i_cycle_ctr        (cycle_ctr),
+`endif
+    .i_phase_0          (phases[0]),
     .i_debug_cycle      (dbg_debug_cycle),
 
     .i_bus_clk_en       (bus_clk_en),
@@ -107,7 +110,9 @@ saturn_hp48gx_sysram hp48gx_sysram (
 );
 
 wire [3:0] sysram_bus_nibble_out;
+// Verilator lint_off UNUSED
 wire [0:0] sysram_daisy_out;
+// Verilator lint_on UNUSED
 wire [0:0] sysram_active;
 
 /**************************************************************************************************
@@ -121,9 +126,11 @@ saturn_hp48gx_mmio hp48gx_mmio (
     .i_clk              (i_clk),
     .i_clk_en           (i_clk_en),
     .i_reset            (i_reset),
+`ifdef SIM
     .i_phase            (phase),
-    .i_phases           (phases),
     .i_cycle_ctr        (cycle_ctr),
+`endif
+    .i_phase_0          (phases[0]),
     .i_debug_cycle      (dbg_debug_cycle),
 
     .i_bus_clk_en       (bus_clk_en),

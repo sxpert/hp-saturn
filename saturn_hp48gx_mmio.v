@@ -22,9 +22,11 @@ module saturn_hp48gx_mmio (
     i_clk,
     i_clk_en,
     i_reset,
+`ifdef SIM
     i_phase,
-    i_phases,
     i_cycle_ctr,
+`endif
+    i_phase_0,
     i_debug_cycle,
 
     i_bus_clk_en,
@@ -42,9 +44,11 @@ module saturn_hp48gx_mmio (
 input  wire [0:0]  i_clk;
 input  wire [0:0]  i_clk_en;
 input  wire [0:0]  i_reset;
+`ifdef SIM
 input  wire [1:0]  i_phase;
-input  wire [3:0]  i_phases;
 input  wire [31:0] i_cycle_ctr;
+`endif
+input  wire [0:0]  i_phase_0;
 input  wire [0:0]  i_debug_cycle;
 
 /**************************************************************************************************
@@ -137,9 +141,9 @@ wire [19:0] access_pointer = pointer - base_addr;
 wire [`MMIO_BITS-1:0] address = access_pointer[`MMIO_BITS-1:0];
 
 
-wire [0:0]  gen_active = i_clk_en && !i_debug_cycle && i_phases[0] && (do_read || do_write);
-wire [0:0]  can_read   = i_bus_clk_en && i_clk_en && i_bus_is_data && do_read && active;
-wire [0:0]  can_write  = i_bus_clk_en && i_clk_en && i_bus_is_data && do_write && active;
+wire [0:0]  gen_active = i_clk_en && !i_debug_cycle && i_phase_0 && (do_read || do_write);
+wire [0:0]  can_read   = i_bus_clk_en && i_bus_is_data && do_read && active;
+wire [0:0]  can_write  = i_bus_clk_en && i_bus_is_data && do_write && active;
 
 /*
  * reading and writing to I/O registers

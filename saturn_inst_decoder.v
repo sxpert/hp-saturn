@@ -31,7 +31,6 @@ module saturn_inst_decoder (
     i_cycle_ctr,
     
     i_bus_busy,
-    i_alu_busy,
     i_exec_unit_busy,
 
     i_nibble,
@@ -72,7 +71,6 @@ input  wire [1:0]  i_phase;
 input  wire [31:0] i_cycle_ctr;
 
 input  wire [0:0]  i_bus_busy;
-input  wire [0:0]  i_alu_busy;
 input  wire [0:0]  i_exec_unit_busy;
 
 input  wire [3:0]  i_nibble;

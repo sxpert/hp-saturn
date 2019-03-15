@@ -164,7 +164,6 @@ saturn_inst_decoder instruction_decoder(
     .i_cycle_ctr        (i_cycle_ctr),
 
     .i_bus_busy         (i_bus_busy),
-    .i_alu_busy         (o_alu_busy),
     .i_exec_unit_busy   (o_exec_unit_busy),
 
     .i_nibble           (i_nibble),
