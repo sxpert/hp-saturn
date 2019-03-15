@@ -147,7 +147,9 @@ reg [0:0] block_84x_85x;
 reg [0:0] block_Ax;
 reg [0:0] block_Aax;
 reg [0:0] block_Abx;
+reg [0:0] block_Cx;
 reg [0:0] block_Dx;
+reg [0:0] block_Fx;
 
 reg [0:0] block_JUMP;
 reg [0:0] block_LOAD;
@@ -200,7 +202,9 @@ initial begin
     block_Ax        = 1'b0;
     block_Aax       = 1'b0;
     block_Abx       = 1'b0;
+    block_Cx        = 1'b0;
     block_Dx        = 1'b0;
+    block_Fx        = 1'b0;
 
     block_JUMP      = 1'b0;
     block_LOAD      = 1'b0;
@@ -280,7 +284,9 @@ always @(posedge i_clk) begin
                         block_FIELDS <= 1'b1;
                         fields_table <= `FT_A_B;
                     end
+                4'hC: block_Cx <= 1'b1;
                 4'hD: block_Dx <= 1'b1;
+                4'hF: block_Fx <= 1'b1;
                 default: 
                     begin
                         $display("invalid instruction");
@@ -524,6 +530,27 @@ always @(posedge i_clk) begin
                 block_Abx       <= 1'b0;
             end
 
+            if (block_Cx) begin
+                $display("DECODER  %0d: [%d] block_Cx %h", i_phase, i_cycle_ctr, i_nibble);
+                o_instr_type    <= `INSTR_TYPE_ALU;
+                o_alu_field     <= `FT_FIELD_A;
+                o_alu_ptr_begin <= 4'h0;
+                o_alu_ptr_end   <= 4'h4;
+                o_alu_opcode    <= (i_nibble[3] && i_nibble[2]) ? `ALU_OP_DEC : `ALU_OP_ADD;
+                o_alu_reg_dest  <= (i_nibble[3] && !i_nibble[2]) ? regs_BCAC : regs_ABCD;
+                o_alu_reg_src_1 <= (i_nibble[3] && !i_nibble[2]) ? regs_BCAC : regs_ABCD;
+                case ({i_nibble[3], i_nibble[2]})
+                    2'b00: o_alu_reg_src_2 <= regs_BCAC;
+                    2'b01,
+                    2'b10: o_alu_reg_src_2 <= regs_ABCD;
+                    2'b11: o_alu_reg_src_2 <= `ALU_REG_NONE;
+                endcase
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                decode_started  <= 1'b0;
+                block_Cx <= 1'b0;
+            end
+
             if (block_Dx) begin
                 $display("DECODER  %0d: [%d] block_Dx %h", i_phase, i_cycle_ctr, i_nibble);
                 o_instr_type    <= `INSTR_TYPE_ALU;
@@ -562,6 +589,27 @@ always @(posedge i_clk) begin
                 o_instr_execute <= 1'b1;
                 decode_started  <= 1'b0;
                 block_Dx <= 1'b0;
+            end
+
+            if (block_Fx) begin
+                $display("DECODER  %0d: [%d] block_Fx %h", i_phase, i_cycle_ctr, i_nibble);
+                o_instr_type    <= `INSTR_TYPE_ALU;
+                o_alu_field     <= `FT_FIELD_A;
+                o_alu_ptr_begin <= 4'h0;
+                o_alu_ptr_end   <= 4'h4;
+                o_alu_reg_dest  <= regs_ABCD;
+                o_alu_reg_src_1 <= regs_ABCD;
+                o_alu_reg_src_2 <= `ALU_REG_NONE;
+                case ({i_nibble[3], i_nibble[2]})
+                    2'b00: o_alu_opcode    <= `ALU_OP_SHL;
+                    2'b01: o_alu_opcode    <= `ALU_OP_SHR;
+                    2'b10: o_alu_opcode    <= `ALU_OP_2CMPL;
+                    2'b11: o_alu_opcode    <= `ALU_OP_1CMPL;
+                endcase
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                decode_started  <= 1'b0;
+                block_Fx <= 1'b0;
             end
 
             /* special cases */
@@ -717,7 +765,9 @@ always @(posedge i_clk) begin
         block_Ax        <= 1'b0;
         block_Aax       <= 1'b0;
         block_Abx       <= 1'b0;
+        block_Cx        <= 1'b0;
         block_Dx        <= 1'b0;
+        block_Fx        <= 1'b0;
 
         block_JUMP      <= 1'b0;
         block_LOAD      <= 1'b0;

@@ -724,6 +724,9 @@ always @(posedge i_clk) begin
             endcase
 
             /* need to prepare the carry here */
+            case (alu_opcode) 
+                `ALU_OP_ADD: alu_prep_carry <= (alu_prep_pos == alu_ptr_begin) ? 1'b0 : alu_prep_carry;
+            endcase
 
             if (alu_prep_pos == alu_ptr_end) begin
                 alu_prep_done <= 1'b1;
@@ -752,6 +755,16 @@ always @(posedge i_clk) begin
                     begin
                         alu_calc_res_1_val <= alu_prep_src_2_val;
                         alu_calc_res_2_val <= alu_prep_src_1_val;
+                    end
+                `ALU_OP_2CMPL: alu_calc_res_1_val <= ~alu_prep_src_1_val + 4'h1;
+                `ALU_OP_ADD:   
+                    begin
+                        $display("ALU_CALC %0d: [%d] add | s1 %b | s2 %b | c %b | res %b | nc %b", i_phase, i_cycle_ctr,
+                                 alu_prep_src_1_val, alu_prep_src_2_val, {3'b0, alu_prep_carry},
+                                 alu_prep_src_1_val + alu_prep_src_2_val + {3'b0, alu_prep_carry},
+                                 alu_prep_src_1_val[3] && alu_prep_src_2_val[3] );
+                        alu_calc_res_1_val <= alu_prep_src_1_val + alu_prep_src_2_val + {3'b0, alu_prep_carry};
+                        alu_calc_carry     <= alu_prep_src_1_val[3] && alu_prep_src_2_val[3];
                     end
                 default: $display("ALU_CALC %0d: [%d] unhandled opcode %0d", i_phase, i_cycle_ctr, alu_opcode);
             endcase
@@ -798,6 +811,14 @@ always @(posedge i_clk) begin
                     `ALU_REG_D1: reg_D1[alu_save_pos[2:0]] <= alu_calc_res_2_val;
                     default: $display("ALU_SAVE %0d: [%d] exch: src_2 register %0d not supported", i_phase, i_cycle_ctr, alu_reg_src_2);
                 endcase
+
+            alu_prep_carry <= alu_calc_carry;
+            case (alu_opcode)
+                // this may not be correct, need to check on the HP 49G
+                `ALU_OP_2CMPL: reg_CARRY <= reg_CARRY || ( | alu_calc_res_1_val);
+                `ALU_OP_ADD  : reg_CARRY <= alu_calc_carry;
+                default: begin end
+            endcase
 
             if (alu_save_pos == alu_ptr_end) begin
                 alu_save_done <= 1'b1;
