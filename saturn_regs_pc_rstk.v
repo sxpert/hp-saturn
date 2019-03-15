@@ -219,9 +219,9 @@ always @(posedge i_clk) begin
                 // o_reload_pc <= 1'b1;
                 reg_PC           <= jump_relative ? jump_next_offset + jump_base : jump_next_offset;
                 if (i_push_pc) begin
-                    $write(" ( push %5h => RSTK[%0d] )", reg_PC, reg_rstk_ptr + 3'd1);
-                    reg_RSTK[(reg_rstk_ptr + 3'o1)&3'o7] <= reg_PC;
-                    reg_rstk_ptr <= reg_rstk_ptr + 3'd1;
+                    $write(" ( push %5h => RSTK[%0d] )", reg_PC, rstk_ptr_to_push_at);
+                    reg_RSTK[rstk_ptr_to_push_at] <= reg_PC;
+                    reg_rstk_ptr <= rstk_ptr_to_push_at;
                 end
                 $write("\n");
             end
