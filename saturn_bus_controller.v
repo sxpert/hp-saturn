@@ -289,9 +289,11 @@ always @(posedge i_clk) begin
                         bus_busy <= 1'b1;
 
                         /* data for the debugger */
-                        dbg_bus_info   <= 1'b1; 
-                        dbg_bus_action <= { 1'b0, ctrl_unit_prog_data[4]};
-                        dbg_bus_data   <= ctrl_unit_prog_data[3:0];
+                        if (!ctrl_unit_prog_data[5]) begin
+                            dbg_bus_info   <= 1'b1; 
+                            dbg_bus_action <= { 1'b0, ctrl_unit_prog_data[4]};
+                            dbg_bus_data   <= ctrl_unit_prog_data[3:0];
+                        end
                     end 
                     /*
                      * nothing to send, see if we can read, and do it
@@ -324,8 +326,8 @@ always @(posedge i_clk) begin
                         bus_busy <= 1'b0;
                     end
 
-                    /* at that poing, weread data in for the debugger */
-                    if (!bus_busy && !alu_busy) begin
+                    /* at that poing, we read data in for the debugger */
+                    if ((!bus_busy && !alu_busy) || bus_read) begin
                         dbg_bus_info   <= 1'b1;
                         dbg_bus_action <= 2'b10;
                         dbg_bus_data   <= i_bus_nibble_in;
