@@ -104,6 +104,13 @@ initial begin
     length_conf      = 1'b0;
     base_addr        = 20'b0;
     length           = 20'b0;
+
+`ifdef SIM
+    /* initialize ram to random crap, just like in the fpga */
+    for(local_pc = (2**`SYSRAM_BITS)-1; local_pc != 20'hFFFFF; local_pc = local_pc - 20'h1)
+        sysram_data[local_pc] = $urandom%15;
+`endif
+
 end
 
 /* 
