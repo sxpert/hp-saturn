@@ -56,12 +56,13 @@
 // tests
 `define ALU_OP_TEST_EQ  15
 `define ALU_OP_TEST_NEQ 16
+`define ALU_OP_TEST_BIT 17
 // relative jump
-`define ALU_OP_JMP_REL2 17
-`define ALU_OP_JMP_REL3 18
-`define ALU_OP_JMP_REL4 19
-`define ALU_OP_JMP_ABS5 20
-`define ALU_OP_CLR_MASK 21
+`define ALU_OP_JMP_REL2 18
+`define ALU_OP_JMP_REL3 19
+`define ALU_OP_JMP_REL4 20
+`define ALU_OP_JMP_ABS5 21
+`define ALU_OP_CLR_MASK 22
 
 `define ALU_OP_SET_CRY  28
 `define ALU_OP_TEST_GO  30
@@ -119,12 +120,13 @@
 `define INSTR_TYPE_SET_MODE     2
 `define INSTR_TYPE_JUMP         3
 `define INSTR_TYPE_RTN          4
-`define INSTR_TYPE_LOAD_LENGTH  5
-`define INSTR_TYPE_LOAD         6
-`define INSTR_TYPE_MEM_READ     7
-`define INSTR_TYPE_MEM_WRITE    8
-`define INSTR_TYPE_CONFIG       9
-`define INSTR_TYPE_RESET       10
+`define INSTR_TYPE_TEST_JUMP    5
+`define INSTR_TYPE_LOAD_LENGTH  6
+`define INSTR_TYPE_LOAD         7
+`define INSTR_TYPE_MEM_READ     8
+`define INSTR_TYPE_MEM_WRITE    9
+`define INSTR_TYPE_CONFIG      10
+`define INSTR_TYPE_RESET       11
 
 
 `define INSTR_TYPE_NONE         15

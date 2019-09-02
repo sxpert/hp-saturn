@@ -148,6 +148,8 @@ reg [0:0] block_80x;
 reg [0:0] block_80Cx;
 reg [0:0] block_82x;
 reg [0:0] block_84x_85x;
+reg [0:0] block_86x_87x;
+reg [0:0] block_8Ax;
 reg [0:0] block_Ax;
 reg [0:0] block_Aax;
 reg [0:0] block_Abx;
@@ -167,6 +169,7 @@ reg [3:0] load_counter;
 reg [3:0] load_count;
 reg [1:0] fields_table;
 reg [0:0] read_write;
+reg [0:0] instr_test;
 
 /*
  * initialization
@@ -182,7 +185,7 @@ initial begin
     o_alu_imm_value = 4'b0;
     o_alu_opcode    = `ALU_OP_NOP;
 
-    o_instr_type    = 4'd15;
+    o_instr_type    = `INSTR_TYPE_NONE;
     o_push_pc       = 1'd0;
     o_instr_decoded = 1'b0;
     o_instr_execute = 1'b0;
@@ -208,6 +211,8 @@ initial begin
     block_80Cx      = 1'b0;
     block_82x       = 1'b0;
     block_84x_85x   = 1'b0;
+    block_86x_87x   = 1'b0;
+    block_8Ax       = 1'b0;
     block_Ax        = 1'b0;
     block_Aax       = 1'b0;
     block_Abx       = 1'b0;
@@ -224,6 +229,7 @@ initial begin
     load_counter    = 4'd0;
     load_count      = 4'd0;
     fields_table    = `FT_NONE;
+    instr_test      = 1'b0;
 
     /* last line of defense */
     o_decoder_error = 1'b0;
@@ -239,6 +245,23 @@ wire [4:0] regs_ABCD = { 3'b000, i_nibble[1:0] };
 wire [4:0] regs_BCAC = { 3'b000, i_nibble[0], !(i_nibble[1] | i_nibble[0]) };
 wire [4:0] regs_ABAC = { 3'b000, i_nibble[1] & i_nibble[0], !i_nibble[1] & i_nibble[0] };
 wire [4:0] regs_BCCD = { 3'b000, i_nibble[1] | i_nibble[0], !i_nibble[1] ^ i_nibble[0] };
+
+/****************************
+ *
+ * wires for test instructions
+ *
+ */
+
+wire [0:0]  is_instr_alu      = (o_instr_type == `INSTR_TYPE_ALU);
+wire [0:0]  is_aluop_test_eq  = (o_alu_opcode == `ALU_OP_TEST_EQ);
+wire [0:0]  is_aluop_test_neq = (o_alu_opcode == `ALU_OP_TEST_NEQ);
+wire [0:0]  is_aluop_test_bit = (o_alu_opcode == `ALU_OP_TEST_BIT);
+
+wire [0:0]  is_instr_test_eq  = is_instr_alu && is_aluop_test_eq;
+wire [0:0]  is_instr_test_neq = is_instr_alu && is_aluop_test_neq;
+wire [0:0]  is_instr_test_bit = is_instr_alu && is_aluop_test_bit;
+
+wire [0:0]  is_instr_test     = is_instr_test_eq || is_instr_test_neq || is_instr_test_bit;
 
 /****************************
  *
@@ -266,6 +289,8 @@ always @(posedge i_clk) begin
             o_instr_pc   <= i_current_pc;
             /* set the instruction to NOP, to avoid any stray processes */
             o_instr_type <= `INSTR_TYPE_NOP;
+
+            /* now, if we had a test instruction previously, we are in rel2 mode now */
         end
 
         if (i_phases[2] && !decode_started) begin
@@ -491,6 +516,16 @@ always @(posedge i_clk) begin
                             o_instr_type    <= `INSTR_TYPE_ALU;
                             block_84x_85x   <= 1'b1;
                         end
+                    4'h6, 4'h7:
+                        begin
+                            o_alu_opcode    <= `ALU_OP_TEST_BIT;
+                            o_alu_reg_dest  <= `ALU_REG_NONE;
+                            o_alu_reg_src_1 <= `ALU_REG_ST;
+                            o_alu_reg_src_2 <= `ALU_REG_IMM;
+                            o_alu_imm_value <= {3'b0, i_nibble[0]};
+                            block_86x_87x   <= 1'b1;
+                        end
+                    4'hA: block_8Ax <= 1'b1;
                     4'hD, 4'hF: /* GOVLNG or GOSBVL */
                         begin
                             o_instr_type    <= `INSTR_TYPE_JUMP;
@@ -581,6 +616,35 @@ always @(posedge i_clk) begin
                 o_instr_execute <= 1'b1;
                 decode_started  <= 1'b0;
                 block_84x_85x   <= 1'b0;
+            end
+
+            if (block_86x_87x) begin
+                $display("DECODER  %0d: [%d] block_86x_87x test_bit %h", i_phase, i_cycle_ctr, i_nibble);
+                o_instr_type    <= `INSTR_TYPE_ALU;
+                o_alu_ptr_begin <= i_nibble;
+                o_alu_ptr_end   <= i_nibble;
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                /* execution is immediate, set this bit */
+                instr_test      <= 1'b1;
+                decode_started  <= 1'b0;
+                block_86x_87x   <= 1'b0;
+            end              
+
+            if (block_8Ax) begin
+                o_instr_type    <= `INSTR_TYPE_ALU;
+                o_alu_opcode    <= i_nibble[2] ? `ALU_OP_TEST_NEQ : `ALU_OP_TEST_EQ;
+                o_alu_reg_dest  <= `ALU_REG_NONE;
+                o_alu_reg_src_1 <= i_nibble[3] ? regs_ABCD : regs_BCAC;
+                o_alu_reg_src_2 <= i_nibble[3] ? `ALU_REG_IMM : regs_ABCD;
+                o_alu_imm_value <= 4'h0;
+                o_alu_field     <= `FT_FIELD_A;
+                o_alu_ptr_begin <= 4'h0;
+                o_alu_ptr_end   <= 4'h4;
+                o_instr_decoded <= 1'b1;
+                o_instr_execute <= 1'b1;
+                decode_started  <= 1'b0;
+                block_8Ax       <= 1'b0;
             end
 
             if (block_Ax) begin
@@ -795,22 +859,51 @@ always @(posedge i_clk) begin
         end
 
         /* o_instr_decoded goes away only when the ALU is not busy anymore */
-        if (i_phases[3] && o_instr_decoded) begin
-            $display("DECODER  %0d: [%d] decoder cleanup 1", i_phase, i_cycle_ctr);
-            o_instr_decoded <= 1'b0;
-        end
+        // if (i_phases[3] && o_instr_decoded) begin
+        //     $display("DECODER  %0d: [%d] decoder cleanup 2 (test %b)", i_phase, i_cycle_ctr, instr_test);
+        //     o_instr_decoded <= 1'b0;
+        //     if (instr_test) begin
+        //         $display("DECODER  %0d: [%d] jump after test", i_phase, i_cycle_ctr);
+        //         instr_test      <= 1'b0;
+        //         o_instr_type    <= `INSTR_TYPE_TEST_JUMP;
+        //         o_jump_length   <= 3'd1;
+        //         jump_counter    <= 3'd0;
+        //         o_alu_imm_value <= 4'h1;
+        //         decode_started  <= 1'b1;
+        //         o_instr_execute <= 1'b1;
+        //         block_JUMP      <= 1'b1;
+        //     end
+        // end
 
     end
 
     if (i_clk_en && !i_bus_busy) begin
         /* decoder cleanup only after the instruction is completely decoded and execution has started */
-        if (i_phases[3] && o_instr_decoded) begin
-            $display("DECODER  %0d: [%d] decoder cleanup 2", i_phase, i_cycle_ctr);
+        if (i_phases[3] && o_instr_decoded && !(& o_instr_type)) begin
+            $display("DECODER  %0d: [%d] decoder cleanup 1 (instr %0d, exec %b, is_test %b)", i_phase, i_cycle_ctr, o_instr_type, o_instr_execute, is_instr_test);
             fields_table    <= `FT_NONE;
             o_alu_field     <= `FT_FIELD_NONE;
             o_instr_execute <= 1'b0;
             o_instr_type    <= `INSTR_TYPE_NONE;
             o_push_pc       <= 1'b0;
+            instr_test      <= is_instr_test;
+        end
+
+        
+        if (i_phases[3] && !i_exec_unit_busy && o_instr_decoded) begin
+            $display("DECODER  %0d: [%d] decoder cleanup 2 (test %b)", i_phase, i_cycle_ctr, instr_test);
+            o_instr_decoded <= 1'b0;
+            if (instr_test) begin
+                $display("DECODER  %0d: [%d] jump after test", i_phase, i_cycle_ctr);
+                instr_test      <= 1'b0;
+                o_instr_type    <= `INSTR_TYPE_TEST_JUMP;
+                o_jump_length   <= 3'd1;
+                jump_counter    <= 3'd0;
+                o_alu_imm_value <= 4'h1;
+                decode_started  <= 1'b1;
+                o_instr_execute <= 1'b1;
+                block_JUMP      <= 1'b1;
+            end
         end
     end
 
@@ -826,7 +919,7 @@ always @(posedge i_clk) begin
         o_alu_imm_value <= 4'b0;
         o_alu_opcode    <= `ALU_OP_NOP;
 
-        o_instr_type    <= 4'd15;
+        o_instr_type    <= `INSTR_TYPE_NONE;
         o_push_pc       <= 1'b0;
         o_instr_decoded <= 1'b0;
         o_instr_execute <= 1'b0;
@@ -852,6 +945,8 @@ always @(posedge i_clk) begin
         block_80Cx      <= 1'b0;
         block_82x       <= 1'b0;
         block_84x_85x   <= 1'b0;
+        block_86x_87x   <= 1'b0;
+        block_8Ax       <= 1'b0;
         block_Ax        <= 1'b0;
         block_Aax       <= 1'b0;
         block_Abx       <= 1'b0;
@@ -868,6 +963,7 @@ always @(posedge i_clk) begin
         load_counter    <= 4'd0;
         load_count      <= 4'd0;
         fields_table    <= `FT_NONE;
+        instr_test      <= 1'b0;
 
         /* invalid instruction */
         o_decoder_error <= 1'b0;

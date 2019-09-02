@@ -4,4 +4,4 @@
 #
 
 
-nextpnr-ecp5 --gui --85k --speed 6 --freq 5 --lpf ulx3s_v20.lpf --json z_saturn_test.json
+nextpnr-ecp5 --gui --85k --speed 6 --freq 5 --package CABGA381 --lpf ulx3s_v20.lpf --json z_saturn_test.json

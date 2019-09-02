@@ -36,6 +36,7 @@ module saturn_regs_pc_rstk (
     i_jump_length,
     i_block_0x,
     i_push_pc,
+    i_test_jump,
 
     o_current_pc,
     o_reload_pc,
@@ -66,6 +67,7 @@ input  wire [0:0]  i_jump_instr;
 input  wire [2:0]  i_jump_length;
 input  wire [0:0]  i_block_0x;
 input  wire [0:0]  i_push_pc;
+input  wire [0:0]  i_test_jump;
  
 output wire [19:0] o_current_pc;
 output reg  [0:0]  o_reload_pc;
@@ -83,7 +85,7 @@ assign o_reg_rstk_ptr     = reg_rstk_ptr;
  *
  *************************************************************************************************/
 
-wire [0:0]  do_jump_instr = !just_reset && i_jump_instr;
+wire [0:0]  do_jump_instr = !just_reset && (i_jump_instr || i_test_jump) ;
 
 /*
  * local variables
@@ -103,7 +105,10 @@ wire [0:0]  jump_rel4 = i_jump_instr && (i_jump_length == 3'd3);
 wire [0:0]  jump_relative = jump_rel2 || jump_rel3 || jump_rel4;
 
 /* this appears to be SLOW */
-wire [0:0]  is_rtn = i_phases[2] && i_block_0x && !i_nibble[3] && !i_nibble[2];
+wire [0:0]  is_inst_rtn = !i_test_jump && i_block_0x && !i_nibble[3] && !i_nibble[2];
+wire [0:0]  is_rtnyes   = i_test_jump && !(| jump_next_offset[7:0]);
+wire [0:0]  do_rtn      = i_phases[2] && is_inst_rtn;
+wire [0:0]  do_rtnyes   = i_phases[2] && is_rtnyes;
 
 reg  [19:0] jump_next_offset;
 
@@ -123,6 +128,7 @@ reg  [19:0] reg_PC;
 reg  [2:0]  reg_rstk_ptr;
 reg  [19:0] reg_RSTK[0:7];
 
+reg  [19:0] prev_PC;
 reg  [2:0]  rstk_ptr_to_push_at;
 reg  [19:0] addr_to_return_to;
 reg  [2:0]  rstk_ptr_after_pop;
@@ -141,6 +147,11 @@ initial begin
     addr_to_return_to   = 20'b0;
     rstk_ptr_after_pop  = 3'd0;
     rstk_ptr_to_push_at = 3'd0;
+
+    $monitor ("PC_RSTK  %0d: [%d] bus_busy %b | exec_unit_busy %b | j_cnt %h | i_jump %b | do_jmp %b | is_rtnyes %b | block_0x %b | nibble %h | test_jmp %b | offset[7:0] %h", 
+              i_phase, i_cycle_ctr, i_bus_busy, i_exec_unit_busy,
+              jump_counter, i_jump_instr, do_jump_instr, is_rtnyes, 
+              i_block_0x, i_nibble, i_test_jump, jump_next_offset[7:0]);
 end
 
 /*
@@ -181,6 +192,7 @@ always @(posedge i_clk) begin
 
         if (i_phases[1] && !just_reset) begin
             $display("PC_RSTK  %0d: [%d] inc_pc %5h => %5h", i_phase, i_cycle_ctr, reg_PC, reg_PC + 20'h00001);
+            prev_PC <= reg_PC;
             reg_PC <= reg_PC + 20'h00001;
         end
 
@@ -195,11 +207,12 @@ always @(posedge i_clk) begin
          */
         if (i_phases[3] && do_jump_instr && !jump_decode) begin
 `ifdef SIM
-            $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h", i_phase, i_cycle_ctr, 
-                     i_jump_length, i_push_pc? reg_PC + {{17{1'b0}},(i_jump_length + 3'd1)} : reg_PC);
+            $display("PC_RSTK  %0d: [%d] start decode jump %0d | jump_base %5h (i_test_jump %b)", i_phase, i_cycle_ctr, 
+                     i_jump_length, i_push_pc? reg_PC + {{17{1'b0}},(i_jump_length + 3'd1)} : (i_test_jump ? prev_PC : reg_PC), i_test_jump);
 `endif
             jump_counter <= 3'd0;
-            jump_base    <= i_push_pc? reg_PC + {{17{1'b0}},(i_jump_length + 3'd1)} : reg_PC;
+            /* may not be correct for test_jump */
+            jump_base    <= i_push_pc? reg_PC + {{17{1'b0}},(i_jump_length + 3'd1)} : (i_test_jump ? prev_PC : reg_PC);
             jump_decode  <= 1'b1;
             rstk_ptr_to_push_at <= (reg_rstk_ptr + 3'o1) & 3'o7;
         end
@@ -235,7 +248,7 @@ always @(posedge i_clk) begin
             rstk_ptr_after_pop <= (reg_rstk_ptr - 3'o1) & 3'o7; 
         end
 
-        if (is_rtn) begin
+        if (do_rtn || do_rtnyes) begin
             /* this is an RTN */
             reg_PC                 <= addr_to_return_to;
             reg_RSTK[reg_rstk_ptr] <= 20'h00000;
@@ -243,7 +256,9 @@ always @(posedge i_clk) begin
 `ifdef SIM
             $write("PC_RSTK  %0d: [%d] RTN", i_phase, i_cycle_ctr); 
             case (i_nibble)
-                4'h0: $display("SXM");
+                4'h0: 
+                    if (i_test_jump) $display("YES");
+                    else $display("SXM");
                 4'h1: $write("\n");
                 4'h2: $display("SC");
                 4'h3: $display("CC");

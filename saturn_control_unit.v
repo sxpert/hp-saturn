@@ -97,13 +97,14 @@ assign o_error = control_unit_error || dec_error;
 output wire [0:0]  o_alu_busy;
 output wire [0:0]  o_exec_unit_busy;
 assign o_alu_busy       = inst_alu_other || alu_start;
-assign o_exec_unit_busy = i_bus_busy ||
-                          alu_busy   ||
-                          jump_busy  ||
-                          rtn_busy   ||
+assign o_exec_unit_busy = i_bus_busy     ||
+                          alu_busy       ||
+                          jump_busy      ||
+                          rtn_busy       ||
+                          test_jump_busy ||
                           mem_read_busy  || 
                           mem_write_busy ||
-                          reset_busy ||
+                          reset_busy     ||
                           config_busy;
 
 /* debugger interface */
@@ -219,8 +220,9 @@ wire [0:0] dec_error;
 wire [0:0] inst_alu        = (dec_instr_type == `INSTR_TYPE_ALU);
 wire [0:0] inst_jump       = (dec_instr_type == `INSTR_TYPE_JUMP);
 wire [0:0] inst_rtn        = (dec_instr_type == `INSTR_TYPE_RTN);
-wire [0:0] inst_mem_read  = (dec_instr_type == `INSTR_TYPE_MEM_READ);
-wire [0:0] inst_mem_write = (dec_instr_type == `INSTR_TYPE_MEM_WRITE);
+wire [0:0] inst_test_jump  = (dec_instr_type == `INSTR_TYPE_TEST_JUMP);
+wire [0:0] inst_mem_read   = (dec_instr_type == `INSTR_TYPE_MEM_READ);
+wire [0:0] inst_mem_write  = (dec_instr_type == `INSTR_TYPE_MEM_WRITE);
 wire [0:0] inst_reset      = (dec_instr_type == `INSTR_TYPE_RESET);
 wire [0:0] inst_config     = (dec_instr_type == `INSTR_TYPE_CONFIG);
 
@@ -231,28 +233,35 @@ wire [0:0] reg_dest_p      = (dec_alu_reg_dest == `ALU_REG_P);
 
 wire [0:0] reg_src_1_a     = (dec_alu_reg_src_1 == `ALU_REG_A);
 wire [0:0] reg_src_1_c     = (dec_alu_reg_src_1 == `ALU_REG_C);
+wire [0:0] reg_src_1_st    = (dec_alu_reg_src_1 == `ALU_REG_ST);
 wire [0:0] reg_src_1_p     = (dec_alu_reg_src_1 == `ALU_REG_P);
 wire [0:0] reg_src_1_imm   = (dec_alu_reg_src_1 == `ALU_REG_IMM);
+
+wire [0:0] reg_src_2_imm   = (dec_alu_reg_src_2 == `ALU_REG_IMM);
 
 wire [0:0] aluop_zero      = inst_alu && (dec_alu_opcode == `ALU_OP_ZERO);
 wire [0:0] aluop_copy      = inst_alu && (dec_alu_opcode == `ALU_OP_COPY);
 wire [0:0] aluop_clr_mask  = inst_alu && (dec_alu_opcode == `ALU_OP_CLR_MASK);
+wire [0:0] aluop_test_bit  = inst_alu && (dec_alu_opcode == `ALU_OP_TEST_BIT);
 
-wire [0:0] inst_alu_p_eq_n     = aluop_copy && reg_dest_p && reg_src_1_imm;
-wire [0:0] inst_alu_c_eq_p_n   = aluop_copy && reg_dest_c && reg_src_1_p;
-wire [0:0] inst_alu_clrhst_n   = aluop_clr_mask && reg_dest_hst && reg_src_1_imm;
-wire [0:0] inst_alu_st_eq_01_n = aluop_copy && reg_dest_st && reg_src_1_imm;
+wire [0:0] inst_alu_p_eq_n      = aluop_copy && reg_dest_p && reg_src_1_imm;
+wire [0:0] inst_alu_c_eq_p_n    = aluop_copy && reg_dest_c && reg_src_1_p;
+wire [0:0] inst_alu_clrhst_n    = aluop_clr_mask && reg_dest_hst && reg_src_1_imm;
+wire [0:0] inst_alu_st_eq_01_n  = aluop_copy && reg_dest_st && reg_src_1_imm;
+wire [0:0] inst_alu_st_test_bit = aluop_test_bit && reg_src_1_st && reg_src_2_imm;
 
 wire [0:0] inst_alu_other      =  inst_alu &&
                                   !(inst_alu_p_eq_n || 
                                    inst_alu_c_eq_p_n ||
                                    inst_alu_clrhst_n ||
-                                   inst_alu_st_eq_01_n
+                                   inst_alu_st_eq_01_n ||
+                                   inst_alu_st_test_bit
                                   );
 
 wire [0:0] alu_busy       = inst_alu_other                   || alu_start;
 wire [0:0] jump_busy      = (inst_jump && dec_instr_decoded) || send_reg_PC || just_reset;
 wire [0:0] rtn_busy       = (inst_rtn && dec_instr_decoded)  || send_reg_PC;
+wire [0:0] test_jump_busy = (inst_test_jump && dec_instr_decoded) || send_reg_PC;
 wire [0:0] mem_read_busy  = inst_mem_read                    || exec_mem_read;
 wire [0:0] mem_write_busy = inst_mem_write                   || exec_mem_write;
 wire [0:0] reset_busy     = inst_reset;
@@ -280,6 +289,7 @@ saturn_regs_pc_rstk regs_pc_rstk (
     .i_jump_length      (dec_jump_length),
     .i_block_0x         (dec_block_0x),
     .i_push_pc          (dec_push_pc),
+    .i_test_jump        (inst_test_jump),
     
     .o_current_pc       (reg_PC),
 
@@ -356,9 +366,40 @@ reg  [3:0]  alu_imm_value;
 wire [0:0]  alu_run  = alu_calc_run  || alu_save_run;
 wire [0:0]  alu_done = alu_calc_done || alu_save_done; 
 
-/*
- * should we reload the PC after it has been changed
- */
+/**************************************************************************************************
+ *
+ * wires to pre-calculate ALU operation values
+ *
+ *************************************************************************************************/
+
+/* alu operation tests */
+`ifdef SIM
+wire [0:0] aluop_test_eq   = alu_opcode == `ALU_OP_TEST_EQ;
+wire [0:0] aluop_test_neq  = alu_opcode == `ALU_OP_TEST_NEQ;
+wire [0:0] aluop_test      = aluop_test_eq || aluop_test_neq;
+`endif
+
+/* addition */
+wire [0:0]  op_bin_add_carry      = (alu_calc_pos == alu_ptr_begin) ? 1'b0 : alu_calc_carry; 
+wire [4:0]  op_bin_add_res        = alu_prep_src_1_val + alu_prep_src_2_val + {3'b000, op_bin_add_carry };
+wire [3:0]  op_bin_add_res_value  = op_bin_add_res[3:0];
+wire [0:0]  op_bin_add_next_carry = op_bin_add_res[4];
+wire [0:0]  op_dec_add_sup_9      = op_bin_add_res_value[3] & ( | op_bin_add_res_value[2:1] );
+wire [4:0]  op_dec_add_res        = op_bin_add_res_value + op_dec_add_sup_9 ? 4'h6 : 4'h0;
+wire [3:0]  op_dec_add_res_value  = op_dec_add_res[3:0];
+wire [0:0]  op_dec_add_next_carry = op_bin_add_next_carry | op_dec_add_res[4];
+
+/* test not equal */
+
+wire [0:0]  op_test_neq_carry      = (alu_calc_pos == alu_ptr_begin) ? 1'b0 : alu_calc_carry;
+wire [0:0]  op_test_neq_next_carry = | (alu_prep_src_1_val ^ alu_prep_src_2_val) || op_test_neq_carry;
+
+
+/**************************************************************************************************
+ *
+ * read register nibble values for the debugger
+ *
+ *************************************************************************************************/
 
 always @(i_dbg_register, i_dbg_reg_ptr) begin
     case (i_dbg_register)
@@ -482,6 +523,7 @@ always @(posedge i_clk) begin
     if (i_clk_en && control_unit_ready) begin
 
         if (i_phases[3] && !i_bus_busy && dec_instr_execute) begin
+            $display("CTRL     %0d: [%d] instr %0d", i_phase, i_cycle_ctr, dec_instr_type);
             case (dec_instr_type) 
                 `INSTR_TYPE_NOP: begin 
                         $display("CTRL     %0d: [%d] NOP instruction", i_phase, i_cycle_ctr);
@@ -522,6 +564,12 @@ always @(posedge i_clk) begin
                         if (inst_alu_st_eq_01_n) begin
                             $display("CTRL     %0d: [%d] exec : ST=%b %h", i_phase, i_cycle_ctr, dec_alu_imm_value[0], dec_alu_ptr_begin);
                             reg_ST[dec_alu_ptr_begin] <= dec_alu_imm_value[0];
+                        end
+
+                        /* 8[67]x  ?ST=[01]   n */
+                        if (inst_alu_st_test_bit) begin
+                            $display("CTRL     %0d: [%d] exec : ?ST=%b %h", i_phase, i_cycle_ctr, dec_alu_imm_value[0], dec_alu_ptr_begin);
+                            reg_CARRY <= !(reg_ST[dec_alu_ptr_begin] == dec_alu_imm_value[0]);
                         end
 
                         /*
@@ -566,7 +614,8 @@ always @(posedge i_clk) begin
                         reg_alu_mode <= dec_alu_imm_value[0];
                     end
                 `INSTR_TYPE_JUMP,
-                `INSTR_TYPE_RTN: 
+                `INSTR_TYPE_RTN,
+                `INSTR_TYPE_TEST_JUMP: 
                     begin
                         if (inst_jump) begin 
                             $display("CTRL     %0d: [%d] JUMP", i_phase, i_cycle_ctr); 
@@ -575,7 +624,7 @@ always @(posedge i_clk) begin
                             $display("CTRL     %0d: [%d] RTN", i_phase, i_cycle_ctr); 
                             case (dec_alu_opcode)
                                 `ALU_OP_NOP: begin end
-                                `ALU_OP_SET_CRY: reg_CARRY <= o_alu_imm_value[0];
+                                `ALU_OP_SET_CRY: reg_CARRY <= dec_alu_imm_value[0];
                                 default: 
                                     begin
                                         $display("CTRL     %0d: [%d] alu_opcode for RTN %0d", i_phase, i_cycle_ctr, dec_alu_opcode);
@@ -583,8 +632,13 @@ always @(posedge i_clk) begin
                                     end
                             endcase
                         end
+                        if (dec_instr_decoded && inst_test_jump) begin
+                            $write("CTRL     %0d: [%d] TEST-JUMP (c %b | imm %b) ", i_phase, i_cycle_ctr, reg_CARRY, dec_alu_imm_value[0]); 
+                            if (reg_CARRY ^ dec_alu_imm_value[0]) $write("NO-");
+                            $write("exec\n");
+                        end
 
-                        if (dec_instr_decoded) begin
+                        if (dec_instr_decoded && (!inst_test_jump || (inst_test_jump && !(reg_CARRY ^ dec_alu_imm_value[0])))) begin
                             $display("CTRL     %0d: [%d] exec : JUMP/RTN reload pc to %5h", i_phase, i_cycle_ctr, reg_PC); 
                             bus_program[bus_prog_addr] <= {2'b01, `BUSCMD_LOAD_PC };
                             bus_prog_addr   <= bus_prog_addr + 5'd1;
@@ -708,18 +762,23 @@ always @(posedge i_clk) begin
             $display("ALU_PREP %0d: [%d] b %h | p %h | e %h", i_phase, i_cycle_ctr, alu_ptr_begin, alu_prep_pos, alu_ptr_end);
 
             case (dec_alu_reg_src_1)
-                `ALU_REG_A: alu_prep_src_1_val <= reg_A[alu_prep_pos];
-                `ALU_REG_B: alu_prep_src_1_val <= reg_B[alu_prep_pos];
-                `ALU_REG_C: alu_prep_src_1_val <= reg_C[alu_prep_pos];
-                `ALU_REG_D: alu_prep_src_1_val <= reg_D[alu_prep_pos];
+                `ALU_REG_A:  alu_prep_src_1_val <= reg_A[alu_prep_pos];
+                `ALU_REG_B:  alu_prep_src_1_val <= reg_B[alu_prep_pos];
+                `ALU_REG_C:  alu_prep_src_1_val <= reg_C[alu_prep_pos];
+                `ALU_REG_D:  alu_prep_src_1_val <= reg_D[alu_prep_pos];
+                `ALU_REG_D0: alu_prep_src_1_val <= reg_D0[alu_prep_pos[2:0]];
+                `ALU_REG_D1: alu_prep_src_1_val <= reg_D1[alu_prep_pos[2:0]];
                 default: $display("ALU_PREP %0d: [%d] unhandled src1 register %0d", i_phase, i_cycle_ctr, dec_alu_reg_src_1);
             endcase
 
             case (dec_alu_reg_src_2)
-                `ALU_REG_A: alu_prep_src_2_val <= reg_A[alu_prep_pos];
-                `ALU_REG_B: alu_prep_src_2_val <= reg_B[alu_prep_pos];
-                `ALU_REG_C: alu_prep_src_2_val <= reg_C[alu_prep_pos];
-                `ALU_REG_D: alu_prep_src_2_val <= reg_D[alu_prep_pos];
+                `ALU_REG_A:   alu_prep_src_2_val <= reg_A[alu_prep_pos];
+                `ALU_REG_B:   alu_prep_src_2_val <= reg_B[alu_prep_pos];
+                `ALU_REG_C:   alu_prep_src_2_val <= reg_C[alu_prep_pos];
+                `ALU_REG_D:   alu_prep_src_2_val <= reg_D[alu_prep_pos];
+                `ALU_REG_D0:  alu_prep_src_1_val <= reg_D0[alu_prep_pos[2:0]];
+                `ALU_REG_D1:  alu_prep_src_1_val <= reg_D1[alu_prep_pos[2:0]];
+                `ALU_REG_IMM: alu_prep_src_1_val <= alu_imm_value;
                 `ALU_REG_NONE: begin end
                 default: $display("ALU_PREP %0d: [%d] unhandled src2 register %0d", i_phase, i_cycle_ctr, dec_alu_reg_src_2);
             endcase
@@ -761,11 +820,15 @@ always @(posedge i_clk) begin
                 `ALU_OP_ADD:   
                     begin
                         $display("ALU_CALC %0d: [%d] add | s1 %b | s2 %b | c %b | res %b | nc %b", i_phase, i_cycle_ctr,
-                                 alu_prep_src_1_val, alu_prep_src_2_val, {3'b0, alu_prep_carry},
-                                 alu_prep_src_1_val + alu_prep_src_2_val + {3'b0, alu_prep_carry},
-                                 alu_prep_src_1_val[3] && alu_prep_src_2_val[3] );
-                        alu_calc_res_1_val <= alu_prep_src_1_val + alu_prep_src_2_val + {3'b0, alu_prep_carry};
-                        alu_calc_carry     <= alu_prep_src_1_val[3] && alu_prep_src_2_val[3];
+                                 alu_prep_src_1_val, alu_prep_src_2_val, op_bin_add_carry, op_bin_add_res, op_bin_add_next_carry);
+                        alu_calc_res_1_val <= op_bin_add_res_value;
+                        alu_calc_carry     <= op_bin_add_next_carry;
+                    end
+                `ALU_OP_TEST_NEQ:
+                    begin
+                        $display("ALU_CALC %0d: [%d] test_neq | s1 %b | s2 %b | c %b | nc %b", i_phase, i_cycle_ctr,
+                                 alu_prep_src_1_val, alu_prep_src_2_val, op_test_neq_carry, op_test_neq_next_carry);
+                        alu_calc_carry     <= op_test_neq_next_carry;
                     end
                 default: $display("ALU_CALC %0d: [%d] unhandled opcode %0d", i_phase, i_cycle_ctr, alu_opcode);
             endcase
@@ -793,12 +856,18 @@ always @(posedge i_clk) begin
                      alu_reg_src_1, alu_reg_src_2, alu_reg_dest);
             
             case (alu_reg_dest)
-                `ALU_REG_A:  reg_A[alu_save_pos]  <= alu_calc_res_1_val;
-                `ALU_REG_B:  reg_B[alu_save_pos]  <= alu_calc_res_1_val;
-                `ALU_REG_C:  reg_C[alu_save_pos]  <= alu_calc_res_1_val;
-                `ALU_REG_D:  reg_D[alu_save_pos]  <= alu_calc_res_1_val;
-                `ALU_REG_D0: reg_D0[alu_save_pos[2:0]] <= alu_calc_res_1_val;
-                `ALU_REG_D1: reg_D1[alu_save_pos[2:0]] <= alu_calc_res_1_val;
+                `ALU_REG_A:    reg_A[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_B:    reg_B[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_C:    reg_C[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_D:    reg_D[alu_save_pos]  <= alu_calc_res_1_val;
+                `ALU_REG_D0:   reg_D0[alu_save_pos[2:0]] <= alu_calc_res_1_val;
+                `ALU_REG_D1:   reg_D1[alu_save_pos[2:0]] <= alu_calc_res_1_val;
+                `ALU_REG_NONE: 
+                    begin
+`ifdef SIM
+                        if (!aluop_test) $display("ALU_SAVE %0d: [%d] dest register %0d not supported for op %0d", i_phase, i_cycle_ctr, alu_reg_dest, alu_opcode);
+`endif
+                    end
                 default: $display("ALU_SAVE %0d: [%d] dest register %0d not supported", i_phase, i_cycle_ctr, alu_reg_dest);
             endcase
             
@@ -816,8 +885,9 @@ always @(posedge i_clk) begin
             alu_prep_carry <= alu_calc_carry;
             case (alu_opcode)
                 // this may not be correct, need to check on the HP 49G
-                `ALU_OP_2CMPL: reg_CARRY <= reg_CARRY || ( | alu_calc_res_1_val);
-                `ALU_OP_ADD  : reg_CARRY <= alu_calc_carry;
+                `ALU_OP_2CMPL:     reg_CARRY <= reg_CARRY || ( | alu_calc_res_1_val);
+                `ALU_OP_ADD  :     reg_CARRY <= alu_calc_carry;
+                `ALU_OP_TEST_NEQ : reg_CARRY <= alu_calc_carry;
                 default: begin end
             endcase
 
